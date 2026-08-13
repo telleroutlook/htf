@@ -30,6 +30,7 @@ Honest scope [研究]
 """
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -240,15 +241,24 @@ class BlockSparseTensor:
 
 
 def _flat_charges(bases: list[ChargedBasis]) -> np.ndarray:
-    """Flatten a list of bases to a combined charge array (tensor product)."""
+    """Flatten a list of bases to a combined charge array (tensor product).
+
+    Uses itertools.product to avoid large intermediate arrays: the previous
+    ravel()-based approach created O(∏d_i) peak memory per intermediate step;
+    itertools.product generates the sum lazily and writes directly to the
+    output array with no extra temporary allocations.
+    """
     if not bases:
         return np.array([0], dtype=int)
-    charges = [b.charge_array for b in bases]
-    # Take the tensor product of charges (sum for each combined index)
-    result = charges[0]
-    for c in charges[1:]:
-        result = (result[:, None] + c[None, :]).ravel()
-    return result
+    charge_arrays = [b.charge_array for b in bases]
+    total = 1
+    for c in charge_arrays:
+        total *= len(c)
+    return np.fromiter(
+        (sum(combo) for combo in itertools.product(*charge_arrays)),
+        dtype=int,
+        count=total,
+    )
 
 
 def u1_blocks(

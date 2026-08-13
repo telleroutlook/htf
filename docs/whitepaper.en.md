@@ -2,7 +2,7 @@
 
 **Holographic Tensor Framework — Certified, Type-Safe String-Diagram / Tensor-Network Engine**
 
-Version 0.5.0 · Language: Python 3.10+ · License: MIT
+Version 0.13.0 · Language: Python 3.10+ · License: MIT
 
 ---
 
@@ -193,6 +193,100 @@ report.to_json()   # replayable JSON certificate
 Every `BenchmarkReport` records `htf_version`, `seed`, `n_iter`, and all certified
 results; given the same inputs and HTF version, output is bit-for-bit reproducible.
 
+### 4.10 ZX-Calculus Diagram Rewriting (§4-E) `[研究]`
+
+```python
+from htf.zx import zx_from_circuit, simplify, zx_to_matrix, ZXRewriteLog
+from htf.qasm import Gate
+
+gates = [Gate("h", [0]), Gate("cx", [0, 1])]
+g   = zx_from_circuit(gates, n_qubits=2)
+log = ZXRewriteLog()
+n   = simplify(g, log=log)  # applies 5 rules exhaustively
+U   = zx_to_matrix(g)       # reconstruct unitary (circuit-topology only)
+```
+
+Five sound rewrite rules: `spider_fusion`, `identity_removal`, `hadamard_cancel`,
+`color_change`, `pi_copy`. Every step is recorded in a proof-carrying `ZXRewriteLog`.
+
+**`zx_to_matrix`** raises `NotImplementedError` for non-circuit-topology graphs
+(cross-wire nodes, disconnected components) — no silent wrong results.
+
+### 4.11 QASM 2.0 Interoperability (§4-F) `[工程]`
+
+```python
+from htf.qasm import circuit_to_qasm, qasm_to_circuit, circuit_unitary, circuit_to_diagram
+
+gates  = qasm_to_circuit(open("bell.qasm").read())
+U      = circuit_unitary(gates, n_qubits=2)
+qasm   = circuit_to_qasm(gates, n_qubits=2)
+diag   = circuit_to_diagram(gates, n_qubits=2)   # HTF Diagram bridge
+```
+
+`circuit_to_diagram` uses SWAP decomposition by default (`adjacent_only=False`) so
+non-adjacent two-qubit gates are structurally exact rather than full-width fallbacks.
+
+### 4.12 U(1) Block-Sparse Tensors (§4-G) `[研究]`
+
+```python
+from htf.symmetric import spin_half_basis, check_u1_invariance, u1_blocks, BlockSparseTensor
+
+b   = spin_half_basis()          # charges ±1
+res = check_u1_invariance(Z, dom_bases=[b], cod_bases=[b])
+bst = u1_blocks(Z, dom_bases=[b], cod_bases=[b])
+print(bst.sparsity())            # fraction of entries stored
+```
+
+`check_u1_invariance` uses numpy broadcasting (vectorized O(d²) check, no Python loop).
+Only abelian U(1) is implemented; SU(N) is `[研究]`.
+
+### 4.13 Lanczos Two-Sided Spectral Bounds (§4-I) `[研究]`
+
+```python
+from htf.lanczos import temple_lanczos, two_sided_bounds
+
+bounds = temple_lanczos(H, k=30)
+# bounds.E0_upper         — Ritz variational upper bound
+# bounds.E0_lower         — Temple's inequality lower bound
+# bounds.temple_condition_met — True if E_var < E_1_ritz
+# bounds.width            — interval width (upper − lower)
+```
+
+Full Gram-Schmidt re-orthogonalization (`reorthogonalize=True`, default) prevents
+ghost eigenvalues at large `k`. Temple's bound is a rigorous finite-lattice lower
+bound on `E_0`; the continuum gap is `[OUT]`.
+
+### 4.14 Inverse Design / Hamiltonian Learning (§4-J) `[工程]`/`[研究]`
+
+```python
+from htf.inverse import inverse_design, hamiltonian_learning
+
+result  = inverse_design(target_e0=-1.5, model="ising", n_sites=4)
+# result.E0_achieved   — energy at recovered parameters
+# result.params_opt    — best-fit parameter vector
+# result.converged     — bool
+
+lresult = hamiltonian_learning(target_energies=[E0, E1], model="ising", n_sites=4)
+```
+
+Uses L-BFGS-B with random restarts. Local minima are possible; uniqueness is
+model-dependent and not guaranteed `[研究]`.
+
+### 4.15 Lean 4 Proof-Skeleton Export (§4-L) `[研究]`
+
+```python
+from htf.lean_export import LeanExporter, certificate_to_lean, gap_report_to_lean
+
+exp = LeanExporter()
+exp.add_certificate(cert, "energy_bound")
+exp.add_gap_report(report, "ising_gap")
+exp.write("htf_proofs.lean")   # valid Lean 4; every sorry = proof obligation
+```
+
+Generates valid Lean 4 syntax with `import Mathlib`. Every `theorem` has a `sorry`
+stub that marks a proof obligation for a human Lean expert. HTF does not invoke the
+Lean server; use `lake build` externally to type-check. Full formalisation is `[研究]`.
+
 ---
 
 ## 5. Agent-Drivable CLI
@@ -202,11 +296,16 @@ All major operations are available as subcommands with JSON output:
 ```bash
 htf version
 htf hello
-htf variational --n 4 --chi 2 --n-iter 50
+htf variational  --n 4 --chi 2 --n-iter 50
 htf gap          --n 4 --chi 2 --n-iter 50
 htf difficulty   --n 4
 htf os-check     --n 4 --beta 1.0
 htf benchmark    --n 4 --chi 2 --models ising xx
+htf lanczos      --n 4 --k 30
+htf qasm-sim     --file bell.qasm
+htf zx-simplify  --file bell.qasm
+htf inverse      --n 4 --target-e0 -1.5
+htf lean-export  --n 4 --output proofs.lean
 ```
 
 The JSON output is designed for LLM agents: the certificate constrains the agent
@@ -229,7 +328,7 @@ Or add to an MCP client config:
 ```
 
 Available tools: `htf_version`, `htf_variational`, `htf_gap`, `htf_os_check`,
-`htf_benchmark`.
+`htf_benchmark`, `htf_lanczos`, `htf_qasm_simulate`, `htf_zx_simplify`, `htf_inverse`.
 
 ---
 
@@ -257,6 +356,7 @@ without a replayable certificate.
 | `scipy` | Matrix expm (open systems, transfer matrix) | Yes |
 | `python-flint>=0.5` | Arb interval arithmetic (certified mode) | Optional (`pip install htf[certified]`) |
 | `mcp>=1.0` | MCP server transport | Optional (`pip install htf[mcp]`) |
+| `opt_einsum` | Optimised contraction-path selection (float mode) | Optional (auto-detected) |
 
 ---
 
@@ -268,8 +368,12 @@ HTF does **not**:
 - Certify bond-dimension truncation bias (χ-bias is discoverable, not certified)
 - Handle volume-law entanglement states efficiently (area-law only)
 - Claim UV-immunity (χ is a regulator, not a cure)
-- Certify Lindblad dynamics (float mode only in v0.5)
+- Certify Lindblad dynamics (float mode only)
 - Cross the continuum limit (`χ → ∞`, `L → ∞`)
+- Execute ZX `zx_to_matrix` on non-circuit-topology graphs (raises `NotImplementedError`)
+- Provide complete ZX-calculus completeness (local soundness only; completeness is `[研究]`)
+- Produce formal Lean proofs (generates `sorry`-stubs; full formalisation is `[研究]`)
+- Guarantee uniqueness in inverse design (local minima possible; `[研究]`)
 
 The framework's value is in the **finite/local certified layer**: provenance-carrying
 certificates, type-enforced structural properties, and replayable benchmarks.

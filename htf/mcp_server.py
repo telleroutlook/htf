@@ -225,6 +225,155 @@ def _build_server() -> "MCPServer":
         )
         return rep.to_json(indent=2)
 
+    # ── htf_lanczos ───────────────────────────────────────────────────────
+    @server.tool(
+        description=(
+            "Lanczos two-sided spectral bounds on the ground-state energy E_0. "
+            "Returns Temple lower bound and Ritz upper bound. "
+            "The Temple bound is a rigorous finite-lattice lower bound when "
+            "E_var < E_1_exact (indicated by temple_condition_met). "
+            "Continuum gap and χ-truncation bias are [OUT]."
+        )
+    )
+    def htf_lanczos(
+        model: str = "ising",
+        n: int = 4,
+        J: float = 1.0,
+        h: float = 0.5,
+        k: int = 30,
+        seed: int = 0,
+    ) -> str:
+        from .cli import _build_ham
+        from .lanczos import temple_lanczos
+
+        class _Args:
+            pass
+
+        a = _Args()
+        a.model, a.n, a.J, a.h = model, n, J, h
+        H, model_label = _build_ham(a)
+        bounds = temple_lanczos(H, k=k, seed=seed)
+        out = {
+            "model": model_label,
+            "n_sites": n,
+            "k_lanczos": bounds.k_lanczos,
+            "E0_upper": bounds.E0_upper,
+            "E0_upper_error": bounds.E0_upper_error,
+            "E0_lower": bounds.E0_lower,
+            "E1_ritz": bounds.E1_ritz,
+            "interval_width": bounds.width,
+            "temple_condition_met": bounds.temple_condition_met,
+            "notes": bounds.notes,
+        }
+        return json.dumps(out, indent=2)
+
+    # ── htf_qasm_simulate ─────────────────────────────────────────────────
+    @server.tool(
+        description=(
+            "Simulate a QASM 2.0 circuit (supplied as a source string) and return "
+            "the full unitary matrix. Float mode; exponential in qubit count. "
+            "Returns real and imaginary parts as nested lists."
+        )
+    )
+    def htf_qasm_simulate(
+        qasm_src: str,
+        n_qubits: int = 0,
+    ) -> str:
+        from .qasm import circuit_unitary, qasm_to_circuit
+
+        gates = qasm_to_circuit(qasm_src)
+        n = n_qubits or (
+            max((max(g.qubits) for g in gates if g.qubits), default=0) + 1
+        )
+        U = circuit_unitary(gates, n)
+        out = {
+            "n_qubits": n,
+            "n_gates": len(gates),
+            "unitary_real": U.real.tolist(),
+            "unitary_imag": U.imag.tolist(),
+            "notes": "dense unitary simulation; float mode",
+        }
+        return json.dumps(out, indent=2)
+
+    # ── htf_zx_simplify ───────────────────────────────────────────────────
+    @server.tool(
+        description=(
+            "Convert a QASM 2.0 circuit (source string) to a ZX diagram, "
+            "simplify with spider_fusion / identity_removal / hadamard_cancel / "
+            "color_change / pi_copy, and return rewrite statistics. "
+            "The rewrite rules are sound (preserve the linear map) [研究]."
+        )
+    )
+    def htf_zx_simplify(
+        qasm_src: str,
+        n_qubits: int = 0,
+        rules: list[str] | None = None,
+    ) -> str:
+        from .qasm import qasm_to_circuit
+        from .zx import ZXRewriteLog, simplify, zx_from_circuit
+
+        gates = qasm_to_circuit(qasm_src)
+        n = n_qubits or (
+            max((max(g.qubits) for g in gates if g.qubits), default=0) + 1
+        )
+        g = zx_from_circuit(gates, n)
+        n_before = len(g.nodes)
+        log = ZXRewriteLog()
+        total = simplify(g, rules=rules, log=log)
+        n_after = len(g.nodes)
+        rule_counts: dict[str, int] = {}
+        for step in log.steps:
+            rule_counts[step["rule"]] = rule_counts.get(step["rule"], 0) + 1
+        out = {
+            "n_qubits": n,
+            "n_gates_in": len(gates),
+            "nodes_before": n_before,
+            "nodes_after": n_after,
+            "rewrites_total": total,
+            "rule_counts": rule_counts,
+            "notes": "ZX simplification; locally sound rewrite rules [研究]",
+        }
+        return json.dumps(out, indent=2)
+
+    # ── htf_inverse ───────────────────────────────────────────────────────
+    @server.tool(
+        description=(
+            "Inverse design / Hamiltonian learning: find Hamiltonian parameters "
+            "such that the ground-state energy matches a target value. "
+            "Uses gradient descent on the parametric Hamiltonian family. "
+            "Returns achieved E_0, parameters, and convergence status [工程]/[研究]."
+        )
+    )
+    def htf_inverse(
+        model: str = "ising",
+        n: int = 4,
+        target_e0: float = -1.5,
+        n_restarts: int = 5,
+        seed: int = 0,
+    ) -> str:
+        from .inverse import inverse_design
+
+        result = inverse_design(
+            target_e0=target_e0,
+            model=model,
+            n_sites=n,
+            n_restarts=n_restarts,
+            seed=seed,
+        )
+        out = {
+            "model": model,
+            "n_sites": n,
+            "target_e0": target_e0,
+            "E0_achieved": float(result.E0_achieved),
+            "residual": float(result.residual),
+            "params_opt": result.params_opt.tolist(),
+            "param_names": result.param_names,
+            "converged": bool(result.converged),
+            "n_restarts": int(result.n_restarts),
+            "notes": result.notes,
+        }
+        return json.dumps(out, indent=2)
+
     return server
 
 

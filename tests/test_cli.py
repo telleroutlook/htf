@@ -323,3 +323,170 @@ class TestCLIBenchmark:
     def test_stdout_only(self, capsys):
         main(["benchmark", "--n", "4", "--n-iter", "15"])
         assert capsys.readouterr().err == ""
+
+
+# ─────────────────────── TestLanczosCmd ──────────────────────────────────
+
+class TestLanczosCmd:
+
+    def _run(self, capsys, extra=None):
+        args = ["lanczos", "--n", "4", "--k", "10"]
+        main(args + (extra or []))
+        return json.loads(capsys.readouterr().out)
+
+    def test_returns_valid_json(self, capsys):
+        data = self._run(capsys)
+        assert isinstance(data, dict)
+
+    def test_has_required_keys(self, capsys):
+        data = self._run(capsys)
+        for key in ("E0_upper", "E0_lower", "E1_ritz", "temple_condition_met"):
+            assert key in data
+
+    def test_e0_upper_less_than_e1(self, capsys):
+        data = self._run(capsys)
+        assert data["E0_upper"] < data["E1_ritz"]
+
+    def test_model_xx(self, capsys):
+        data = self._run(capsys, ["--model", "xx"])
+        assert "xx" in data["model"]
+
+    def test_no_stderr(self, capsys):
+        self._run(capsys)
+        assert capsys.readouterr().err == ""
+
+
+# ─────────────────────── TestQasmSimCmd ──────────────────────────────────
+
+class TestQasmSimCmd:
+
+    _BELL_QASM = (
+        "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\n"
+        "h q[0];\ncx q[0], q[1];\n"
+    )
+
+    def _run_file(self, capsys, tmp_path, content=None, extra=None):
+        p = tmp_path / "circuit.qasm"
+        p.write_text(content or self._BELL_QASM)
+        main(["qasm-sim", "--file", str(p)] + (extra or []))
+        return json.loads(capsys.readouterr().out)
+
+    def test_returns_valid_json(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert isinstance(data, dict)
+
+    def test_has_unitary_keys(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert "unitary_real" in data
+        assert "unitary_imag" in data
+
+    def test_n_qubits_inferred(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert data["n_qubits"] == 2
+
+    def test_unitary_is_correct_size(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert len(data["unitary_real"]) == 4
+        assert len(data["unitary_real"][0]) == 4
+
+    def test_unitary_is_unitary(self, capsys, tmp_path):
+        import numpy as np
+        data = self._run_file(capsys, tmp_path)
+        U = np.array(data["unitary_real"]) + 1j * np.array(data["unitary_imag"])
+        assert np.allclose(U @ U.conj().T, np.eye(4), atol=1e-10)
+
+
+# ─────────────────────── TestZxSimplifyCmd ───────────────────────────────
+
+class TestZxSimplifyCmd:
+
+    _BELL_QASM = (
+        "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\n"
+        "h q[0];\ncx q[0], q[1];\n"
+    )
+
+    def _run_file(self, capsys, tmp_path, content=None):
+        p = tmp_path / "circuit.qasm"
+        p.write_text(content or self._BELL_QASM)
+        main(["zx-simplify", "--file", str(p)])
+        return json.loads(capsys.readouterr().out)
+
+    def test_returns_valid_json(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert isinstance(data, dict)
+
+    def test_has_stats_keys(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        for key in ("nodes_before", "nodes_after", "rewrites_total", "rule_counts"):
+            assert key in data
+
+    def test_nodes_after_le_before(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert data["nodes_after"] <= data["nodes_before"]
+
+    def test_n_qubits_inferred(self, capsys, tmp_path):
+        data = self._run_file(capsys, tmp_path)
+        assert data["n_qubits"] == 2
+
+
+# ─────────────────────── TestInverseCmd ──────────────────────────────────
+
+class TestInverseCmd:
+
+    def _run(self, capsys, extra=None):
+        args = ["inverse", "--n", "4", "--target-e0", "-1.5",
+                "--n-restarts", "2", "--seed", "0"]
+        main(args + (extra or []))
+        return json.loads(capsys.readouterr().out)
+
+    def test_returns_valid_json(self, capsys):
+        data = self._run(capsys)
+        assert isinstance(data, dict)
+
+    def test_has_required_keys(self, capsys):
+        data = self._run(capsys)
+        for key in ("E0_achieved", "residual", "params_opt", "converged"):
+            assert key in data
+
+    def test_target_e0_matches(self, capsys):
+        data = self._run(capsys)
+        assert abs(data["target_e0"] - (-1.5)) < 1e-12
+
+    def test_model_xx(self, capsys):
+        data = self._run(capsys, ["--model", "xx"])
+        assert "xx" in data["model"]
+
+
+# ─────────────────────── TestLeanExportCmd ───────────────────────────────
+
+class TestLeanExportCmd:
+
+    def _run(self, capsys, tmp_path, extra=None):
+        out = tmp_path / "out.lean"
+        args = ["lean-export", "--n", "4", "--output", str(out)]
+        main(args + (extra or []))
+        return json.loads(capsys.readouterr().out), out
+
+    def test_returns_valid_json(self, capsys, tmp_path):
+        data, _ = self._run(capsys, tmp_path)
+        assert isinstance(data, dict)
+
+    def test_output_file_created(self, capsys, tmp_path):
+        _, out = self._run(capsys, tmp_path)
+        assert out.exists()
+
+    def test_lean_file_has_namespace(self, capsys, tmp_path):
+        _, out = self._run(capsys, tmp_path)
+        content = out.read_text()
+        assert "namespace HTF" in content
+
+    def test_lean_file_has_sorry(self, capsys, tmp_path):
+        _, out = self._run(capsys, tmp_path)
+        content = out.read_text()
+        assert "sorry" in content
+
+    def test_json_has_e0_upper(self, capsys, tmp_path):
+        data, _ = self._run(capsys, tmp_path)
+        assert "E0_upper" in data
+        assert isinstance(data["E0_upper"], float)
+

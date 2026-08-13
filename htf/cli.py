@@ -7,12 +7,18 @@ language — the certificate constrains the agent and prevents overstatement.
 
 Available subcommands
 ---------------------
-version     Print the version.
-hello       Phase-1 hello-world diagram.
-gap         Spectral gap bounds (exact + variational + certified + Temple).
-variational Certified variational energy upper bound.
-difficulty  Entanglement entropy / difficulty map.
-os-check    Osterwalder-Schrader positivity machine check.
+version      Print the version.
+hello        Phase-1 hello-world diagram.
+gap          Spectral gap bounds (exact + variational + certified + Temple).
+variational  Certified variational energy upper bound.
+difficulty   Entanglement entropy / difficulty map.
+os-check     Osterwalder-Schrader positivity machine check.
+benchmark    Certified reproducibility benchmark suite.
+lanczos      Lanczos two-sided spectral bounds (Temple lower + Ritz upper).
+qasm-sim     Simulate a QASM 2.0 circuit file → unitary matrix JSON.
+zx-simplify  Load a QASM circuit, convert to ZX, simplify, report stats.
+inverse      Inverse / Hamiltonian-learning design.
+lean-export  Generate a Lean 4 proof-skeleton for a Hamiltonian model.
 """
 from __future__ import annotations
 
@@ -220,6 +226,139 @@ def cmd_benchmark(args) -> None:
     print(rep.to_json(indent=2))
 
 
+def cmd_lanczos(args) -> None:
+    """Lanczos two-sided spectral bounds on E_0."""
+    from .lanczos import temple_lanczos
+
+    H, model_label = _build_ham(args)
+    bounds = temple_lanczos(H, k=args.k, seed=args.seed)
+    out = {
+        "model": model_label,
+        "n_sites": args.n,
+        "k_lanczos": bounds.k_lanczos,
+        "E0_upper": bounds.E0_upper,
+        "E0_upper_error": bounds.E0_upper_error,
+        "E0_lower": bounds.E0_lower,
+        "E1_ritz": bounds.E1_ritz,
+        "interval_width": bounds.width,
+        "temple_condition_met": bounds.temple_condition_met,
+        "notes": bounds.notes,
+    }
+    print(json.dumps(out, indent=2))
+
+
+def cmd_qasm_sim(args) -> None:
+    """Simulate a QASM 2.0 circuit file and output the unitary matrix."""
+    from pathlib import Path
+
+    from .qasm import circuit_unitary, qasm_to_circuit
+
+    src = Path(args.file).read_text(encoding="utf-8")
+    gates = qasm_to_circuit(src)
+    n = args.n_qubits if args.n_qubits else (
+        max((max(g.qubits) for g in gates if g.qubits), default=0) + 1
+    )
+    U = circuit_unitary(gates, n)
+    out = {
+        "file": args.file,
+        "n_qubits": n,
+        "n_gates": len(gates),
+        "unitary_real": U.real.tolist(),
+        "unitary_imag": U.imag.tolist(),
+        "notes": "dense unitary simulation; float mode",
+    }
+    print(json.dumps(out, indent=2))
+
+
+def cmd_zx_simplify(args) -> None:
+    """Convert a QASM circuit to ZX, simplify, and report rewrite statistics."""
+    from pathlib import Path
+
+    from .qasm import qasm_to_circuit
+    from .zx import ZXRewriteLog, simplify, zx_from_circuit
+
+    src = Path(args.file).read_text(encoding="utf-8")
+    gates = qasm_to_circuit(src)
+    n = args.n_qubits if args.n_qubits else (
+        max((max(g.qubits) for g in gates if g.qubits), default=0) + 1
+    )
+    g = zx_from_circuit(gates, n)
+    n_before = len(g.nodes)
+    log = ZXRewriteLog()
+    total = simplify(g, log=log)
+    n_after = len(g.nodes)
+    rule_counts: dict[str, int] = {}
+    for step in log.steps:
+        rule_counts[step["rule"]] = rule_counts.get(step["rule"], 0) + 1
+    out = {
+        "file": args.file,
+        "n_qubits": n,
+        "n_gates_in": len(gates),
+        "nodes_before": n_before,
+        "nodes_after": n_after,
+        "rewrites_total": total,
+        "rule_counts": rule_counts,
+        "notes": "ZX simplification; float / discovery-tier",
+    }
+    print(json.dumps(out, indent=2))
+
+
+def cmd_inverse(args) -> None:
+    """Inverse / Hamiltonian-learning design."""
+    from .inverse import inverse_design
+
+    result = inverse_design(
+        target_e0=args.target_e0,
+        model=args.model,
+        n_sites=args.n,
+        n_restarts=args.n_restarts,
+        seed=args.seed,
+    )
+    out = {
+        "model": args.model,
+        "n_sites": args.n,
+        "target_e0": args.target_e0,
+        "E0_achieved": float(result.E0_achieved),
+        "residual": float(result.residual),
+        "params_opt": result.params_opt.tolist(),
+        "param_names": result.param_names,
+        "converged": bool(result.converged),
+        "n_restarts": int(result.n_restarts),
+        "notes": result.notes,
+    }
+    print(json.dumps(out, indent=2))
+
+
+def cmd_lean_export(args) -> None:
+    """Generate a Lean 4 proof-skeleton for a Hamiltonian model."""
+    from .gap import gap_report
+    from .lean_export import LeanExporter
+    from .mera import random_mera
+    from .variational import optimize_mera, variational_bound
+
+    H, model_label = _build_ham(args)
+    mera0 = random_mera(args.n, chi=2, seed=0)
+    mera_opt, _ = optimize_mera(H, mera0, n_iter=30, tol=1e-6)
+    cert = variational_bound(H, mera_opt)
+    psi_gs = mera_opt.state_vector()
+    psi_es = random_mera(args.n, chi=2, seed=1).state_vector()
+    greport = gap_report(H, psi_gs, psi_es)
+
+    exp = LeanExporter(preamble=f"HTF model: {model_label}")
+    exp.add_certificate(cert, "variational_E0")
+    exp.add_gap_report(greport, "spectral_gap")
+    out_path = args.output or f"htf_{args.model}_n{args.n}.lean"
+    exp.write(out_path)
+    print(json.dumps({
+        "output": out_path,
+        "model": model_label,
+        "n_sites": args.n,
+        "E0_upper": cert.result,
+        "gap_exact": greport["gap_exact"],
+        "notes": "Lean 4 skeleton; every sorry is a proof obligation [研究]",
+    }, indent=2))
+
+
 # ─────────────────────── main ────────────────────────────────────────────
 
 
@@ -307,6 +446,64 @@ def main(argv=None) -> None:
         help="models to benchmark (default: ising xx)",
     )
     sp_bm.set_defaults(func=cmd_benchmark)
+
+    # ── lanczos ──────────────────────────────────────────────────────────
+    sp_lan = sub.add_parser(
+        "lanczos",
+        help="Lanczos two-sided spectral bounds (Temple lower + Ritz upper)",
+    )
+    _add_model_args(sp_lan)
+    sp_lan.add_argument("--k", type=int, default=30,
+                        help="number of Lanczos steps (default: 30)")
+    sp_lan.add_argument("--seed", type=int, default=0,
+                        help="RNG seed (default: 0)")
+    sp_lan.set_defaults(func=cmd_lanczos)
+
+    # ── qasm-sim ─────────────────────────────────────────────────────────
+    sp_qs = sub.add_parser(
+        "qasm-sim",
+        help="simulate a QASM 2.0 circuit file → unitary matrix JSON",
+    )
+    sp_qs.add_argument("--file", required=True, metavar="FILE",
+                       help="path to a QASM 2.0 source file")
+    sp_qs.add_argument("--n-qubits", type=int, default=0, dest="n_qubits",
+                       help="override qubit count (default: inferred from circuit)")
+    sp_qs.set_defaults(func=cmd_qasm_sim)
+
+    # ── zx-simplify ──────────────────────────────────────────────────────
+    sp_zx = sub.add_parser(
+        "zx-simplify",
+        help="load QASM circuit, convert to ZX, simplify, report rewrite stats",
+    )
+    sp_zx.add_argument("--file", required=True, metavar="FILE",
+                       help="path to a QASM 2.0 source file")
+    sp_zx.add_argument("--n-qubits", type=int, default=0, dest="n_qubits",
+                       help="override qubit count (default: inferred from circuit)")
+    sp_zx.set_defaults(func=cmd_zx_simplify)
+
+    # ── inverse ──────────────────────────────────────────────────────────
+    sp_inv = sub.add_parser(
+        "inverse",
+        help="inverse / Hamiltonian-learning design",
+    )
+    _add_model_args(sp_inv)
+    sp_inv.add_argument("--target-e0", type=float, default=-1.5, dest="target_e0",
+                        help="target ground-state energy E0 (default: -1.5)")
+    sp_inv.add_argument("--n-restarts", type=int, default=5, dest="n_restarts",
+                        help="L-BFGS-B random restarts (default: 5)")
+    sp_inv.add_argument("--seed", type=int, default=0,
+                        help="RNG seed (default: 0)")
+    sp_inv.set_defaults(func=cmd_inverse)
+
+    # ── lean-export ───────────────────────────────────────────────────────
+    sp_le = sub.add_parser(
+        "lean-export",
+        help="generate a Lean 4 proof-skeleton for a Hamiltonian model",
+    )
+    _add_model_args(sp_le)
+    sp_le.add_argument("--output", default="", metavar="FILE",
+                       help="output .lean file path (default: htf_<model>_n<N>.lean)")
+    sp_le.set_defaults(func=cmd_lean_export)
 
     args = p.parse_args(argv)
     args.func(args)

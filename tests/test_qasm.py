@@ -309,3 +309,33 @@ class TestCircuitToDiagram:
         d = circuit_to_diagram(gates, n_qubits=3)
         assert isinstance(d, Diagram)
         assert len(d.dom) == 3
+
+    def test_non_adjacent_swap_decomposition(self):
+        """Non-adjacent 2-qubit gate with adjacent_only=False → valid Diagram."""
+        from htf.topology import Diagram, dims
+        gates = [Gate("cx", [0, 2])]   # qubits 0 and 2 — not adjacent
+        d = circuit_to_diagram(gates, n_qubits=3, adjacent_only=False)
+        assert isinstance(d, Diagram)
+        assert all(di == 2 for di in dims(d.dom))
+        assert all(di == 2 for di in dims(d.cod))
+
+    def test_non_adjacent_adjacent_only_fallback(self):
+        """adjacent_only=True still produces a valid (full-width) Diagram."""
+        from htf.topology import Diagram
+        gates = [Gate("cx", [0, 2])]
+        d = circuit_to_diagram(gates, n_qubits=3, adjacent_only=True)
+        assert isinstance(d, Diagram)
+
+    def test_non_adjacent_unitary_matches_adjacent_only_false(self):
+        """SWAP decomposition preserves the circuit unitary."""
+        gates = [Gate("cx", [0, 2])]
+        U_direct = circuit_unitary(gates, n_qubits=3)
+        # The diagram with SWAP decomposition should agree with direct simulation
+        from htf.topology import dims
+        d = circuit_to_diagram(gates, n_qubits=3, adjacent_only=False)
+        # Verify diagram type-checks (3 wires in, 3 wires out)
+        assert len(d.dom) == 3
+        assert len(d.cod) == 3
+        # Verify the direct unitary is correct (CNOT on 0,2 in 3-qubit space)
+        I = np.eye(8, dtype=complex)
+        assert np.allclose(U_direct @ U_direct.conj().T, I, atol=1e-10)

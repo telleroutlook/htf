@@ -309,7 +309,11 @@ def _embed_gate(g: Gate, n_qubits: int) -> np.ndarray:
 
 # ─────────────────────── HTF diagram bridge ───────────────────────────────
 
-def circuit_to_diagram(gates: list[Gate], n_qubits: int) -> Diagram:
+def circuit_to_diagram(
+    gates: list[Gate],
+    n_qubits: int,
+    adjacent_only: bool = False,
+) -> Diagram:
     """Wrap each gate as an HTF ``Box`` and compose them sequentially.
 
     Each gate becomes a ``Box`` whose domain and codomain are the qubit wires
@@ -319,23 +323,27 @@ def circuit_to_diagram(gates: list[Gate], n_qubits: int) -> Diagram:
 
     Parameters
     ----------
-    gates    : ordered list of :class:`Gate` objects.
-    n_qubits : total number of qubits (used to name wires ``q0``, …).
+    gates         : ordered list of :class:`Gate` objects.
+    n_qubits      : total number of qubits (used to name wires ``q0``, …).
+    adjacent_only : if True, non-adjacent 2-qubit gates fall back to a
+                    full-width Box (old behaviour).  If False (default) they
+                    are decomposed via SWAP gates so that the gate acts on
+                    adjacent wires (structurally exact).
 
     Returns
     -------
     An HTF :class:`~htf.topology.Diagram`.
-
-    Notes
-    -----
-    Two-qubit gates on adjacent qubit pairs are embedded exactly.  For
-    non-adjacent pairs the gate occupies a full-width Box (structural precision
-    is lost but the diagram remains type-correct).
     """
     from .topology import Id
 
     wires = [Wire(f"q{i}", 2) for i in range(n_qubits)]
     all_wires = tuple(wires)
+
+    def _swap_layer(i: int, suffix: str) -> Diagram:
+        """SWAP box on wires i and i+1, identity elsewhere."""
+        lbl = f"swap_{i}_{i+1}{suffix}"
+        box = Box(lbl, (wires[i], wires[i + 1]), (wires[i], wires[i + 1]))
+        return Id(tuple(wires[:i])) @ box @ Id(tuple(wires[i + 2:]))
 
     def _layer(g: Gate, idx: int) -> Diagram:
         label = g.name
@@ -349,12 +357,31 @@ def circuit_to_diagram(gates: list[Gate], n_qubits: int) -> Diagram:
             return Id(tuple(wires[:qi])) @ box @ Id(tuple(wires[qi + 1:]))
 
         if len(g.qubits) == 2:
-            qa, qb = sorted(g.qubits)
+            qa, qb = min(g.qubits[0], g.qubits[1]), max(g.qubits[0], g.qubits[1])
             if qb == qa + 1:
                 box = Box(label, (wires[qa], wires[qb]), (wires[qa], wires[qb]))
                 return Id(tuple(wires[:qa])) @ box @ Id(tuple(wires[qb + 1:]))
-            # Non-adjacent: full-width Box (loses structural precision)
-            return Box(label, all_wires, all_wires)
+
+            # Non-adjacent qubits
+            if adjacent_only:
+                return Box(label, all_wires, all_wires)
+
+            # SWAP decomposition: bubble qb left to qa+1, apply, bubble back
+            sfx = f"_{idx}"
+            layers_out: list[Diagram] = []
+            # Forward SWAPs: qb → qa+1
+            for i in range(qb - 1, qa, -1):
+                layers_out.append(_swap_layer(i - 1, sfx + "_f"))
+            # Gate at (qa, qa+1)
+            gbox = Box(label, (wires[qa], wires[qa + 1]), (wires[qa], wires[qa + 1]))
+            layers_out.append(Id(tuple(wires[:qa])) @ gbox @ Id(tuple(wires[qa + 2:])))
+            # Reverse SWAPs: qa+1 → qb
+            for i in range(qa + 1, qb):
+                layers_out.append(_swap_layer(i, sfx + "_r"))
+            result = layers_out[0]
+            for l in layers_out[1:]:
+                result = result >> l
+            return result
 
         raise ValueError(f"circuit_to_diagram: gates on {len(g.qubits)} qubits not supported.")
 

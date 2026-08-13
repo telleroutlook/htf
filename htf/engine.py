@@ -26,6 +26,15 @@ import numpy as np
 from .topology import Box, Id, Then, Tensor, dims
 from .functor import TensorFunctor
 
+# opt_einsum provides optimised contraction-path selection.
+# If available it is used automatically in float mode; otherwise numpy fallback.
+try:
+    import opt_einsum as _opt_einsum
+    _HAS_OPT_EINSUM = True
+except ImportError:
+    _opt_einsum = None  # type: ignore[assignment]
+    _HAS_OPT_EINSUM = False
+
 
 # ─────────────────────────────── float mode ────────────────────────────────
 
@@ -46,6 +55,14 @@ def _eval(d, F: TensorFunctor) -> np.ndarray:
         Gg = _eval(d.g, F)  # shape: dims(g.cod) + dims(g.dom)
         nb = len(d.f.cod)   # shared wires (f.cod == g.dom)
         nc = len(d.g.cod)
+        nd = len(d.f.dom)
+        if _HAS_OPT_EINSUM and nb > 0:
+            # opt_einsum selects an optimised contraction path.
+            # Gg axes: [0..nc-1, nc..nc+nb-1]; Ff axes: [nc..nc+nb-1, nc+nb..nc+nb+nd-1]
+            idx_gg  = list(range(nc + nb))
+            idx_ff  = list(range(nc, nc + nb + nd))
+            idx_out = list(range(nc)) + list(range(nc + nb, nc + nb + nd))
+            return _opt_einsum.contract(Gg, idx_gg, Ff, idx_ff, idx_out)
         g_in = list(range(nc, nc + nb))   # g's input axes
         f_out = list(range(0, nb))        # f's output axes
         return np.tensordot(Gg, Ff, axes=(g_in, f_out))
