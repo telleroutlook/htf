@@ -270,3 +270,56 @@ class TestCLIOsCheck:
     def test_stdout_only(self, capsys):
         main(["os-check", "--n", "4"])
         assert capsys.readouterr().err == ""
+
+
+# ── benchmark ─────────────────────────────────────────────────────────────
+
+class TestCLIBenchmark:
+
+    def _run(self, capsys, extra=None):
+        args = ["benchmark", "--n", "4", "--chi", "2", "--n-iter", "20", "--seed", "0"]
+        if extra:
+            args += extra
+        main(args)
+        return json.loads(capsys.readouterr().out)
+
+    def test_valid_json(self, capsys):
+        assert isinstance(self._run(capsys), dict)
+
+    def test_has_htf_version(self, capsys):
+        assert "htf_version" in self._run(capsys)
+
+    def test_has_results_list(self, capsys):
+        data = self._run(capsys)
+        assert isinstance(data["results"], list)
+        assert len(data["results"]) == 2  # ising + xx by default
+
+    def test_result_has_required_keys(self, capsys):
+        result = self._run(capsys)["results"][0]
+        for k in ("model", "E0_var", "gap_exact", "gap_cert_result",
+                  "os_passed", "max_entropy", "likely_area_law"):
+            assert k in result
+
+    def test_single_model_flag(self, capsys):
+        data = self._run(capsys, ["--models", "ising"])
+        assert len(data["results"]) == 1
+        assert data["results"][0]["model"] == "ising"
+
+    def test_multiple_models_flag(self, capsys):
+        data = self._run(capsys, ["--models", "ising", "xx"])
+        models = {r["model"] for r in data["results"]}
+        assert models == {"ising", "xx"}
+
+    def test_n_sites_matches(self, capsys):
+        assert self._run(capsys)["n_sites"] == 4
+
+    def test_chi_matches(self, capsys):
+        assert self._run(capsys)["chi"] == 2
+
+    def test_os_passed_for_ising(self, capsys):
+        data = self._run(capsys, ["--models", "ising"])
+        assert data["results"][0]["os_passed"] is True
+
+    def test_stdout_only(self, capsys):
+        main(["benchmark", "--n", "4", "--n-iter", "15"])
+        assert capsys.readouterr().err == ""

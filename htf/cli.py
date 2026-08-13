@@ -206,6 +206,20 @@ def cmd_os_check(args) -> None:
     print(json.dumps(out, indent=2))
 
 
+def cmd_benchmark(args) -> None:
+    """Certified reproducibility benchmark suite across standard models."""
+    from .benchmark import run_benchmark
+
+    rep = run_benchmark(
+        n_sites=args.n,
+        chi=args.chi,
+        n_iter=args.n_iter,
+        seed=args.seed,
+        models=args.models if args.models else None,
+    )
+    print(rep.to_json(indent=2))
+
+
 # ─────────────────────── main ────────────────────────────────────────────
 
 
@@ -271,6 +285,28 @@ def main(argv=None) -> None:
         help="imaginary-time step β for T = exp(−βH) (default: 1.0)",
     )
     sp_os.set_defaults(func=cmd_os_check)
+
+    # ── benchmark ────────────────────────────────────────────────────────
+    sp_bm = sub.add_parser(
+        "benchmark",
+        help="certified reproducibility benchmark suite across standard models",
+    )
+    sp_bm.add_argument("--n", type=int, default=4, metavar="N",
+                       help="number of sites (default: 4)")
+    sp_bm.add_argument("--chi", type=int, default=2,
+                       help="MERA bond dimension (default: 2)")
+    sp_bm.add_argument("--n-iter", type=int, default=50, dest="n_iter",
+                       help="L-BFGS-B iterations (default: 50)")
+    sp_bm.add_argument("--seed", type=int, default=0,
+                       help="RNG seed for reproducibility (default: 0)")
+    sp_bm.add_argument(
+        "--models", nargs="+",
+        choices=["ising", "ising_critical", "xx"],
+        default=None,
+        metavar="MODEL",
+        help="models to benchmark (default: ising xx)",
+    )
+    sp_bm.set_defaults(func=cmd_benchmark)
 
     args = p.parse_args(argv)
     args.func(args)

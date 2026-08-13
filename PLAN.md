@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.4.0）
+## 1. 当前状态（v0.5.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -28,9 +28,13 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - [x] OS-正性机器核验（`htf/os_axioms.py`）：`transfer_matrix`、`reflection_operator`、
       `check_transfer_positivity`、`check_reflection_symmetry`、`os_positivity_report`；
       三重独立检验（转移矩阵 PSD、[H,R]=0、OS-Gram G=T+RTR≥0）。`[工程]`
-- [x] 扩展 CLI（`htf/cli.py`）：`gap`、`variational`、`difficulty`、`os-check` 子命令，
-      全部 JSON 输出，供 agent 直接驱动。`[工程]`
-- [x] 测试（`tests/`）与示例；`python -m pytest -q` 586 个全绿；**总覆盖率 ≥ 98%**。
+- [x] 扩展 CLI（`htf/cli.py`）：`gap`、`variational`、`difficulty`、`os-check`、`benchmark`
+      子命令，全部 JSON 输出，供 agent 直接驱动。`[工程]`
+- [x] 认证复现基准套件（`htf/benchmark.py`，§4-K）：`run_benchmark`、`BenchmarkReport`、
+      `BenchmarkResult`；可重放 JSON 证书；`ising`/`ising_critical`/`xx` 三模型。`[工程]`
+- [x] MCP server 包装（`htf/mcp_server.py`，§7）：`MCPServer`（mcp 2.0）+ 5 工具；
+      入口点 `htf-mcp`；可选依赖 `mcp[cli]`。`[工程]`
+- [x] 测试（`tests/`）：`python -m pytest -q` **637 个全绿**；总覆盖率 ≥ 98%。
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -108,4 +112,10 @@ K 认证复现基准套件 `[工程]` · L（远期/投机）导出到证明助�
 
 - [ ] 英文版设计白皮书（当前 `docs/project-canvas.zh.md` 为中文；英文白皮书待补）。`[工程]`
 - [ ] 节点图可视化前端原型（React Flow 类）。`[工程]`
-- [ ] MCP server 包装，供 agent 直接连接。`[工程]`
+- [x] MCP server 包装，供 agent 直接连接。`[工程]`
+  - `htf/mcp_server.py`：`MCPServer`（mcp 2.0 API）+ `@server.tool` 装饰器；
+    5 个工具：`htf_version`、`htf_variational`、`htf_gap`、`htf_os_check`、`htf_benchmark`；
+    入口点 `htf-mcp = "htf.mcp_server:main"`；可选依赖 `mcp[cli]`。
+- [x] 认证复现基准套件（§4-K）。`[工程]`
+  - `htf/benchmark.py`：`run_benchmark`、`BenchmarkReport`、`BenchmarkResult`；
+    可重放 JSON 报告；CLI `htf benchmark [--models ising xx]`。

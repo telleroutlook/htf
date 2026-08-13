@@ -15,6 +15,7 @@ limit (``chi → ∞``) is a wall the framework does not cross. See ``PLAN.md``.
 from __future__ import annotations
 
 from .certificate import Certificate
+from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
 from .difficulty import (
     DifficultyReport,
     bipartite_entanglement_profile,
@@ -64,7 +65,7 @@ from .variational import (
     xx_model_ham,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -98,6 +99,8 @@ __all__ = [
     "os_positivity_report",
     # scaling (Phase 4)
     "ChiPoint", "ScalingReport", "chi_convergence_study",
+    # benchmark (§4-K)
+    "BenchmarkResult", "BenchmarkReport", "run_benchmark",
     # difficulty (Phase 4)
     "entanglement_entropy", "entanglement_spectrum",
     "bipartite_entanglement_profile",
