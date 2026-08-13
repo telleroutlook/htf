@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.17.0）
+## 1. 当前状态（v0.19.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -228,6 +228,15 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
   L→R/R→L 扫描，增量更新 L/R 环境张量）。
 - 关闭 ITensor/TeNPy 在工业级 MPO-DMRG 环境方向的核心差距。
 - [x] 已完成（1164 测试通过，0 失败）
+
+### §9-G 两-site MPO-DMRG `[工程]`
+- `htf/mpo.py` 扩展：`_heff_mpo_2site`（L/Wi/Wj/R → 两位点有效哈密顿量，
+  H[(i,s,u,k),(j,t,v,l)] = Σ L[i,p,j]·Wi[p,s,t,q]·Wj[q,u,v,r]·R[k,r,l]）；
+  `dmrg_sweep_mpo_2site`（两-site MPO-DMRG：L→R 半扫描对(i,i+1) SVD 截断
+  使键维能增长，R→L 对称处理；逃离单-site 局部极小，TFIM/Heisenberg 均可
+  收敛至精确基态）。
+- 关闭 ITensor/TeNPy 在两-site 子空间扩展 DMRG 方向的差距。
+- [x] 已完成（1174 测试通过，0 失败）
 
 ---
 

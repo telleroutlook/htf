@@ -486,3 +486,153 @@ def dmrg_sweep_mpo(
         n_sweeps=sweep_idx + 1,
         converged=converged,
     )
+
+
+# ── §9-G helpers: two-site effective Hamiltonian ─────────────────────────────
+
+
+def _heff_mpo_2site(
+    L: np.ndarray,
+    Wi: np.ndarray,
+    Wj: np.ndarray,
+    R: np.ndarray,
+) -> np.ndarray:
+    """Two-site effective Hamiltonian from L/Wi/Wj/R environment tensors.
+
+    H_eff[(i,s,u,k),(j,t,v,l)] = Σ_{p,q,r} L[i,p,j] · Wi[p,s,t,q]
+                                            · Wj[q,u,v,r] · R[k,r,l]
+    where row=(i,s,u,k) and col=(j,t,v,l) are (chi_l,d,d,chi_r) tuples.
+
+    Parameters
+    ----------
+    L  : left environment, shape (chi_l, W_l, chi_l).
+    Wi : MPO tensor at site i, shape (W_l, d, d, W_m).
+    Wj : MPO tensor at site i+1, shape (W_m, d, d, W_r).
+    R  : right environment, shape (chi_r, W_r, chi_r).
+
+    Returns
+    -------
+    Symmetrised H_eff of shape (chi_l*d*d*chi_r, chi_l*d*d*chi_r).
+    """
+    chi_l = L.shape[0]
+    d     = Wi.shape[1]
+    chi_r = R.shape[0]
+    # einsum axes: i=χ_l_bra, p=W_l, j=χ_l_ket, s=d_bra_i, t=d_ket_i,
+    #              q=W_m, u=d_bra_j, v=d_ket_j, r=W_r, k=χ_r_bra, l=χ_r_ket
+    H = np.einsum("ipj,pstq,quvr,krl->isukjtvl", L, Wi, Wj, R, optimize=True)
+    H_eff = H.reshape(chi_l * d * d * chi_r, -1)
+    return (H_eff + H_eff.conj().T) * 0.5
+
+
+def dmrg_sweep_mpo_2site(
+    mps: MPS,
+    mpo: MPO,
+    n_sweeps: int = 10,
+    chi: Optional[int] = None,
+    tol: float = 1e-8,
+) -> MPODMRGResult:
+    """MPO-environment two-site DMRG variational ground-state search.
+
+    Each update jointly optimises a pair of sites by diagonalising a
+    two-site effective Hamiltonian and splitting the result via SVD.  The
+    SVD truncation allows the bond dimension to **grow** from the initial
+    MPS, avoiding the local-minimum traps of single-site DMRG.
+
+    Algorithm sketch per half-sweep (L→R shown; R→L mirrors)::
+
+        for each pair (i, i+1):
+            H_2site = _heff_mpo_2site(L[i], W[i], W[i+1], R[i+2])
+            theta   = leading eigenvector, shape (χ_l·d, d·χ_r)
+            U, s, Vt = svd(theta, truncate to chi)
+            A[i]    = U.reshape(χ_l, d, k)          # left-canonical
+            A[i+1]  = (s * Vt).reshape(k, d, χ_r)  # absorb singular values
+            update L[i+1]
+
+    Parameters
+    ----------
+    mps      : initial guess MPS (left-canonicalised internally).
+    mpo      : Hamiltonian as MPO.
+    n_sweeps : maximum number of full sweeps (L→R + R→L).
+    chi      : bond-dimension cap applied after SVD.  ``None`` = no cap
+               (bond dim grows up to min(d·χ_l, d·χ_r)).
+    tol      : convergence threshold on |ΔE| between consecutive sweeps.
+
+    Returns
+    -------
+    :class:`MPODMRGResult`
+    """
+    mps = _left_canonicalise(mps.copy())
+    n   = mps.n_sites
+    d   = mps.phys_dim
+
+    # Right-canonicalise to place the orthogonality centre at site 0
+    # and build all initial right environments.
+    R_envs: list[np.ndarray] = [np.ones((1, 1, 1))] * (n + 1)
+    for i in range(n - 1, 0, -1):
+        A = mps.tensors[i]
+        cl, di, cr = A.shape
+        Q_T, R_T = scipy.linalg.qr(A.reshape(cl, di * cr).T, mode="economic")
+        k = Q_T.shape[1]
+        mps.tensors[i]     = Q_T.T.reshape(k, di, cr)
+        mps.tensors[i - 1] = np.einsum("asc,cb->asb", mps.tensors[i - 1], R_T.T)
+        R_envs[i] = _update_right_env(R_envs[i + 1], mpo.tensors[i], mps.tensors[i])
+    R_envs[0] = _update_right_env(R_envs[1], mpo.tensors[0], mps.tensors[0])
+
+    L_envs: list[np.ndarray] = [np.ones((1, 1, 1))] * (n + 1)
+
+    energies: list[float] = []
+    converged = False
+    sweep_idx = 0
+
+    for sweep_idx in range(n_sweeps):
+        E_start = energies[-1] if energies else None
+
+        # ── L→R half-sweep: pairs (0,1), (1,2), …, (n-2, n-1) ─────────────
+        for i in range(n - 1):
+            chi_l = mps.tensors[i].shape[0]
+            chi_r = mps.tensors[i + 1].shape[2]
+            H_2site = _heff_mpo_2site(
+                L_envs[i], mpo.tensors[i], mpo.tensors[i + 1], R_envs[i + 2]
+            )
+            evals, evecs = scipy.linalg.eigh(H_2site)
+            energies.append(float(evals[0]))
+            theta = evecs[:, 0].reshape(chi_l * d, d * chi_r)
+            U, s, Vt = np.linalg.svd(theta, full_matrices=False)
+            k = min(chi, len(s)) if chi is not None else len(s)
+            mps.tensors[i]     = U[:, :k].reshape(chi_l, d, k)
+            mps.tensors[i + 1] = (s[:k, None] * Vt[:k, :]).reshape(k, d, chi_r)
+            L_envs[i + 1] = _update_left_env(
+                L_envs[i], mpo.tensors[i], mps.tensors[i]
+            )
+
+        # ── R→L half-sweep: pairs (n-2, n-1), …, (0, 1) ───────────────────
+        for i in range(n - 2, -1, -1):
+            chi_l = mps.tensors[i].shape[0]
+            chi_r = mps.tensors[i + 1].shape[2]
+            H_2site = _heff_mpo_2site(
+                L_envs[i], mpo.tensors[i], mpo.tensors[i + 1], R_envs[i + 2]
+            )
+            evals, evecs = scipy.linalg.eigh(H_2site)
+            energies.append(float(evals[0]))
+            theta = evecs[:, 0].reshape(chi_l * d, d * chi_r)
+            U, s, Vt = np.linalg.svd(theta, full_matrices=False)
+            k = min(chi, len(s)) if chi is not None else len(s)
+            mps.tensors[i + 1] = Vt[:k, :].reshape(k, d, chi_r)
+            mps.tensors[i]     = (U[:, :k] * s[:k]).reshape(chi_l, d, k)
+            R_envs[i + 1] = _update_right_env(
+                R_envs[i + 2], mpo.tensors[i + 1], mps.tensors[i + 1]
+            )
+
+        # Reset L boundary for the next L→R sweep
+        L_envs[0] = np.ones((1, 1, 1))
+
+        if E_start is not None and abs(energies[-1] - E_start) < tol:
+            converged = True
+            break
+
+    return MPODMRGResult(
+        mps_final=mps,
+        energies=energies,
+        n_sweeps=sweep_idx + 1,
+        converged=converged,
+    )
