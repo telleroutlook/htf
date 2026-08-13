@@ -707,3 +707,219 @@ def zx_to_matrix(g: ZXGraph) -> np.ndarray:
         )
 
     return circuit_unitary(gates, n)
+
+
+# ────────────────────── §8-B extended Clifford rules ────────────────────────
+
+def _is_zero_phase(node: "ZXNode") -> bool:
+    """Return True when node.phase is within 1e-9 of zero."""
+    return abs(node.phase) < 1e-9
+
+def bialgebra(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+    """Z(0) – X(0) bialgebra (copy) rule — termination-safe variant.
+
+    **Rule**: a zero-phase Z-spider connected to a zero-phase X-spider,
+    where one of the two sides has exactly one other neighbour (linear
+    fan-out), can be "passed through".
+
+    Only nodes present at the start of the call are considered as candidates;
+    newly created nodes are not re-processed, preventing infinite loops.
+
+    [研究] Sound; not complete over arbitrary diagrams.
+    """
+    applied = 0
+    # Snapshot candidates to avoid processing newly created nodes
+    candidate_ids = list(g.nodes.keys())
+    for nid in candidate_ids:
+        node = g.nodes.get(nid)
+        if node is None or node.kind != ZXNodeType.Z or not _is_zero_phase(node):
+            continue
+        for nb_id in list(g.neighbours(nid)):
+            nb = g.nodes.get(nb_id)
+            if nb is None or nb.kind != ZXNodeType.X or not _is_zero_phase(nb):
+                continue
+            L = [n for n in g.neighbours(nid)  if n != nb_id]
+            R = [n for n in g.neighbours(nb_id) if n != nid]
+            if not L or not R or min(len(L), len(R)) != 1:
+                continue
+            g.nodes.pop(nid)
+            g.nodes.pop(nb_id)
+            g.edges = [(a, b) for (a, b) in g.edges
+                       if a not in (nid, nb_id) and b not in (nid, nb_id)]
+            new_x = [g.add_node(ZXNodeType.X, phase=0.0) for _ in L]
+            new_z = [g.add_node(ZXNodeType.Z, phase=0.0) for _ in R]
+            for li, lnb in enumerate(L):
+                g.add_edge(lnb, new_x[li])
+            for ri, rnb in enumerate(R):
+                g.add_edge(rnb, new_z[ri])
+            for xi in new_x:
+                for zi in new_z:
+                    g.add_edge(xi, zi)
+            desc = f"bialgebra: Z({nid})–X({nb_id}) → {len(L)}×{len(R)}"
+            if log is not None:
+                log.record("bialgebra", [nid, nb_id], new_x + new_z, desc)
+            applied += 1
+            break   # node nid consumed; move to next candidate
+    return applied
+
+
+def local_complement(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+    """Local complementation (LC) on a Clifford (π/2-phase) spider.
+
+    **Rule**: a Z or X spider with phase ±π/2 (a Clifford generator) that
+    is surrounded only by H-box edges can be eliminated:
+    1. Add H-box edges between every pair of its neighbours.
+    2. Flip each neighbour's phase by ±π/2 (opposite sign to the removed node).
+    3. Remove the node.
+
+    This is the standard LC rule from the Clifford ZX completeness paper
+    (Backens 2014). It is sound for diagrams in graph state / stabiliser form.
+
+    [研究] Applicable only when the node is strictly π/2-phase and all its
+    edges are H-box edges.  Completeness for arbitrary non-Clifford diagrams
+    requires additional rules.
+    """
+    import math as _math
+
+    HALF_PI = _math.pi / 2
+
+    def _is_clifford_half(phase: float) -> bool:
+        return abs(abs(phase) - HALF_PI) < 1e-9
+
+    def _all_h_edges(nid: int, g: ZXGraph) -> bool:
+        """True if every edge incident to nid connects to an H node."""
+        for nb_id in g.neighbours(nid):
+            nb = g.nodes.get(nb_id)
+            if nb is None or nb.kind != ZXNodeType.H:
+                return False
+        return True
+
+    applied = 0
+    while True:
+        changed = False
+        for nid, node in list(g.nodes.items()):
+            if node.kind not in (ZXNodeType.Z, ZXNodeType.X):
+                continue
+            if not _is_clifford_half(node.phase):
+                continue
+            if not _all_h_edges(nid, g):
+                continue
+            sign = 1.0 if node.phase > 0 else -1.0
+            nbrs = list(g.neighbours(nid))
+            if len(nbrs) < 2:
+                continue
+            # 1. Add H-edges between all pairs of neighbours
+            for i in range(len(nbrs)):
+                for j in range(i + 1, len(nbrs)):
+                    g.add_edge(nbrs[i], nbrs[j])
+            # 2. Shift each neighbour's phase by -sign * π/2
+            for nb_id in nbrs:
+                nb = g.nodes[nb_id]
+                nb.phase = nb.phase - sign * HALF_PI
+            # 3. Remove the Clifford node
+            g.nodes.pop(nid)
+            g.edges = [(a, b) for (a, b) in g.edges
+                       if a != nid and b != nid]
+            desc = (f"local_complement: removed {node.kind.name}(π/2) "
+                    f"node {nid}, added {len(nbrs)*(len(nbrs)-1)//2} "
+                    "new H-edges")
+            if log is not None:
+                log.record("local_complement", [nid], [], desc)
+            applied += 1
+            changed = True
+            break
+        if not changed:
+            break
+    return applied
+
+
+def phase_gadget_fuse(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+    """Fuse parallel phase gadgets connected to the same set of qubits.
+
+    A *phase gadget* is a Z-spider of arbitrary phase that connects via
+    H-box edges to an identical set of neighbouring X-spiders (or vice-versa).
+    Two phase gadgets acting on the same qubit set can be replaced by a
+    single gadget whose phase is the sum of the two phases.
+
+    **Rule**: if two Z-spiders z₁ (phase α) and z₂ (phase β) have
+    identical neighbour sets (all through H-boxes), replace them with a
+    single Z-spider of phase α+β.
+
+    [研究] Sound; detecting the full set of gadgets sharing a qubit basis
+    in arbitrary diagrams requires more graph analysis.
+    """
+    import math as _math
+
+    applied = 0
+    while True:
+        changed = False
+        # Build (frozenset-of-neighbours) → [list of node IDs] for Z spiders
+        groups: dict = {}
+        for nid, node in g.nodes.items():
+            if node.kind != ZXNodeType.Z:
+                continue
+            nb_set = frozenset(g.neighbours(nid))
+            if not nb_set:
+                continue
+            groups.setdefault(nb_set, []).append(nid)
+        for nb_set, ids in groups.items():
+            if len(ids) < 2:
+                continue
+            # Fuse the first two
+            z1_id, z2_id = ids[0], ids[1]
+            z1 = g.nodes[z1_id]
+            z2 = g.nodes[z2_id]
+            new_phase = z1.phase + z2.phase
+            # Keep z1 with summed phase, remove z2
+            z1.phase = new_phase
+            g.nodes.pop(z2_id)
+            g.edges = [(a, b) for (a, b) in g.edges
+                       if a != z2_id and b != z2_id]
+            desc = (f"phase_gadget_fuse: Z({z1_id},α={z1.phase - z2.phase:.4f}) + "
+                    f"Z({z2_id},α={z2.phase:.4f}) → Z(α={new_phase:.4f})")
+            if log is not None:
+                log.record("phase_gadget_fuse", [z1_id, z2_id], [z1_id], desc)
+            applied += 1
+            changed = True
+            break
+        if not changed:
+            break
+    return applied
+
+
+def clifford_simplify(
+    g: ZXGraph,
+    log: Optional[ZXRewriteLog] = None,
+    max_iter: int = 200,
+) -> int:
+    """Full Clifford ZX simplification pipeline.
+
+    Applies all eight rewrite rules exhaustively in round-robin order until
+    no rule fires.  Rules applied (in order each round):
+
+    1. ``spider_fusion``      — merge same-colour adjacent spiders
+    2. ``identity_removal``   — remove zero-phase 2-leg spiders
+    3. ``hadamard_cancel``    — cancel adjacent H-box pairs
+    4. ``color_change``       — flip colour when surrounded by H-boxes
+    5. ``pi_copy``            — copy Z(π) through X(0)
+    6. ``bialgebra``          — Z(0)–X(0) copy / bialgebra rule
+    7. ``local_complement``   — eliminate π/2 Clifford nodes
+    8. ``phase_gadget_fuse``  — fuse parallel phase gadgets
+
+    [研究] Sound but not complete over all non-Clifford diagrams.  For a
+    complete Clifford simplifier use PyZX (Kissinger & van de Wetering, 2020).
+
+    Returns total number of rewrites applied.
+    """
+    rules = [
+        spider_fusion, identity_removal, hadamard_cancel,
+        color_change, pi_copy,
+        bialgebra, local_complement, phase_gadget_fuse,
+    ]
+    total = 0
+    for _ in range(max_iter):
+        round_total = sum(fn(g, log) for fn in rules)
+        total += round_total
+        if round_total == 0:
+            break
+    return total

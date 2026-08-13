@@ -9,9 +9,13 @@ from htf.zx import (
     ZXGraph,
     ZXNodeType,
     ZXRewriteLog,
+    bialgebra,
+    clifford_simplify,
     color_change,
     hadamard_cancel,
     identity_removal,
+    local_complement,
+    phase_gadget_fuse,
     pi_copy,
     simplify,
     spider_fusion,
@@ -507,4 +511,330 @@ class TestPiCopy:
         g.add_edge(x0, out)
         n = simplify(g, rules=["pi_copy"])
         assert n >= 1
+
+
+# ─────────────────────── TestBialgebra ───────────────────────────────────
+
+class TestBialgebra:
+
+    def _make_1x1(self):
+        """Z(0)─X(0) with one extra neighbour each (1×1 fan-out)."""
+        g = ZXGraph()
+        left  = g.add_node(ZXNodeType.Z, phase=0.0, label="left")
+        z0    = g.add_node(ZXNodeType.Z, phase=0.0, label="Z0")
+        x0    = g.add_node(ZXNodeType.X, phase=0.0, label="X0")
+        right = g.add_node(ZXNodeType.X, phase=0.0, label="right")
+        g.add_edge(left, z0)
+        g.add_edge(z0, x0)
+        g.add_edge(x0, right)
+        return g, z0, x0
+
+    def test_fires_on_1x1(self):
+        g, z0, x0 = self._make_1x1()
+        n = bialgebra(g)
+        assert n == 1
+
+    def test_original_nodes_removed(self):
+        g, z0, x0 = self._make_1x1()
+        bialgebra(g)
+        assert z0 not in g.nodes
+        assert x0 not in g.nodes
+
+    def test_new_nodes_created(self):
+        g, z0, x0 = self._make_1x1()
+        n_before = len(g.nodes)
+        bialgebra(g)
+        # 2 nodes removed, 1 X + 1 Z added
+        assert len(g.nodes) == n_before - 2 + 2
+
+    def test_no_fire_when_both_sides_have_multiple_neighbours(self):
+        # Z(0) with 2 left neighbours, X(0) with 2 right neighbours → guard blocks
+        g = ZXGraph()
+        l1 = g.add_node(ZXNodeType.Z)
+        l2 = g.add_node(ZXNodeType.Z)
+        z0 = g.add_node(ZXNodeType.Z, phase=0.0)
+        x0 = g.add_node(ZXNodeType.X, phase=0.0)
+        r1 = g.add_node(ZXNodeType.X)
+        r2 = g.add_node(ZXNodeType.X)
+        g.add_edge(l1, z0)
+        g.add_edge(l2, z0)
+        g.add_edge(z0, x0)
+        g.add_edge(x0, r1)
+        g.add_edge(x0, r2)
+        n = bialgebra(g)
+        assert n == 0
+
+    def test_no_fire_on_nonzero_phase(self):
+        g = ZXGraph()
+        z  = g.add_node(ZXNodeType.Z, phase=0.1)
+        x  = g.add_node(ZXNodeType.X, phase=0.0)
+        nb = g.add_node(ZXNodeType.Z)
+        g.add_edge(nb, z)
+        g.add_edge(z, x)
+        n = bialgebra(g)
+        assert n == 0
+
+    def test_terminates_without_infinite_loop(self):
+        # A longer chain: Z(0)–X(0)–Z(0)–X(0)
+        # After first application we get new nodes; they must not trigger again
+        g = ZXGraph()
+        a  = g.add_node(ZXNodeType.Z, phase=0.0)
+        z1 = g.add_node(ZXNodeType.Z, phase=0.0)
+        x1 = g.add_node(ZXNodeType.X, phase=0.0)
+        b  = g.add_node(ZXNodeType.X, phase=0.0)
+        g.add_edge(a, z1)
+        g.add_edge(z1, x1)
+        g.add_edge(x1, b)
+        # Must return a finite non-negative count
+        n = bialgebra(g)
+        assert isinstance(n, int)
+        assert n >= 0
+
+    def test_log_records_step(self):
+        g, z0, x0 = self._make_1x1()
+        log = ZXRewriteLog()
+        bialgebra(g, log)
+        assert len(log) >= 1
+        assert log.steps[0]["rule"] == "bialgebra"
+
+    def test_returns_zero_on_empty_graph(self):
+        g = ZXGraph()
+        assert bialgebra(g) == 0
+
+
+# ─────────────────────── TestLocalComplement ─────────────────────────────
+
+class TestLocalComplement:
+
+    def _make_lc_graph(self, phase=None):
+        """Z(π/2) flanked by two H-boxes, which connect to outer Z nodes."""
+        if phase is None:
+            phase = math.pi / 2
+        g = ZXGraph()
+        outer_l = g.add_node(ZXNodeType.Z, phase=0.0, label="outer_l")
+        h_l     = g.add_node(ZXNodeType.H, label="h_l")
+        center  = g.add_node(ZXNodeType.Z, phase=phase, label="center")
+        h_r     = g.add_node(ZXNodeType.H, label="h_r")
+        outer_r = g.add_node(ZXNodeType.Z, phase=0.0, label="outer_r")
+        g.add_edge(outer_l, h_l)
+        g.add_edge(h_l, center)
+        g.add_edge(center, h_r)
+        g.add_edge(h_r, outer_r)
+        return g, center, h_l, h_r
+
+    def test_fires_on_pi_half(self):
+        g, center, h_l, h_r = self._make_lc_graph()
+        n = local_complement(g)
+        assert n >= 1
+
+    def test_center_node_removed(self):
+        g, center, h_l, h_r = self._make_lc_graph()
+        local_complement(g)
+        assert center not in g.nodes
+
+    def test_fires_on_negative_pi_half(self):
+        g, center, h_l, h_r = self._make_lc_graph(phase=-math.pi / 2)
+        n = local_complement(g)
+        assert n >= 1
+
+    def test_no_fire_on_non_clifford_phase(self):
+        g, center, h_l, h_r = self._make_lc_graph(phase=0.3)
+        n = local_complement(g)
+        assert n == 0
+        assert center in g.nodes
+
+    def test_no_fire_when_non_h_neighbour(self):
+        # Replace one H-box with a plain Z node — LC must not fire
+        g = ZXGraph()
+        z_neigh = g.add_node(ZXNodeType.Z, phase=0.0)
+        center  = g.add_node(ZXNodeType.Z, phase=math.pi / 2)
+        h       = g.add_node(ZXNodeType.H)
+        outer   = g.add_node(ZXNodeType.Z)
+        g.add_edge(z_neigh, center)
+        g.add_edge(center, h)
+        g.add_edge(h, outer)
+        n = local_complement(g)
+        assert n == 0
+        assert center in g.nodes
+
+    def test_neighbour_phases_shifted(self):
+        g, center, h_l, h_r = self._make_lc_graph(phase=math.pi / 2)
+        # Direct neighbours of center are h_l and h_r; their phases get shifted by -π/2
+        local_complement(g)
+        # h_l and h_r should still exist (they connect to outer nodes)
+        # and their phases should be 0 - π/2 = -π/2
+        for nid in (h_l, h_r):
+            if nid in g.nodes:
+                assert abs(g.nodes[nid].phase - (-math.pi / 2)) < 1e-9
+
+    def test_log_records_step(self):
+        g, center, h_l, h_r = self._make_lc_graph()
+        log = ZXRewriteLog()
+        local_complement(g, log)
+        assert len(log) >= 1
+        assert log.steps[0]["rule"] == "local_complement"
+
+    def test_returns_zero_on_empty_graph(self):
+        g = ZXGraph()
+        assert local_complement(g) == 0
+
+
+# ─────────────────────── TestPhaseGadgetFuse ─────────────────────────────
+
+class TestPhaseGadgetFuse:
+
+    def _make_two_gadgets(self, alpha=0.3, beta=0.7):
+        """Two Z-spiders sharing the same single neighbour X-spider."""
+        g = ZXGraph()
+        xnode = g.add_node(ZXNodeType.X, phase=0.0, label="x")
+        z1    = g.add_node(ZXNodeType.Z, phase=alpha, label="z1")
+        z2    = g.add_node(ZXNodeType.Z, phase=beta,  label="z2")
+        g.add_edge(xnode, z1)
+        g.add_edge(xnode, z2)
+        return g, z1, z2, xnode
+
+    def test_fires_on_identical_neighbour_sets(self):
+        g, z1, z2, _ = self._make_two_gadgets()
+        n = phase_gadget_fuse(g)
+        assert n >= 1
+
+    def test_one_z_node_remains(self):
+        g, z1, z2, _ = self._make_two_gadgets()
+        phase_gadget_fuse(g)
+        z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
+        assert len(z_nodes) == 1
+
+    def test_fused_phase_is_sum(self):
+        alpha, beta = 0.3, 0.7
+        g, z1, z2, _ = self._make_two_gadgets(alpha, beta)
+        phase_gadget_fuse(g)
+        z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
+        assert abs(z_nodes[0].phase - (alpha + beta)) < 1e-9
+
+    def test_no_fire_when_different_neighbours(self):
+        g = ZXGraph()
+        x1 = g.add_node(ZXNodeType.X, phase=0.0)
+        x2 = g.add_node(ZXNodeType.X, phase=0.0)
+        z1 = g.add_node(ZXNodeType.Z, phase=0.3)
+        z2 = g.add_node(ZXNodeType.Z, phase=0.5)
+        g.add_edge(x1, z1)
+        g.add_edge(x2, z2)
+        n = phase_gadget_fuse(g)
+        assert n == 0
+
+    def test_three_gadgets_fully_fused(self):
+        # Three Z-spiders with the same neighbour
+        g = ZXGraph()
+        xnode = g.add_node(ZXNodeType.X, phase=0.0)
+        phases = [0.1, 0.2, 0.4]
+        for p in phases:
+            zi = g.add_node(ZXNodeType.Z, phase=p)
+            g.add_edge(xnode, zi)
+        phase_gadget_fuse(g)
+        z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
+        assert len(z_nodes) == 1
+        assert abs(z_nodes[0].phase - sum(phases)) < 1e-9
+
+    def test_log_records_step(self):
+        g, z1, z2, _ = self._make_two_gadgets()
+        log = ZXRewriteLog()
+        phase_gadget_fuse(g, log)
+        assert len(log) >= 1
+        assert log.steps[0]["rule"] == "phase_gadget_fuse"
+
+    def test_returns_zero_on_empty_graph(self):
+        g = ZXGraph()
+        assert phase_gadget_fuse(g) == 0
+
+    def test_isolated_z_spider_not_fused(self):
+        # A Z-spider with no neighbours → empty frozenset, must be skipped
+        g = ZXGraph()
+        g.add_node(ZXNodeType.Z, phase=1.0)
+        g.add_node(ZXNodeType.Z, phase=2.0)
+        n = phase_gadget_fuse(g)
+        assert n == 0
+
+
+# ─────────────────────── TestCliffordSimplify ────────────────────────────
+
+class TestCliffordSimplify:
+
+    def test_returns_integer(self):
+        g = ZXGraph()
+        g.add_node(ZXNodeType.Z)
+        n = clifford_simplify(g)
+        assert isinstance(n, int)
+
+    def test_spider_fusion_triggered(self):
+        g = ZXGraph()
+        a = g.add_node(ZXNodeType.Z, phase=0.2)
+        b = g.add_node(ZXNodeType.Z, phase=0.3)
+        g.add_edge(a, b)
+        n = clifford_simplify(g)
+        assert n >= 1
+        z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
+        assert len(z_nodes) == 1
+
+    def test_phase_gadget_fuse_triggered(self):
+        g = ZXGraph()
+        xnode = g.add_node(ZXNodeType.X, phase=0.0)
+        z1    = g.add_node(ZXNodeType.Z, phase=0.3)
+        z2    = g.add_node(ZXNodeType.Z, phase=0.4)
+        g.add_edge(xnode, z1)
+        g.add_edge(xnode, z2)
+        n = clifford_simplify(g)
+        assert n >= 1
+        z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
+        assert len(z_nodes) == 1
+
+    def test_identity_removal_triggered(self):
+        g = ZXGraph()
+        a = g.add_node(ZXNodeType.Z)
+        b = g.add_node(ZXNodeType.Z, phase=0.0)
+        c = g.add_node(ZXNodeType.Z)
+        g.add_edge(a, b)
+        g.add_edge(b, c)
+        n = clifford_simplify(g)
+        assert n >= 1
+        assert b not in g.nodes
+
+    def test_terminates_on_empty_graph(self):
+        g = ZXGraph()
+        n = clifford_simplify(g)
+        assert n == 0
+
+    def test_terminates_on_already_simplified(self):
+        # A single isolated Z-spider with non-zero phase — nothing to do
+        g = ZXGraph()
+        g.add_node(ZXNodeType.Z, phase=0.7)
+        n = clifford_simplify(g)
+        assert n == 0
+
+    def test_max_iter_respected(self):
+        # Build a graph that would fuse but cap at max_iter=1
+        g = ZXGraph()
+        a = g.add_node(ZXNodeType.Z, phase=0.1)
+        b = g.add_node(ZXNodeType.Z, phase=0.2)
+        c = g.add_node(ZXNodeType.Z, phase=0.3)
+        g.add_edge(a, b)
+        g.add_edge(b, c)
+        # With max_iter=1 it may not fully simplify, but must not hang
+        n = clifford_simplify(g, max_iter=1)
+        assert isinstance(n, int)
+
+    def test_log_accumulated(self):
+        g = ZXGraph()
+        a = g.add_node(ZXNodeType.Z, phase=0.1)
+        b = g.add_node(ZXNodeType.Z, phase=0.2)
+        g.add_edge(a, b)
+        log = ZXRewriteLog()
+        clifford_simplify(g, log=log)
+        assert len(log) >= 1
+
+    def test_bell_circuit_terminates(self):
+        from htf.qasm import Gate
+        gates = [Gate("h", [0]), Gate("cx", [0, 1])]
+        g = zx_from_circuit(gates, n_qubits=2)
+        n = clifford_simplify(g)
+        assert isinstance(n, int)  # just must not hang
 

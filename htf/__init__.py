@@ -19,6 +19,7 @@ limit (``chi → ∞``) is a wall the framework does not cross. See ``PLAN.md``.
 from __future__ import annotations
 
 from .certificate import Certificate
+from .topology import Box, Diagram, Id, Wire
 from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
 from .difficulty import (
     DifficultyReport,
@@ -147,8 +148,14 @@ from .zx import (
     ZXGraph,
     ZXNodeType,
     ZXRewriteLog,
+    bialgebra,
+    clifford_simplify,
+    color_change,
     hadamard_cancel,
     identity_removal,
+    local_complement,
+    phase_gadget_fuse,
+    pi_copy,
     simplify,
     spider_fusion,
     zx_from_circuit,
@@ -195,10 +202,11 @@ __all__ = [
     "BlockSparseTensor", "block_sparse_matmul",
     # viz (§7)
     "diagram_to_dict", "diagram_to_html", "save_diagram_html",
-    # zx (§4-E)
+    # zx (§4-E / §8-B)
     "ZXNodeType", "ZXGraph", "ZXRewriteLog",
     "zx_from_circuit", "spider_fusion", "identity_removal",
-    "hadamard_cancel", "simplify", "zx_to_matrix",
+    "hadamard_cancel", "color_change", "pi_copy", "simplify", "zx_to_matrix",
+    "bialgebra", "local_complement", "phase_gadget_fuse", "clifford_simplify",
     # lanczos (§4-I)
     "lanczos", "lanczos_eigs", "lanczos_ground_state",
     "temple_lanczos", "two_sided_bounds", "TwoSidedBounds",
