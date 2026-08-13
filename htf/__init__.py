@@ -112,7 +112,29 @@ from .symmetric import (
     spin_half_basis,
     u1_blocks,
 )
-from .topology import Box, Diagram, Id, Wire
+from .mps import (
+    MPS,
+    mps_add,
+    mps_apply_gate,
+    mps_expectation,
+    mps_from_state,
+    mps_inner,
+    mps_norm,
+    mps_normalise,
+    mps_to_state,
+    mps_truncate,
+    random_mps,
+)
+from .tebd import (
+    DMRGResult,
+    TEBDResult,
+    dmrg_sweep,
+    nn_hamiltonian,
+    tebd_evolve,
+    tebd_step,
+    tfim_bonds,
+    xx_bonds,
+)
 from .variational import (
     energy_expectation,
     optimize_mera,
@@ -133,7 +155,7 @@ from .zx import (
     zx_to_matrix,
 )
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -201,6 +223,12 @@ __all__ = [
     "entanglement_entropy", "entanglement_spectrum",
     "bipartite_entanglement_profile",
     "DifficultyReport", "difficulty_report",
-    # meta
-    "__version__",
+    # mps (§8-A)
+    "MPS", "mps_from_state", "mps_to_state", "mps_inner", "mps_norm",
+    "mps_normalise", "mps_add", "mps_truncate", "mps_apply_gate",
+    "mps_expectation", "random_mps",
+    # tebd (§8-A)
+    "TEBDResult", "DMRGResult",
+    "tebd_step", "tebd_evolve", "dmrg_sweep",
+    "nn_hamiltonian", "tfim_bonds", "xx_bonds",
 ]

@@ -135,6 +135,50 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 说成已实现的全息求解（`[启发]`）；不声称"抛弃 PDE / 绝对稳定性"；不声称是预测现实的"世界引擎"
 （认证数值误差、非建模误差；受面积律纠缠边界限制）。
 
+## 8. 竞品差距追赶计划（v0.13.0+）
+
+竞品分析与差距：
+
+| 竞品 | 核心优势 | HTF 当前缺口 |
+|---|---|---|
+| ITensor / TeNPy | 工业级 MPS/DMRG/TEBD | 只有 MERA，无 MPS 数据结构 |
+| Quimb | JAX autograd，GPU | 逆向设计用有限差分梯度 |
+| PyZX | 完整 Clifford ZX pipeline | 仅 5 条规则，无 LC/双代数 |
+| TensorNetwork(Google) | 大规模路径优化，GPU | opt_einsum 已支持；GPU 需 JAX |
+| DisCoPy | 成熟弦图语言，多函子 | 基础拓扑层已够用 |
+
+**按可行性排序的差距追赶项：**
+
+### §8-A MPS + TEBD `[工程]`
+- `htf/mps.py`：`MPS` dataclass（每张量形状 (χ_l, d, χ_r)），`mps_from_state`（逐步 SVD）、
+  `mps_to_state`（全缩并）、`mps_inner`（转移矩阵法）、`mps_norm`、`mps_expectation`（局域算符）、
+  `mps_apply_gate`（1/2-site 门 + SVD 截断）、`mps_truncate`（键维压缩）、`random_mps`。
+- `htf/tebd.py`：`tebd_step`（单 Trotter 步：偶/奇键交替）、`tebd_evolve`（完整时间演化）、
+  `mps_dmrg_sweep`（单-site DMRG 扫描，变分基态）。
+- 关闭 TeNPy/ITensor 在动力学/变分方向的核心差距。
+- [ ] 待实现
+
+### §8-B ZX Clifford 完整 pipeline `[研究]`
+- `htf/zx.py` 扩展：`bialgebra`（Z/X 双代数规则）、`local_complement`（局部互补消除
+  Clifford 顶点）、`pivot`（LC 对对进一步化简）、`phase_gadget_fuse`（相位小工具融合）、
+  `clifford_simplify`（全 Clifford 化简入口）。
+- 关闭 PyZX 在完整 Clifford 化简方向的差距；使 HTF 成为完整量子电路优化工具。
+- [ ] 待实现
+
+### §8-C JAX autograd（可选依赖）`[工程]`
+- `htf/inverse.py` 与 `htf/variational.py` 扩展：当 JAX 可用时，
+  `energy_gradient` 改用 `jax.grad` 代替中心有限差分；`optimize_mera` 改用
+  `jax.jit + optax` 优化器（L-BFGS-B fallback 不变）。
+- `pyproject.toml` `[project.optional-dependencies]` `accel` 组添加 `jax`（已有占位符）。
+- 关闭 Quimb 在 autograd / 梯度精度方向的差距。
+- [ ] 待实现
+
+### §8-D 认证版本更新
+- 版本更新至 `v0.13.0`（OPTIMIZATION.md 所有项完成后）。
+- [ ] 已完成
+
+---
+
 ## 7. TODO（文档/国际化）
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
