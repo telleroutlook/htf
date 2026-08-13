@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "htf"
+version = "0.0.1"
+description = "A certified, type-safe string-diagram / tensor-network framework (skeleton)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Lin Tao" }]
+keywords = [
+    "tensor networks",
+    "string diagrams",
+    "applied category theory",
+    "certified numerics",
+    "MERA",
+    "reproducibility",
+]
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+accel = ["jax", "opt_einsum"]      # optional GPU / contraction-path acceleration
+dev = ["pytest>=7"]
+
+[project.scripts]
+htf = "htf.cli:main"
+
+[tool.setuptools]
+packages = ["htf"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
