@@ -24,6 +24,14 @@ class Wire:
     def __repr__(self) -> str:
         return f"Wire({self.name!r}, {self.dim})"
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Wire):
+            return NotImplemented
+        return self.name == other.name and self.dim == other.dim
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.dim))
+
 
 Ty = Tuple[Wire, ...]  # a type is a tuple of wires
 

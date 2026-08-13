@@ -57,9 +57,13 @@ def test_shape_validation():
         contract(bad, F)
 
 
-def test_certified_mode_not_implemented():
+def test_certified_mode_works():
+    """certified mode now returns a Certificate (Phase 2 deliverable)."""
+    from htf import Certificate
     s = Wire("s", 2)
     psi = Box("psi", (), (s,))
     F = TensorFunctor({"psi": np.array([1.0, 0.0])})
-    with pytest.raises(NotImplementedError):
-        contract(psi, F, mode="certified")
+    cert = contract(psi, F, mode="certified")
+    assert isinstance(cert, Certificate)
+    assert cert.mode == "certified"
+    assert cert.error_bound is not None

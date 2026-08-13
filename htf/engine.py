@@ -1,12 +1,23 @@
 """HTF Layer 3 — Tensor Engine.
 
-Executes a diagram by recursive tensor contraction. Two modes:
+Executes a diagram by recursive tensor contraction.  Two modes:
 
-* ``"float"``  — fast, discovery-tier; **carries no error bound**.
-* ``"certified"`` — interval-arithmetic with a rigorous error bound. This is a
-  Phase-2 deliverable (see ``PLAN.md``) and currently raises ``NotImplementedError``
-  rather than returning an uncertified number dressed up as certified. We do not
-  fake certification.
+* ``"float"``  — fast, discovery-tier (numpy float64); **carries no error
+  bound**.
+* ``"certified"`` — rigorous interval arithmetic via python-flint's Arb
+  library.  Every arithmetic operation is tracked with outward-rounded ball
+  arithmetic; the returned :class:`~htf.certificate.Certificate` carries a
+  rigorous ``error_bound`` (maximum ball-radius over all result entries),
+  bounding the floating-point rounding error accumulated during contraction.
+
+  Requires ``pip install python-flint``.
+
+What "certified" certifies
+--------------------------
+The error bound covers **floating-point rounding only** (Phase 2 scope).
+It does *not* bound bond-dimension truncation error (Phase 3/4 scope), nor
+modeling error — those are separate, explicitly out-of-scope walls described
+in ``PLAN.md``.
 """
 from __future__ import annotations
 
@@ -16,8 +27,10 @@ from .topology import Box, Id, Then, Tensor, dims
 from .functor import TensorFunctor
 
 
+# ─────────────────────────────── float mode ────────────────────────────────
+
 def _eval(d, F: TensorFunctor) -> np.ndarray:
-    """Return the dense tensor of diagram ``d`` with layout dims(cod)+dims(dom)."""
+    """Return the dense tensor of diagram *d* with layout dims(cod)+dims(dom)."""
     if isinstance(d, Box):
         return F.tensor(d)
 
@@ -35,7 +48,6 @@ def _eval(d, F: TensorFunctor) -> np.ndarray:
         nc = len(d.g.cod)
         g_in = list(range(nc, nc + nb))   # g's input axes
         f_out = list(range(0, nb))        # f's output axes
-        # result axes: dims(g.cod) + dims(f.dom) = dims(cod) + dims(dom)
         return np.tensordot(Gg, Ff, axes=(g_in, f_out))
 
     if isinstance(d, Tensor):
@@ -45,27 +57,151 @@ def _eval(d, F: TensorFunctor) -> np.ndarray:
         ngo, ngi = len(d.g.cod), len(d.g.dom)
         outer = np.tensordot(Ff, Gg, axes=0)  # fcod+fdom+gcod+gdom
         perm = (
-            list(range(0, nfo))                               # f.cod
-            + list(range(nfo + nfi, nfo + nfi + ngo))         # g.cod
-            + list(range(nfo, nfo + nfi))                     # f.dom
-            + list(range(nfo + nfi + ngo, nfo + nfi + ngo + ngi))  # g.dom
+            list(range(0, nfo))
+            + list(range(nfo + nfi, nfo + nfi + ngo))
+            + list(range(nfo, nfo + nfi))
+            + list(range(nfo + nfi + ngo, nfo + nfi + ngo + ngi))
         )
         return np.transpose(outer, perm) if perm else outer
 
     raise TypeError(f"unknown diagram node: {type(d)!r}")
 
 
-def contract(diagram, functor: TensorFunctor, mode: str = "float") -> np.ndarray:
-    """Contract ``diagram`` under ``functor``.
+# ────────────────────────────── certified mode ─────────────────────────────
 
-    ``mode="float"`` returns the dense result (discovery-tier, no error bound).
-    ``mode="certified"`` is not yet implemented (Phase 2).
+def _prod(t: tuple) -> int:
+    return int(np.prod(t)) if t else 1
+
+
+def _numpy_to_arb_mat(arr: np.ndarray, nrows: int, ncols: int):
+    """Reshape *arr* to (nrows, ncols) and convert to a flint ``arb_mat``."""
+    from flint import arb, arb_mat
+    flat = arr.reshape(nrows, ncols)
+    return arb_mat(
+        [[arb(float(flat[i, j])) for j in range(ncols)] for i in range(nrows)]
+    )
+
+
+def _eval_certified(d, F: TensorFunctor):
+    """Evaluate *d* using flint Arb, returning an ``arb_mat`` of shape
+    ``(_prod(dims(cod)), _prod(dims(dom)))``.
+
+    Sequential composition (Then) maps to ``arb_mat`` matrix multiplication;
+    parallel composition (Tensor) maps to the Kronecker-product layout that
+    matches the axis permutation in ``_eval``.
+    """
+    from flint import arb, arb_mat
+
+    cs = _prod(dims(d.cod))   # product of all cod dimensions
+    ds_ = _prod(dims(d.dom))  # product of all dom dimensions
+
+    if isinstance(d, Box):
+        arr = F.tensor(d)  # shape dims(cod) + dims(dom)
+        return _numpy_to_arb_mat(arr, cs, ds_)
+
+    if isinstance(d, Id):
+        n = cs  # cs == ds_ for identity
+        return arb_mat(
+            [[arb(1.0) if i == j else arb(0.0) for j in range(n)] for i in range(n)]
+        )
+
+    if isinstance(d, Then):
+        # f: dom_f → cod_f,  g: dom_g=cod_f → cod_g
+        # arb_mat(g) · arb_mat(f) : (cod_g_size × cod_f_size) · (cod_f_size × dom_f_size)
+        Ff = _eval_certified(d.f, F)
+        Gg = _eval_certified(d.g, F)
+        return Gg * Ff  # arb_mat multiplication tracks rounding rigorously
+
+    if isinstance(d, Tensor):
+        # Parallel composition: result has Kronecker-product layout.
+        # result[i·g_cs + k, j·g_ds + l] = Ff[i,j] · Gg[k,l]
+        # This matches the axis permutation in _eval (fcod, gcod, fdom, gdom).
+        f_cs = _prod(dims(d.f.cod))
+        f_ds = _prod(dims(d.f.dom))
+        g_cs = _prod(dims(d.g.cod))
+        g_ds = _prod(dims(d.g.dom))
+        Ff = _eval_certified(d.f, F)
+        Gg = _eval_certified(d.g, F)
+        rows = []
+        for i in range(f_cs):
+            for k in range(g_cs):
+                row = [Ff[i, j] * Gg[k, l] for j in range(f_ds) for l in range(g_ds)]
+                rows.append(row)
+        return arb_mat(rows)
+
+    raise TypeError(f"unknown diagram node: {type(d)!r}")
+
+
+def _extract_arb_mat(
+    mat, result_shape: tuple
+) -> tuple[np.ndarray, float]:
+    """Extract (midpoint_array, max_radius) from a flint ``arb_mat``.
+
+    *result_shape* is the target numpy shape (dims(cod) + dims(dom)).
+    Returns a scalar float when *result_shape* is ``()``.
+    """
+    m, n = mat.nrows(), mat.ncols()
+    mid = np.zeros((m, n))
+    max_rad = 0.0
+    for i in range(m):
+        for j in range(n):
+            e = mat[i, j]
+            mid[i, j] = float(e.mid())
+            r = float(e.rad())
+            if r > max_rad:
+                max_rad = r
+    if result_shape:
+        return mid.reshape(result_shape), max_rad
+    return float(mid[0, 0]), max_rad
+
+
+# ──────────────────────────────── public API ───────────────────────────────
+
+def contract(diagram, functor: TensorFunctor, mode: str = "float"):
+    """Contract *diagram* under *functor*.
+
+    Parameters
+    ----------
+    mode : ``"float"`` | ``"certified"``
+        ``"float"``
+            numpy float64 dense result (discovery-tier, no error bound).
+        ``"certified"``
+            Rigorous Arb interval arithmetic.  Returns a
+            :class:`~htf.certificate.Certificate` with ``error_bound`` set
+            to the maximum ball-radius over all result entries.  Requires
+            ``python-flint`` (``pip install python-flint``).
+
+    Returns
+    -------
+    numpy.ndarray
+        Float-mode result array.
+    Certificate
+        Certified-mode result with ``result`` (midpoint array) and
+        ``error_bound`` (rigorous floating-point rounding bound).
     """
     if mode == "float":
         return _eval(diagram, functor)
+
     if mode == "certified":
-        raise NotImplementedError(
-            "certified (interval-arithmetic) mode is a Phase-2 deliverable; see "
-            "PLAN.md. Float mode is discovery-tier and carries no error bound."
+        try:
+            import flint  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "certified mode requires python-flint "
+                "(pip install python-flint)"
+            ) from exc
+
+        from .certificate import Certificate
+
+        arb_result = _eval_certified(diagram, functor)
+        result_shape = dims(diagram.cod) + dims(diagram.dom)
+        result_arr, error_bound = _extract_arb_mat(arb_result, result_shape)
+
+        return Certificate(
+            result=result_arr,
+            mode="certified",
+            error_bound=error_bound,
+            backend="flint-arb",
         )
+
     raise ValueError(f"unknown mode {mode!r} (expected 'float' or 'certified')")

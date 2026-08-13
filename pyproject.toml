@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "htf"
-version = "0.0.1"
+version = "0.1.0"
 description = "A certified, type-safe string-diagram / tensor-network framework (skeleton)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,8 +21,9 @@ keywords = [
 dependencies = ["numpy>=1.23"]
 
 [project.optional-dependencies]
-accel = ["jax", "opt_einsum"]      # optional GPU / contraction-path acceleration
-dev = ["pytest>=7"]
+accel = ["jax", "opt_einsum"]          # optional GPU / contraction-path acceleration
+certified = ["python-flint>=0.5"]      # certified mode: Arb interval arithmetic
+dev = ["pytest>=7", "python-flint>=0.5"]
 
 [project.scripts]
 htf = "htf.cli:main"

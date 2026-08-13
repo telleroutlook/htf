@@ -22,7 +22,7 @@ class Certificate:
     backend: str = "numpy"
     chi: Optional[int] = None            # bond dimension / truncation (the regulator)
     seed: Optional[int] = None
-    htf_version: str = "0.0.1"
+    htf_version: str = "0.2.0"
     notes: str = ""
 
     def to_dict(self) -> dict:
