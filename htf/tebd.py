@@ -325,7 +325,7 @@ def _apply_bond_tensors(
     scale = float(np.max(np.abs(M)))
     if scale > 0:
         M = M / scale
-    U, s, Vh = scipy.linalg.svd(M, full_matrices=False)
+    U, s, Vh = np.linalg.svd(M, full_matrices=False)
     s        = s * scale
     keep     = min(chi, len(s)) if chi is not None else len(s)
     discarded = float(np.sum(s[keep:] ** 2))
