@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.6.0）
+## 1. 当前状态（v0.7.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -38,7 +38,13 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `partial_trace`、`check_density_matrix`（Hermitian+PSD+单位迹三重核验）、
       `choi_matrix`、`check_kraus_completeness`、`lindblad_superoperator`、
       `lindblad_step`（矩阵指数精确积分）、`steady_state`（约束线性系统求解）。`[工程]`
-- [x] 测试（`tests/`）：`python -m pytest -q` **688 个全绿**；总覆盖率 ≥ 98%。
+- [x] 测试（`tests/`）：`python -m pytest -q` **769 个全绿**；总覆盖率 ≥ 98%。
+- [x] Lanczos 严格双侧界（`htf/lanczos.py`，§4-I）：`lanczos`（k 步三对角化）、
+      `lanczos_eigs`（Ritz 值/向量）、`lanczos_ground_state`、`temple_lanczos`/
+      `two_sided_bounds`（Temple 下界 + flint-Arb 认证上界，`TwoSidedBounds` dataclass）。`[研究]`
+- [x] QASM 2.0 互操作（`htf/qasm.py`，§4-F）：标准门矩阵库（H/X/Y/Z/S/T/Rx/Ry/Rz/CX/CZ/SWAP）、
+      `circuit_to_qasm`（导出）、`qasm_to_circuit`（解析）、`circuit_unitary`（稠密矩阵模拟）、
+      `circuit_to_diagram`（HTF 拓扑桥接）。`[工程]`
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -93,10 +99,10 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 
 ## 4. 扩展能力（选做子集，非全做）
 
-E 语义保持图重写（ZX）`[研究]` · F 量子线路互操作（QASM / PyZX / NISQ）`[工程]`/`[研究]` ·
-G 对称/规范不变张量作为类型（`U(1)`/`SU(N)` block-sparse）`[研究]` · H 开放系统 / CPTP `[工程]` ·
-I 严格双侧界（Lanczos/Anderson 型下界）`[研究]` · J 可微逆向设计 / 哈密顿量学习 `[工程]`/`[研究]` ·
-K 认证复现基准套件 `[工程]` · L（远期/投机）导出到证明助手 Lean/Coq `[研究,投机]`。
+E 语义保持图重写（ZX）`[研究]` · ~~F 量子线路互操作（QASM / PyZX / NISQ）`[工程]`/`[研究]`~~ ✅ ·
+G 对称/规范不变张量作为类型（`U(1)`/`SU(N)` block-sparse）`[研究]` · H 开放系统 / CPTP `[工程]` ✅ ·
+~~I 严格双侧界（Lanczos/Anderson 型下界）`[研究]`~~ ✅ · J 可微逆向设计 / 哈密顿量学习 `[工程]`/`[研究]` ·
+K 认证复现基准套件 `[工程]` ✅ · L（远期/投机）导出到证明助手 Lean/Coq `[研究,投机]`。
 
 ## 5. 展现形态
 
