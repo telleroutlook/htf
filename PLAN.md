@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.22.0）
+## 1. 当前状态（v0.23.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -264,6 +264,18 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 - 关闭 TeNPy 在有限温相图扫描方向的差距；配合 `thermal_state` 形成完整
   有限温工具链。
 - [x] 已完成（1207 测试通过，0 失败）
+
+### §9-K TEBD 键内并行（ThreadPoolExecutor）`[工程]`
+- `htf/tebd.py` 扩展：新增 `import os` / `ThreadPoolExecutor`；
+  `_apply_bond_tensors(A_l, A_r, gate, chi)`（纯函数，无 MPS 状态，可安全
+  多线程调用——NumPy SVD/einsum 释放 GIL）；修改 `_apply_bond_parity`
+  接受 `n_threads` 参数：每个奇偶宇称组内各 bond 作用于不相交的位点对，
+  用 `ThreadPoolExecutor` 并行执行，全部完成后写回；`tebd_step` 和
+  `tebd_evolve` 新增 `n_threads` 参数（仅对 `trotter_order=2` 生效；
+  1阶保持原有顺序语义，`n_threads` 静默忽略）。
+- 关闭 GPU 缺席时的多核加速缺口：无需任何新依赖，任意多核 CPU 即可加速
+  2 阶 Strang-splitting TEBD 的每一步。
+- [x] 已完成（1212 测试通过，0 失败）
 
 ---
 

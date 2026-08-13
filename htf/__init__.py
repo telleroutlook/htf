@@ -195,7 +195,7 @@ from .zx import (
     zx_to_matrix,
 )
 
-__version__ = "0.22.0"
+__version__ = "0.23.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",

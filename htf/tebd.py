@@ -15,6 +15,8 @@ Honest scope [工程]
 """
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Optional
 
@@ -244,6 +246,7 @@ def tebd_step(
     chi: Optional[int] = None,
     imaginary: bool = False,
     trotter_order: int = 1,
+    n_threads: Optional[int] = None,
 ) -> tuple[MPS, float]:
     """One TEBD Trotter step.
 
@@ -256,6 +259,10 @@ def tebd_step(
     chi:          bond dimension truncation; None = no truncation.
     imaginary:    True for imaginary-time evolution.
     trotter_order: 1 or 2 (Strang splitting).
+    n_threads:    Thread count for intra-step bond parallelism.  Only
+                  effective when *trotter_order=2*: the even and odd bond
+                  groups each contain non-overlapping site pairs that can
+                  be applied concurrently.  ``None`` or ``1`` = sequential.
 
     Returns
     -------
@@ -276,9 +283,9 @@ def tebd_step(
     # 2nd-order Strang splitting: even(dt/2) · odd(dt) · even(dt/2)
     gates_half = [_bond_gate(h, dt / 2, imaginary) for h in h_terms]
     gates_full = [_bond_gate(h, dt,     imaginary) for h in h_terms]
-    mps, d1 = _apply_bond_parity(mps, gates_half, chi, even=True)
-    mps, d2 = _apply_bond_parity(mps, gates_full, chi, even=False)
-    mps, d3 = _apply_bond_parity(mps, gates_half, chi, even=True)
+    mps, d1 = _apply_bond_parity(mps, gates_half, chi, even=True,  n_threads=n_threads)
+    mps, d2 = _apply_bond_parity(mps, gates_full, chi, even=False, n_threads=n_threads)
+    mps, d3 = _apply_bond_parity(mps, gates_half, chi, even=True,  n_threads=n_threads)
     return mps, d1 + d2 + d3
 
 
@@ -295,19 +302,80 @@ def _apply_all_bonds(
     return mps, total_disc
 
 
+def _apply_bond_tensors(
+    A_l: np.ndarray,
+    A_r: np.ndarray,
+    gate: np.ndarray,
+    chi: Optional[int],
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Apply a 2-site gate to (A_l, A_r); return (new_Al, new_Ar, discarded).
+
+    Pure function with no MPS state — safe to call from multiple threads
+    simultaneously as long as each call uses distinct input arrays.
+    """
+    chi_l, d, _   = A_l.shape
+    _, _, chi_r   = A_r.shape
+    AB   = np.einsum("asb,btc->astc", A_l, A_r)
+    AB_g = np.einsum("stpq,apqc->astc", gate, AB)
+    M    = AB_g.reshape(chi_l * d, d * chi_r)
+    scale = float(np.max(np.abs(M)))
+    if scale > 0:
+        M = M / scale
+    U, s, Vh = scipy.linalg.svd(M, full_matrices=False)
+    s        = s * scale
+    keep     = min(chi, len(s)) if chi is not None else len(s)
+    discarded = float(np.sum(s[keep:] ** 2))
+    new_Al   = U[:, :keep].reshape(chi_l, d, keep)
+    new_Ar   = (np.diag(s[:keep]) @ Vh[:keep, :]).reshape(keep, d, chi_r)
+    return new_Al, new_Ar, discarded
+
+
 def _apply_bond_parity(
     mps: MPS,
     gates: list[np.ndarray],
     chi: Optional[int],
     even: bool,
+    n_threads: Optional[int] = None,
 ) -> tuple[MPS, float]:
-    """Apply even (0-1, 2-3, …) or odd (1-2, 3-4, …) bond gates."""
-    start = 0 if even else 1
-    total_disc = 0.0
-    for i in range(start, len(gates), 2):
-        mps, disc = mps_apply_gate(mps, gates[i], [i, i + 1], chi=chi)
-        total_disc += disc
-    return mps, total_disc
+    """Apply even (0-1, 2-3, …) or odd (1-2, 3-4, …) bond gates.
+
+    When *n_threads* > 1 the bonds within the parity group are applied in
+    parallel via ``ThreadPoolExecutor``.  This is safe because bonds in the
+    same parity group act on non-overlapping site pairs; each worker reads
+    the *input* tensors (read-only) and returns new tensors that are written
+    back to the MPS only after all threads complete.  NumPy's SVD and einsum
+    release the GIL, so threads run concurrently on multi-core CPUs.
+    """
+    start        = 0 if even else 1
+    bond_indices = list(range(start, len(gates), 2))
+
+    if n_threads == 1 or len(bond_indices) <= 1 or n_threads is None:
+        total_disc = 0.0
+        for i in bond_indices:
+            mps, disc = mps_apply_gate(mps, gates[i], [i, i + 1], chi=chi)
+            total_disc += disc
+        return mps, total_disc
+
+    # Parallel path — snapshot input tensors (read-only references)
+    in_t = mps.tensors
+
+    def _worker(i: int):
+        new_Al, new_Ar, disc = _apply_bond_tensors(
+            in_t[i], in_t[i + 1], gates[i], chi
+        )
+        return i, new_Al, new_Ar, disc
+
+    effective = min(n_threads, len(bond_indices))
+    with ThreadPoolExecutor(max_workers=effective) as pool:
+        results = list(pool.map(_worker, bond_indices))
+
+    new_tensors = list(in_t)   # shallow copy of list; elements replaced below
+    total_disc  = 0.0
+    for i, new_Al, new_Ar, disc in results:
+        new_tensors[i]     = new_Al
+        new_tensors[i + 1] = new_Ar
+        total_disc         += disc
+    return MPS(new_tensors), total_disc
 
 
 def tebd_evolve(
@@ -319,6 +387,7 @@ def tebd_evolve(
     imaginary: bool = False,
     trotter_order: int = 1,
     measure_every: int = 1,
+    n_threads: Optional[int] = None,
 ) -> TEBDResult:
     """Full TEBD time evolution.
 
@@ -332,6 +401,8 @@ def tebd_evolve(
     imaginary:     True for imaginary-time evolution (ground-state search).
     trotter_order: 1 or 2.
     measure_every: record energy/bond every this many steps.
+    n_threads:     Thread count for intra-step bond parallelism; passed to
+                   :func:`tebd_step`.  Only effective with *trotter_order=2*.
 
     Returns
     -------
@@ -353,6 +424,7 @@ def tebd_evolve(
         mps, disc = tebd_step(
             mps, h_terms, dt, chi=chi,
             imaginary=imaginary, trotter_order=trotter_order,
+            n_threads=n_threads,
         )
         total_disc += disc
         t += dt

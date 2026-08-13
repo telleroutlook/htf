@@ -560,3 +560,86 @@ class TestTdvpEvolve:
         r_tebd = tebd_evolve(mps0, bonds, dt=0.05, n_steps=200, chi=8, imaginary=True)
         assert abs(r_tdvp.energies[-1] - E0) < 0.05
         assert abs(r_tebd.energies[-1] - E0) < 0.05
+
+
+# ── §9-K: intra-step bond parallelism ─────────────────────────────────────
+
+
+class TestTebdParallelBonds:
+    """Tests for n_threads parallelism in tebd_step / tebd_evolve.
+
+    Parallel (n_threads>1) and sequential (n_threads=1) must produce
+    numerically identical results for trotter_order=2, since the even/odd
+    parity groups are the same — only execution order within a group differs.
+    """
+
+    @pytest.fixture
+    def setup(self):
+        n, d = 6, 2
+        bonds = heisenberg_bonds(n, J=1.0)
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=4, seed=0)
+        return mps, bonds
+
+    def test_parallel_matches_sequential_step(self, setup):
+        mps, bonds = setup
+        gates = [
+            np.eye(4).reshape(2, 2, 2, 2) for _ in bonds
+        ]  # identity gates → exact, no SVD noise
+        from htf.tebd import _apply_bond_parity, _bond_gate
+        from htf.tebd import tfim_bonds, nn_hamiltonian
+        bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
+        gates2 = [_bond_gate(b, 0.01, False) for b in bonds_tfim]
+
+        mps_seq,  d_seq  = tebd_step(mps, bonds_tfim, dt=0.01,
+                                     chi=8, trotter_order=2, n_threads=1)
+        mps_par,  d_par  = tebd_step(mps, bonds_tfim, dt=0.01,
+                                     chi=8, trotter_order=2, n_threads=2)
+        for t_s, t_p in zip(mps_seq.tensors, mps_par.tensors):
+            np.testing.assert_allclose(t_s, t_p, atol=1e-12)
+        assert abs(d_seq - d_par) < 1e-14
+
+    def test_parallel_evolve_matches_sequential(self, setup):
+        mps, bonds = setup
+        from htf.tebd import tfim_bonds
+        bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
+        r_seq = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=10,
+                            chi=8, trotter_order=2, n_threads=1)
+        r_par = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=10,
+                            chi=8, trotter_order=2, n_threads=2)
+        np.testing.assert_allclose(r_seq.energies, r_par.energies, atol=1e-12)
+        for t_s, t_p in zip(r_seq.mps_final.tensors, r_par.mps_final.tensors):
+            np.testing.assert_allclose(t_s, t_p, atol=1e-12)
+
+    def test_n_threads_ignored_for_order1(self, setup):
+        mps, bonds = setup
+        from htf.tebd import tfim_bonds
+        bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
+        r1 = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=5,
+                         chi=8, trotter_order=1, n_threads=1)
+        r2 = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=5,
+                         chi=8, trotter_order=1, n_threads=4)
+        np.testing.assert_allclose(r1.energies, r2.energies, atol=1e-14)
+
+    def test_no_nan_parallel(self, setup):
+        mps, bonds = setup
+        from htf.tebd import tfim_bonds
+        bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
+        result = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=10,
+                             chi=8, trotter_order=2, n_threads=2)
+        for t in result.mps_final.tensors:
+            assert not np.any(np.isnan(t))
+
+    def test_energy_reasonable_parallel(self, setup):
+        mps, bonds = setup
+        from htf.tebd import tfim_bonds, nn_hamiltonian
+        from htf.mps import mps_from_state
+        n, d = 6, 2
+        bonds_tfim = tfim_bonds(n, J=1.0, h=0.5)
+        H = nn_hamiltonian(bonds_tfim, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        # Imaginary-time TEBD with order=2 + threads should approach ground state
+        result = tebd_evolve(mps, bonds_tfim, dt=0.05, n_steps=100,
+                             chi=16, imaginary=True, trotter_order=2, n_threads=2)
+        assert result.energies[-1] < result.energies[0]
+        assert result.energies[-1] >= E0 - 0.1
