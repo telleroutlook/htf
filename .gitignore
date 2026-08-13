@@ -25,3 +25,8 @@ env/
 scratch/
 *.npy
 *.npz
+
+# Test / coverage artifacts
+.coverage
+htmlcov/
+coverage.xml
