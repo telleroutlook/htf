@@ -103,8 +103,19 @@ from .variational import (
     xx_model_ham,
 )
 from .viz import diagram_to_dict, diagram_to_html, save_diagram_html
+from .zx import (
+    ZXGraph,
+    ZXNodeType,
+    ZXRewriteLog,
+    hadamard_cancel,
+    identity_removal,
+    simplify,
+    spider_fusion,
+    zx_from_circuit,
+    zx_to_matrix,
+)
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -137,6 +148,10 @@ __all__ = [
     "inverse_design", "hamiltonian_learning", "energy_gradient",
     # viz (§7)
     "diagram_to_dict", "diagram_to_html", "save_diagram_html",
+    # zx (§4-E)
+    "ZXNodeType", "ZXGraph", "ZXRewriteLog",
+    "zx_from_circuit", "spider_fusion", "identity_removal",
+    "hadamard_cancel", "simplify", "zx_to_matrix",
     # lanczos (§4-I)
     "lanczos", "lanczos_eigs", "lanczos_ground_state",
     "temple_lanczos", "two_sided_bounds", "TwoSidedBounds",
