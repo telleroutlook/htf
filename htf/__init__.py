@@ -94,6 +94,16 @@ from .structure import (
     isometry_defect,
     unitary_defect,
 )
+from .symmetric import (
+    BlockSparseTensor,
+    ChargedBasis,
+    block_sparse_matmul,
+    check_u1_invariance,
+    number_basis,
+    project_to_u1,
+    spin_half_basis,
+    u1_blocks,
+)
 from .topology import Box, Diagram, Id, Wire
 from .variational import (
     energy_expectation,
@@ -115,7 +125,7 @@ from .zx import (
     zx_to_matrix,
 )
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -146,6 +156,10 @@ __all__ = [
     # inverse (§4-J)
     "ParametricHam", "InverseDesignResult", "LearningResult",
     "inverse_design", "hamiltonian_learning", "energy_gradient",
+    # symmetric (§4-G)
+    "ChargedBasis", "spin_half_basis", "number_basis",
+    "check_u1_invariance", "project_to_u1", "u1_blocks",
+    "BlockSparseTensor", "block_sparse_matmul",
     # viz (§7)
     "diagram_to_dict", "diagram_to_html", "save_diagram_html",
     # zx (§4-E)
