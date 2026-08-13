@@ -9,6 +9,8 @@ Phase 4 (v0.4.0): spectral gap bounds (Temple's inequality); χ-convergence
   expanded agent-drivable CLI (gap, variational, difficulty, os-check).
 Phase 5 (v0.5.0): certified reproducibility benchmark suite (§4-K); MCP
   server wrapper (§7); open systems / CPTP maps (§4-H).
+Phase 6 (v0.6.0): open systems / CPTP (§4-H complete); English whitepaper.
+Phase 7 (v0.7.0): Lanczos two-sided bounds (§4-I); QASM 2.0 interop (§4-F).
 
 Honest scope: HTF is a *certified model engine*, not a "world engine". It
 certifies numerical/truncation error, not modeling error; the continuum
@@ -35,6 +37,14 @@ from .gap import (
     spectral_gap_exact,
     temple_lower_bound,
 )
+from .lanczos import (
+    TwoSidedBounds,
+    lanczos,
+    lanczos_eigs,
+    lanczos_ground_state,
+    temple_lanczos,
+    two_sided_bounds,
+)
 from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
 from .mera import MERA, MERALayer, random_mera
 from .open_systems import (
@@ -53,6 +63,14 @@ from .os_axioms import (
     os_positivity_report,
     reflection_operator,
     transfer_matrix,
+)
+from .qasm import (
+    Gate,
+    circuit_to_diagram,
+    circuit_to_qasm,
+    circuit_unitary,
+    get_gate_matrix,
+    qasm_to_circuit,
 )
 from .scaling import ChiPoint, ScalingReport, chi_convergence_study
 from .structure import (
@@ -77,7 +95,7 @@ from .variational import (
     xx_model_ham,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -105,12 +123,19 @@ __all__ = [
     "spectral_gap_exact", "h2_expectation",
     "temple_lower_bound", "first_excited_upper",
     "certified_gap_upper", "gap_report",
+    # lanczos (§4-I)
+    "lanczos", "lanczos_eigs", "lanczos_ground_state",
+    "temple_lanczos", "two_sided_bounds", "TwoSidedBounds",
+    # qasm (§4-F)
+    "Gate", "get_gate_matrix",
+    "circuit_to_qasm", "qasm_to_circuit",
+    "circuit_unitary", "circuit_to_diagram",
     # open_systems (§4-H)
     "density_matrix_from_pure", "partial_trace",
     "check_density_matrix",
     "choi_matrix", "check_kraus_completeness",
     "lindblad_superoperator", "lindblad_step", "steady_state",
-    # os_axioms (Phase 4 completion)
+    # os_axioms (Phase 4)
     "transfer_matrix", "reflection_operator",
     "check_transfer_positivity", "check_reflection_symmetry",
     "os_positivity_report",
