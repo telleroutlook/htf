@@ -513,46 +513,42 @@ def pi_copy(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     Returns the number of π-copy steps applied.
     """
     applied = 0
-    changed = True
-    while changed:
-        changed = False
-        for z_id, z_node in list(g.nodes.items()):
-            if z_node.kind != ZXNodeType.Z:
+    # Snapshot candidates so newly-created Z(π) nodes are not re-processed
+    # (without this, each new Z(π) triggers another pi_copy → infinite loop).
+    candidate_ids = list(g.nodes.keys())
+    for z_id in candidate_ids:
+        z_node = g.nodes.get(z_id)
+        if z_node is None or z_node.kind != ZXNodeType.Z:
+            continue
+        if abs(z_node.phase % (2 * math.pi) - math.pi) > 1e-10:
+            continue
+        for x_id in list(g.neighbours(z_id)):
+            if x_id not in g.nodes:
                 continue
-            if abs(z_node.phase % (2 * math.pi) - math.pi) > 1e-10:
+            x_node = g.nodes[x_id]
+            if x_node.kind != ZXNodeType.X:
                 continue
-            for x_id in list(g.neighbours(z_id)):
-                if x_id not in g.nodes:
-                    continue
-                x_node = g.nodes[x_id]
-                if x_node.kind != ZXNodeType.X:
-                    continue
-                if abs(x_node.phase % (2 * math.pi)) > 1e-10:
-                    continue
-                # Push Z(π) through X(0): remove Z(π)–X edge,
-                # add new Z(π) nodes on all other legs of X
-                g.remove_edge(z_id, x_id)
-                g.remove_node(z_id)
-                other_nbs = list(g.neighbours(x_id))
-                new_z_ids = []
-                for nb in other_nbs:
-                    g.remove_edge(x_id, nb)
-                    new_z = g.add_node(ZXNodeType.Z, phase=math.pi,
-                                       label=f"Z(π)_copy_{nb}")
-                    g.add_edge(x_id, new_z)
-                    g.add_edge(new_z, nb)
-                    new_z_ids.append(new_z)
-                if log is not None:
-                    log.record(
-                        "pi_copy", [z_id], new_z_ids,
-                        f"Z(π)({z_id}) copied through X(0)({x_id}) → "
-                        f"{len(new_z_ids)} new Z(π) nodes",
-                    )
-                applied += 1
-                changed = True
-                break
-            if changed:
-                break
+            if abs(x_node.phase % (2 * math.pi)) > 1e-10:
+                continue
+            g.remove_edge(z_id, x_id)
+            g.remove_node(z_id)
+            other_nbs = list(g.neighbours(x_id))
+            new_z_ids = []
+            for nb in other_nbs:
+                g.remove_edge(x_id, nb)
+                new_z = g.add_node(ZXNodeType.Z, phase=math.pi,
+                                   label=f"Z(π)_copy_{nb}")
+                g.add_edge(x_id, new_z)
+                g.add_edge(new_z, nb)
+                new_z_ids.append(new_z)
+            if log is not None:
+                log.record(
+                    "pi_copy", [z_id], new_z_ids,
+                    f"Z(π)({z_id}) copied through X(0)({x_id}) → "
+                    f"{len(new_z_ids)} new Z(π) nodes",
+                )
+            applied += 1
+            break   # z_id consumed; move to next candidate
     return applied
 
 
