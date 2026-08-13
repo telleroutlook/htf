@@ -2,6 +2,7 @@
 
 > **A certified, type-safe string-diagram / tensor-network framework for Python.**
 
+[![CI](https://github.com/telleroutlook/htf/actions/workflows/ci.yml/badge.svg)](https://github.com/telleroutlook/htf/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.23.0-blue)](#)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
 [![Tests](https://img.shields.io/badge/tests-1212%20passing-brightgreen)](#)
