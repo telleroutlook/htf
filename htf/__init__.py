@@ -161,9 +161,12 @@ from .mpo import (
 )
 from .thermal import (
     ThermalResult,
+    ThermalScanPoint,
+    ThermalScanResult,
     purification_bonds,
     purified_initial_mps,
     thermal_expectation,
+    thermal_scan,
     thermal_state,
 )
 from .variational import (
@@ -192,7 +195,7 @@ from .zx import (
     zx_to_matrix,
 )
 
-__version__ = "0.21.0"
+__version__ = "0.22.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -271,10 +274,10 @@ __all__ = [
     "dmrg_sweep", "dmrg_sweep_2site",
     "nn_hamiltonian", "tfim_bonds", "xx_bonds",
     "heisenberg_bonds", "bose_hubbard_bonds",
-    # thermal (§9-D)
-    "ThermalResult",
+    # thermal (§9-D / §9-J)
+    "ThermalResult", "ThermalScanPoint", "ThermalScanResult",
     "purified_initial_mps", "purification_bonds",
-    "thermal_state", "thermal_expectation",
+    "thermal_state", "thermal_expectation", "thermal_scan",
     # mpo (§9-E / §9-F / §9-G / §9-H / §9-I)
     "MPO", "MPODMRGResult", "MPOChiPoint", "MPOScalingReport",
     "MultiStartDMRGResult",

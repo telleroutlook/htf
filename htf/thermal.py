@@ -1,4 +1,4 @@
-"""HTF §9-D — Finite-temperature thermal states via MPS purification.
+"""HTF §9-D / §9-J — Finite-temperature thermal states via MPS purification.
 
 Algorithm: imaginary-time TEBD on the purified (physical ⊗ ancilla) MPS.
 
@@ -20,7 +20,10 @@ Honest scope
 """
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 
@@ -188,3 +191,110 @@ def thermal_expectation(
     num   = float(mps_expectation(mps_purified, [(site, O_ext)]).real)
     den   = float(mps_inner(mps_purified, mps_purified).real)
     return num / den
+
+
+# ── §9-J: parallel β-scan ────────────────────────────────────────────────────
+
+
+@dataclass
+class ThermalScanPoint:
+    """One temperature point in a parallel β-scan.
+
+    Attributes
+    ----------
+    beta:              Inverse temperature β = 1/(kT) actually achieved.
+    energy:            Thermal energy E(β) = ⟨H⟩_β.
+    free_energy:       F(β) = -ln Z / β (upper bound; heuristic ``[工程]``).
+    partition_function: Z(β) = Tr(e^{-βH}).
+    """
+    beta:               float
+    energy:             float
+    free_energy:        float
+    partition_function: float
+
+
+@dataclass
+class ThermalScanResult:
+    """Result of a parallel β-scan.
+
+    Attributes
+    ----------
+    points:    :class:`ThermalScanPoint` list, sorted by β (ascending).
+    n_workers: Number of parallel worker processes used.
+    """
+    points:    list = field(default_factory=list)
+    n_workers: int  = 1
+
+    def summary(self) -> str:
+        lines = [
+            "Thermal β-scan:",
+            f"{'beta':>8}  {'E(beta)':>14}  {'F(beta)':>14}  {'Z':>12}",
+        ]
+        for p in self.points:
+            lines.append(
+                f"{p.beta:>8.3f}  {p.energy:>14.8f}"
+                f"  {p.free_energy:>14.8f}  {p.partition_function:>12.4e}"
+            )
+        return "\n".join(lines)
+
+
+def _thermal_scan_worker(packed):
+    """Top-level picklable worker for thermal_scan."""
+    h_terms, n, beta, chi, d, dt = packed
+    result = thermal_state(h_terms, n, beta, chi=chi, d=d, dt=dt)
+    return ThermalScanPoint(
+        beta=result.beta_achieved,
+        energy=result.energies[-1] if result.energies else float("nan"),
+        free_energy=result.free_energy_upper,
+        partition_function=result.partition_function,
+    )
+
+
+def thermal_scan(
+    h_terms: list,
+    n: int,
+    beta_list: list,
+    chi: int = 16,
+    d: int = 2,
+    dt: float = 0.05,
+    n_workers: Optional[int] = None,
+) -> ThermalScanResult:
+    """Parallel β-scan via imaginary-time TEBD.
+
+    Runs :func:`thermal_state` independently at every β in *beta_list*
+    using ``ProcessPoolExecutor``.  Each run starts from the same β=0
+    infinite-temperature state and cools independently, so all β values
+    are fully parallel — the total wall-clock time is the cost of the
+    *single longest run* (largest β) rather than their sum.
+
+    Parameters
+    ----------
+    h_terms   : nearest-neighbour bond Hamiltonians (shape d²×d² each).
+    n         : number of lattice sites.
+    beta_list : inverse temperatures to compute (any order; output is
+                sorted by β ascending).
+    chi       : MPS bond-dimension cap for TEBD truncation.
+    d         : physical site dimension.
+    dt        : imaginary-time step per TEBD step.
+    n_workers : Worker processes.  ``None`` uses ``os.cpu_count()``.
+                Pass ``1`` to run sequentially.
+
+    Returns
+    -------
+    :class:`ThermalScanResult` with ``points`` sorted by β.
+    """
+    packed_list = [
+        (h_terms, n, beta, chi, d, dt)
+        for beta in beta_list
+    ]
+
+    effective_workers = n_workers if n_workers is not None else (os.cpu_count() or 1)
+
+    if effective_workers == 1 or len(packed_list) == 1:
+        points = [_thermal_scan_worker(p) for p in packed_list]
+    else:
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            points = list(pool.map(_thermal_scan_worker, packed_list))
+
+    points.sort(key=lambda p: p.beta)
+    return ThermalScanResult(points=points, n_workers=effective_workers)

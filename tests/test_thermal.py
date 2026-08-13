@@ -5,9 +5,12 @@ import pytest
 from htf.tebd import nn_hamiltonian, tfim_bonds
 from htf.thermal import (
     ThermalResult,
+    ThermalScanPoint,
+    ThermalScanResult,
     purification_bonds,
     purified_initial_mps,
     thermal_expectation,
+    thermal_scan,
     thermal_state,
 )
 
@@ -106,3 +109,91 @@ class TestThermalState:
         I_op = np.eye(d)
         exp_I = thermal_expectation(result.mps_purified, I_op, 0, d)
         assert abs(exp_I - 1.0) < 1e-8
+
+
+# ── thermal_scan ───────────────────────────────────────────────────────────
+
+
+class TestThermalScan:
+    """Parallel β-scan tests.  n_workers=1 (sequential) throughout except
+    one test that explicitly exercises the parallel path."""
+
+    @pytest.fixture
+    def tfim_setup(self):
+        n, d = 3, 2
+        bonds = tfim_bonds(n, J=1.0, h=0.5)
+        H = nn_hamiltonian(bonds, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        return n, d, bonds, E0
+
+    def test_result_type(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        result = thermal_scan(bonds, n, [0.5, 1.0], chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        assert isinstance(result, ThermalScanResult)
+
+    def test_points_count(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        beta_list = [0.5, 1.0, 2.0]
+        result = thermal_scan(bonds, n, beta_list, chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        assert len(result.points) == len(beta_list)
+
+    def test_points_type(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        result = thermal_scan(bonds, n, [1.0, 2.0], chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        for p in result.points:
+            assert isinstance(p, ThermalScanPoint)
+
+    def test_sorted_by_beta(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        # Pass in reverse order — output must be sorted ascending
+        result = thermal_scan(bonds, n, [3.0, 1.0, 0.5], chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        betas = [p.beta for p in result.points]
+        assert betas == sorted(betas)
+
+    def test_energy_decreases_with_beta(self, tfim_setup):
+        # Cooling (larger β) → lower thermal energy
+        n, d, bonds, _ = tfim_setup
+        result = thermal_scan(bonds, n, [0.5, 2.0, 5.0], chi=8, d=d, dt=0.05,
+                              n_workers=1)
+        energies = [p.energy for p in result.points]
+        assert energies[-1] <= energies[0] + 0.1
+
+    def test_large_beta_approaches_ground_state(self, tfim_setup):
+        n, d, bonds, E0 = tfim_setup
+        result = thermal_scan(bonds, n, [6.0], chi=16, d=d, dt=0.05,
+                              n_workers=1)
+        assert abs(result.points[0].energy - E0) < 0.1
+
+    def test_no_nan(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        result = thermal_scan(bonds, n, [0.5, 1.0, 2.0], chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        for p in result.points:
+            assert not np.isnan(p.energy)
+
+    def test_summary_is_string(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        result = thermal_scan(bonds, n, [1.0, 2.0], chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        s = result.summary()
+        assert isinstance(s, str) and "beta" in s
+
+    def test_partition_function_positive(self, tfim_setup):
+        n, d, bonds, _ = tfim_setup
+        result = thermal_scan(bonds, n, [0.5, 1.0], chi=8, d=d, dt=0.1,
+                              n_workers=1)
+        for p in result.points:
+            assert p.partition_function > 0
+
+    def test_parallel_path(self, tfim_setup):
+        n, d, bonds, E0 = tfim_setup
+        result = thermal_scan(bonds, n, [1.0, 2.0], chi=8, d=d, dt=0.1,
+                              n_workers=2)
+        assert isinstance(result, ThermalScanResult)
+        assert len(result.points) == 2
+        for p in result.points:
+            assert not np.isnan(p.energy)
