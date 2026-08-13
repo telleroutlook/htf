@@ -353,21 +353,27 @@ def _apply_bond_parity(
     start        = 0 if even else 1
     bond_indices = list(range(start, len(gates), 2))
 
+    in_t = list(mps.tensors)
+
     if n_threads == 1 or len(bond_indices) <= 1 or n_threads is None:
         total_disc = 0.0
         for i in bond_indices:
-            mps, disc = mps_apply_gate(mps, gates[i], [i, i + 1], chi=chi)
-            total_disc += disc
-        return mps, total_disc
+            new_Al, new_Ar, disc = _apply_bond_tensors(in_t[i], in_t[i + 1], gates[i], chi)
+            in_t[i]     = new_Al
+            in_t[i + 1] = new_Ar
+            total_disc  += disc
+        return MPS(in_t), total_disc
 
-    # Parallel path — snapshot input tensors (read-only references)
-    in_t = mps.tensors
-
-    def _worker(i: int):
-        new_Al, new_Ar, disc = _apply_bond_tensors(
-            in_t[i], in_t[i + 1], gates[i], chi
-        )
-        return i, new_Al, new_Ar, disc
+    # Parallel path — workers read from the snapshot, results collected after all finish.
+    # Limit BLAS to 1 thread per worker so concurrent SVD calls are deterministic.
+    try:
+        from threadpoolctl import threadpool_limits as _tpl
+        def _worker(i: int):
+            with _tpl(limits=1, user_api="blas"):
+                return i, *_apply_bond_tensors(in_t[i], in_t[i + 1], gates[i], chi)
+    except ImportError:
+        def _worker(i: int):  # type: ignore[misc]
+            return i, *_apply_bond_tensors(in_t[i], in_t[i + 1], gates[i], chi)
 
     effective = min(n_threads, len(bond_indices))
     with ThreadPoolExecutor(max_workers=effective) as pool:
