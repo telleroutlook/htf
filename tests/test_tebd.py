@@ -20,6 +20,7 @@ from htf.tebd import (
     _nn_energy,
     bose_hubbard_bonds,
     dmrg_sweep,
+    dmrg_sweep_2site,
     heisenberg_bonds,
     nn_hamiltonian,
     tebd_evolve,
@@ -433,5 +434,65 @@ class TestBoseHubbardBonds:
         mps0 = mps_normalise(mps0)
         result = tebd_evolve(mps0, bonds, dt=0.05, n_steps=10,
                              chi=8, imaginary=True, measure_every=5)
+        for t in result.mps_final.tensors:
+            assert not np.any(np.isnan(t))
+
+
+# ── two-site DMRG sweep ───────────────────────────────────────────────────
+
+
+class TestDmrgSweep2Site:
+    @pytest.fixture
+    def setup(self):
+        n, d = 4, 2
+        bonds = tfim_bonds(n, J=1.0, h=0.5)
+        H     = nn_hamiltonian(bonds, n, d)
+        E0    = float(np.linalg.eigvalsh(H)[0])
+        mps0  = mps_normalise(random_mps(n, d, chi=4, seed=5))
+        return mps0, bonds, E0
+
+    def test_result_type(self, setup):
+        mps0, bonds, _ = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=2, chi=4)
+        assert isinstance(result, DMRGResult)
+
+    def test_energy_decreases(self, setup):
+        mps0, bonds, E0 = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=5, chi=4)
+        assert result.energies[-1] <= result.energies[0] + 1e-6
+
+    def test_converges_to_exact(self, setup):
+        mps0, bonds, E0 = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=20, chi=8)
+        assert abs(result.energies[-1] - E0) < 0.05
+
+    def test_energies_nonempty(self, setup):
+        mps0, bonds, _ = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=2, chi=4)
+        assert len(result.energies) > 0
+
+    def test_converged_flag(self, setup):
+        mps0, bonds, E0 = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=50, chi=8, tol=1e-6)
+        assert isinstance(result.converged, bool)
+
+    def test_chi_limits_bond_dimension(self, setup):
+        mps0, bonds, _ = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=3, chi=2)
+        for t in result.mps_final.tensors:
+            assert t.shape[0] <= 2 and t.shape[2] <= 2
+
+    def test_heisenberg_energy(self):
+        n = 4
+        bonds = heisenberg_bonds(n, J=1.0, h=0.0)
+        H     = nn_hamiltonian(bonds, n)
+        E0    = float(np.linalg.eigvalsh(H.real)[0])
+        mps0  = mps_normalise(random_mps(n, 2, chi=4, seed=9))
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=20, chi=8)
+        assert abs(result.energies[-1] - E0) < 0.1
+
+    def test_no_nan_in_final_mps(self, setup):
+        mps0, bonds, _ = setup
+        result = dmrg_sweep_2site(mps0, bonds, n_sweeps=3, chi=4)
         for t in result.mps_final.tensors:
             assert not np.any(np.isnan(t))

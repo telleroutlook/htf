@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.13.0）
+## 1. 当前状态（v0.14.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -185,13 +185,13 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 - `nn_hamiltonian` 新增 `periodic=True` 参数（einsum 向量化 wrap-around 键）。
 - `tfim_bonds`/`xx_bonds`/`heisenberg_bonds` 均支持 `periodic=True`。
 - 关闭 TeNPy/ITensor 在物理模型多样性方向的差距。
-- [x] 已完成（commit 待写，1100 测试通过）
+- [x] 已完成（commit c8b8cf3，1100 测试通过）
 
 ### §9-B 两-site DMRG `[工程]`
 - `htf/tebd.py`：`dmrg_sweep_2site`（两-site 变分扫描，子空间扩展，比单-site DMRG
   更鲁棒、不易陷入局部极小）。
 - 关闭 ITensor 在 DMRG 鲁棒性方向的差距。
-- [ ] 待实现
+- [x] 已完成（1108 测试通过）
 
 ---
 

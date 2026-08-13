@@ -131,6 +131,7 @@ from .tebd import (
     TEBDResult,
     bose_hubbard_bonds,
     dmrg_sweep,
+    dmrg_sweep_2site,
     heisenberg_bonds,
     nn_hamiltonian,
     tebd_evolve,
@@ -164,7 +165,7 @@ from .zx import (
     zx_to_matrix,
 )
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -237,9 +238,9 @@ __all__ = [
     "MPS", "mps_from_state", "mps_to_state", "mps_inner", "mps_norm",
     "mps_normalise", "mps_add", "mps_truncate", "mps_apply_gate",
     "mps_expectation", "random_mps",
-    # tebd (§8-A / §9-A)
+    # tebd (§8-A / §9-A / §9-B)
     "TEBDResult", "DMRGResult",
-    "tebd_step", "tebd_evolve", "dmrg_sweep",
+    "tebd_step", "tebd_evolve", "dmrg_sweep", "dmrg_sweep_2site",
     "nn_hamiltonian", "tfim_bonds", "xx_bonds",
     "heisenberg_bonds", "bose_hubbard_bonds",
 ]

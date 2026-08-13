@@ -523,67 +523,65 @@ def _local_eig(
     v   = evecs[:, 0].reshape(chi_l, d, chi_r)
     return v, E
 
-    """Single-site DMRG variational ground-state search.
 
-    Alternates left-right sweeps, optimising one site at a time by solving
-    a dense eigenvalue problem for the local effective Hamiltonian.
+# ── two-site DMRG sweep ────────────────────────────────────────────────────
 
-    Honest scope: converges to a local minimum in the MPS manifold of bond
-    dimension chi; use temple_lanczos to obtain a certified lower bound.
+
+def dmrg_sweep_2site(
+    mps: MPS,
+    h_terms: list[np.ndarray],
+    n_sweeps: int = 10,
+    chi: Optional[int] = None,
+    tol: float = 1e-8,
+) -> DMRGResult:
+    """Two-site DMRG variational ground-state search.
+
+    Optimises two neighbouring sites simultaneously, then splits via SVD.
+    This allows the bond dimension to adapt during sweeps and can escape
+    local minima that trap single-site DMRG.
+
+    Honest scope: converges to a local minimum of the energy on the MPS
+    manifold.  Exact for ``chi ≥ 2^(n/2)``; use ``temple_lanczos`` for a
+    certified lower bound.  Dense effective Hamiltonian — suitable for
+    small systems (``n ≤ 8``).
 
     Parameters
     ----------
-    mps:      initial MPS; will be left-canonicalised internally.
+    mps:      initial MPS.
     h_terms:  list of (d², d²) nearest-neighbour Hamiltonian matrices.
-    n_sweeps: maximum number of full (L→R + R→L) sweeps.
-    chi:      bond dimension cap; None = keep current.
-    tol:      energy convergence tolerance (absolute) per sweep.
-
-    Returns
-    -------
-    DMRGResult with the optimised MPS and energy trajectory.
+    n_sweeps: maximum number of full sweeps (L→R + R→L).
+    chi:      bond-dimension cap; ``None`` keeps the full SVD rank.
+    tol:      energy convergence tolerance per sweep.
     """
     mps = _left_canonicalise(mps.copy())
     n   = mps.n_sites
     d   = mps.phys_dim
+    H_full    = nn_hamiltonian(h_terms, n, d)
     energies: list[float] = []
     converged = False
-
-    # Pre-build right environments R[i]: right env starting at site i
-    # R[i] has shape (chi_r_bra, chi_r_ket) and represents
-    # Σ_{sites i..n-1} A* H A right-contracted
-    R = _build_all_R(mps, h_terms, n, d)
 
     for sweep_idx in range(n_sweeps):
         E_before = energies[-1] if energies else None
 
         # ── L→R half-sweep ─────────────────────────────────────────────
-        L = np.ones((1, 1), dtype=float)
         for i in range(n - 1):
-            Heff = _build_heff(mps, h_terms, i, n, d, L, R[i + 1])
-            A, E = _optimise_site(Heff, mps.tensors[i], chi, go_right=True)
-            mps.tensors[i] = A
+            H_eff = _heff_dense_2site(mps, H_full, i)
+            theta, E = _local_eig_2site(H_eff, mps, i)
             energies.append(E)
-            # Update L by absorbing site i
-            L = _contract_L(L, mps.tensors[i], h_terms, i, n, d)
-
-        # Optimise last site
-        Heff = _build_heff(mps, h_terms, n - 1, n, d, L, np.ones((1, 1), dtype=float))
-        A, E = _optimise_site(Heff, mps.tensors[n - 1], chi=None, go_right=False)
-        mps.tensors[n - 1] = A
-        energies.append(E)
+            chi_l, _, _, chi_r = theta.shape
+            U, s, Vh, k = _svd_truncate(theta.reshape(chi_l * d, d * chi_r), chi)
+            mps.tensors[i]     = U.reshape(chi_l, d, k)
+            mps.tensors[i + 1] = (s[:, None] * Vh).reshape(k, d, chi_r)
 
         # ── R→L half-sweep ─────────────────────────────────────────────
-        Rv = np.ones((1, 1), dtype=float)
-        for i in range(n - 1, 0, -1):
-            Heff = _build_heff(mps, h_terms, i, n, d, _build_L_up_to(mps, h_terms, i, d), Rv)
-            A, E = _optimise_site(Heff, mps.tensors[i], chi, go_right=False)
-            mps.tensors[i] = A
+        for i in range(n - 2, -1, -1):
+            H_eff = _heff_dense_2site(mps, H_full, i)
+            theta, E = _local_eig_2site(H_eff, mps, i)
             energies.append(E)
-            Rv = _contract_R(Rv, mps.tensors[i], h_terms, i, n, d)
-
-        # Rebuild right environments for next sweep
-        R = _build_all_R(mps, h_terms, n, d)
+            chi_l, _, _, chi_r = theta.shape
+            U, s, Vh, k = _svd_truncate(theta.reshape(chi_l * d, d * chi_r), chi)
+            mps.tensors[i]     = (U * s[None, :]).reshape(chi_l, d, k)
+            mps.tensors[i + 1] = Vh.reshape(k, d, chi_r)
 
         if E_before is not None and abs(energies[-1] - E_before) < tol:
             converged = True
@@ -597,3 +595,68 @@ def _local_eig(
     )
 
 
+def _svd_truncate(
+    M: np.ndarray,
+    chi: Optional[int],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    """SVD of M with optional truncation to chi singular values."""
+    U, s, Vh = scipy.linalg.svd(M, full_matrices=False)
+    k = len(s) if chi is None else min(chi, len(s))
+    k = max(k, 1)
+    return U[:, :k], s[:k], Vh[:k], k
+
+
+def _heff_dense_2site(mps: MPS, H_full: np.ndarray, site: int) -> np.ndarray:
+    """Build the 2-site effective Hamiltonian for sites (site, site+1).
+
+    Returns a (chi_l*d²*chi_r × chi_l*d²*chi_r) symmetric real matrix.
+    Column ``col`` of the projection P is the full state when the two-site
+    tensor theta is the ``col``-th standard basis vector.
+    """
+    A_i   = mps.tensors[site]
+    A_i1  = mps.tensors[site + 1]
+    chi_l, d, _    = A_i.shape
+    _,     _, chi_r = A_i1.shape
+    dim     = chi_l * d * d * chi_r
+    state_d = H_full.shape[0]
+
+    cplx = np.iscomplexobj(H_full)
+    dtype = complex if cplx else float
+    P = np.zeros((state_d, dim), dtype=dtype)
+    for col in range(dim):
+        # Decode col → (alpha_l, si, si1, alpha_r) in C-order
+        alpha_r = col % chi_r
+        rest    = col // chi_r
+        si1     = rest % d
+        rest  //= d
+        si      = rest % d
+        alpha_l = rest // d
+
+        # Build two-site basis state: theta = δ_{alpha_l,si,si1,alpha_r}
+        # Represented as A_i_v[alpha_l, si, 0]=1, A_i1_v[0, si1, alpha_r]=1
+        tensors_v          = [t.copy() for t in mps.tensors]
+        A_i_v              = np.zeros_like(A_i)
+        A_i1_v             = np.zeros_like(A_i1)
+        A_i_v[alpha_l, si, 0]    = 1.0
+        A_i1_v[0, si1, alpha_r]  = 1.0
+        tensors_v[site]     = A_i_v
+        tensors_v[site + 1] = A_i1_v
+
+        P[:, col] = mps_to_state(MPS(tensors_v))
+
+    Heff = P.conj().T @ H_full @ P
+    return (Heff + Heff.conj().T) * 0.5
+
+
+def _local_eig_2site(
+    H_eff: np.ndarray,
+    mps: MPS,
+    site: int,
+) -> tuple[np.ndarray, float]:
+    """Solve the 2-site local eigenvalue problem."""
+    chi_l = mps.tensors[site].shape[0]
+    chi_r = mps.tensors[site + 1].shape[2]
+    d     = mps.phys_dim
+    evals, evecs = np.linalg.eigh(H_eff)
+    E = float(evals[0])
+    return evecs[:, 0].reshape(chi_l, d, d, chi_r), E
