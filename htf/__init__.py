@@ -18,9 +18,8 @@ limit (``chi → ∞``) is a wall the framework does not cross. See ``PLAN.md``.
 """
 from __future__ import annotations
 
-from .certificate import Certificate
-from .topology import Box, Diagram, Id, Wire
 from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
+from .certificate import Certificate
 from .difficulty import (
     DifficultyReport,
     bipartite_entanglement_profile,
@@ -55,7 +54,47 @@ from .lanczos import (
     two_sided_bounds,
 )
 from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
+from .lean_export import (
+    LeanExporter,
+    certificate_to_lean,
+    diagram_to_lean_type,
+    export_lean,
+    gap_report_to_lean,
+    structure_report_to_lean,
+)
 from .mera import MERA, MERALayer, random_mera
+from .mpo import (
+    MPO,
+    MPOChiPoint,
+    MPODMRGResult,
+    MPOScalingReport,
+    MultiStartDMRGResult,
+    dmrg_multistart,
+    dmrg_sweep_mpo,
+    dmrg_sweep_mpo_2site,
+    identity_mpo,
+    mpo_apply_mps,
+    mpo_chi_convergence,
+    mpo_expectation,
+    mpo_from_matrix,
+    mpo_hermitian_conjugate,
+    mpo_to_matrix,
+    nn_hamiltonian_mpo,
+    random_mpo,
+)
+from .mps import (
+    MPS,
+    mps_add,
+    mps_apply_gate,
+    mps_expectation,
+    mps_from_state,
+    mps_inner,
+    mps_norm,
+    mps_normalise,
+    mps_to_state,
+    mps_truncate,
+    random_mps,
+)
 from .open_systems import (
     check_density_matrix,
     check_kraus_completeness,
@@ -95,14 +134,6 @@ from .structure import (
     isometry_defect,
     unitary_defect,
 )
-from .lean_export import (
-    LeanExporter,
-    certificate_to_lean,
-    diagram_to_lean_type,
-    export_lean,
-    gap_report_to_lean,
-    structure_report_to_lean,
-)
 from .symmetric import (
     BlockSparseTensor,
     ChargedBasis,
@@ -112,19 +143,6 @@ from .symmetric import (
     project_to_u1,
     spin_half_basis,
     u1_blocks,
-)
-from .mps import (
-    MPS,
-    mps_add,
-    mps_apply_gate,
-    mps_expectation,
-    mps_from_state,
-    mps_inner,
-    mps_norm,
-    mps_normalise,
-    mps_to_state,
-    mps_truncate,
-    random_mps,
 )
 from .tebd import (
     DMRGResult,
@@ -140,25 +158,6 @@ from .tebd import (
     tfim_bonds,
     xx_bonds,
 )
-from .mpo import (
-    MPO,
-    MPOChiPoint,
-    MPODMRGResult,
-    MPOScalingReport,
-    MultiStartDMRGResult,
-    identity_mpo,
-    mpo_apply_mps,
-    mpo_expectation,
-    mpo_from_matrix,
-    mpo_hermitian_conjugate,
-    mpo_to_matrix,
-    nn_hamiltonian_mpo,
-    random_mpo,
-    dmrg_sweep_mpo,
-    dmrg_sweep_mpo_2site,
-    dmrg_multistart,
-    mpo_chi_convergence,
-)
 from .thermal import (
     ThermalResult,
     ThermalScanPoint,
@@ -169,6 +168,7 @@ from .thermal import (
     thermal_scan,
     thermal_state,
 )
+from .topology import Box, Diagram, Id, Wire
 from .variational import (
     energy_expectation,
     optimize_mera,

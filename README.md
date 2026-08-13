@@ -14,10 +14,11 @@ lacks:
    gauge invariance, unitarity) are enforced by the type system and
    machine-checked, so *a structurally illegal network does not compile*.
 
-> **Status:** early skeleton (`v0.0.1`). Layer 1 (topology), a minimal Layer 2
-> (functor) and Layer 3 (float engine), a provenance certificate, and an
-> agent-drivable CLI are implemented and tested. The certified (interval) engine
-> and the proof-carrying checks are on the roadmap (`PLAN.md`).
+> **Status:** `v0.23.0` — all four layers implemented and tested (1212 tests,
+> ≥98% coverage). The certified (interval) engine, proof-carrying structure
+> checks, MPS/MPO/DMRG/TEBD, finite-temperature states, parallel multi-start
+> DMRG, ZX-calculus Clifford pipeline, QASM 2.0 interop, Lanczos two-sided
+> bounds, JAX autograd, and agent-drivable CLI + MCP server are all live.
 
 ## What HTF is — and is not
 
@@ -81,14 +82,26 @@ htf hello        # runs the diagram above, prints a JSON provenance certificate
 |---|---|---|
 | 1 · Symbolic topology | `htf/topology.py` | `Wire`, `Box`, `Diagram`; `>>` and `@`; type checking |
 | 2 · Functorial mapping | `htf/functor.py` | assign & validate concrete tensors |
-| 3 · Tensor engine | `htf/engine.py` | contract (float now; certified = Phase 2) |
+| 3 · Tensor engine | `htf/engine.py` | contract — `float` (discovery) and `certified` (flint Arb interval) modes |
+|   · MPS / TEBD / DMRG | `htf/mps.py`, `htf/tebd.py` | MPS, TEBD, 1/2-site DMRG, TDVP, Heisenberg/Bose-Hubbard, periodic BC |
+|   · MPO / MPO-DMRG | `htf/mpo.py` | MPO, MPO-DMRG (1/2-site), parallel multi-start DMRG, χ-convergence study |
+|   · Finite temperature | `htf/thermal.py` | MPS purification, imaginary-time TEBD, parallel β-scan |
+|   · Structure checks | `htf/structure.py` | isometry, unitarity, reflection positivity |
+|   · Variational / MERA | `htf/mera.py`, `htf/variational.py` | binary MERA, L-BFGS-B optimisation, certified upper bound |
+|   · Spectral gap | `htf/gap.py`, `htf/lanczos.py` | Temple bounds, Lanczos two-sided certified bounds |
+|   · ZX-calculus | `htf/zx.py` | 8-rule Clifford simplification, proof-carrying rewrite log |
+|   · QASM interop | `htf/qasm.py` | import/export QASM 2.0, circuit unitary, HTF diagram bridge |
+|   · Open systems | `htf/open_systems.py` | CPTP maps, Lindblad, steady state |
+|   · Inverse design | `htf/inverse.py` | Hamiltonian learning, JAX autograd (optional) |
+|   · Symmetric tensors | `htf/symmetric.py` | U(1) block-sparse tensors |
 |   · Provenance | `htf/certificate.py` | replayable certificate (no trusted PASS) |
-|   · CLI | `htf/cli.py` | agent-drivable, JSON I/O |
+|   · CLI / MCP | `htf/cli.py`, `htf/mcp_server.py` | agent-drivable JSON I/O; MCP server for LLM agents |
 
 ## Roadmap & scope
 
-See `PLAN.md` (roadmap, value tracks, honest boundaries) and
-`docs/project-canvas.zh.md` (full design rationale).
+See `docs/whitepaper.en.md` for detailed API examples, architecture rationale,
+honest scope, and evidence grammar. `docs/project-canvas.zh.md` contains the
+full design canvas in Chinese.
 
 ## License
 

@@ -17,10 +17,14 @@ the state is normalised and the Hamiltonian is exact; the certified
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .certificate import Certificate
 
+if TYPE_CHECKING:
+    from .mera import MERA
 
 # ─────────────────────── Hamiltonian builders ─────────────────────
 
@@ -91,7 +95,7 @@ def energy_expectation(ham: np.ndarray, state_vec: np.ndarray) -> float:
 
 def variational_bound(
     ham: np.ndarray,
-    mera: "htf.mera.MERA",  # type: ignore[name-defined]
+    mera: MERA,
 ) -> Certificate:
     """Certified upper bound on ground-state energy via variational principle.
 
@@ -144,10 +148,10 @@ def variational_bound(
 
 def optimize_mera(
     ham: np.ndarray,
-    mera: "htf.mera.MERA",  # type: ignore[name-defined]
+    mera: MERA,
     n_iter: int = 50,
     tol: float = 1e-5,
-) -> tuple["htf.mera.MERA", list[float]]:  # type: ignore[name-defined]
+) -> tuple[MERA, list[float]]:
     """Minimise ``⟨ψ(θ)|H|ψ(θ)⟩ / ⟨ψ|ψ⟩`` using L-BFGS-B + retraction.
 
     After optimisation the returned MERA has its constraints re-enforced

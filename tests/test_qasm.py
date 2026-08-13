@@ -286,7 +286,6 @@ class TestCircuitToDiagram:
         assert isinstance(d, Diagram)
 
     def test_dom_cod_widths_match_n_qubits(self):
-        from htf.topology import dims
         d = circuit_to_diagram([Gate("h", [0]), Gate("cx", [0, 1])], n_qubits=2)
         assert len(d.dom) == 2
         assert len(d.cod) == 2
@@ -331,7 +330,6 @@ class TestCircuitToDiagram:
         gates = [Gate("cx", [0, 2])]
         U_direct = circuit_unitary(gates, n_qubits=3)
         # The diagram with SWAP decomposition should agree with direct simulation
-        from htf.topology import dims
         d = circuit_to_diagram(gates, n_qubits=3, adjacent_only=False)
         # Verify diagram type-checks (3 wires in, 3 wires out)
         assert len(d.dom) == 3

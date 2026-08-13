@@ -17,7 +17,6 @@ from htf.gap import (
 )
 from htf.variational import energy_expectation, transverse_ising_ham, xx_model_ham
 
-
 # ─────────────────────────── Helpers ──────────────────────────────
 
 def _eigh(ham: np.ndarray):
@@ -402,7 +401,7 @@ class TestCertifiedGapUpper:
 
     def test_n4_returns_certificate(self):
         H4 = transverse_ising_ham(4, J=1.0, h=0.5)
-        evals, evecs = _eigh(H4)
+        _evals, evecs = _eigh(H4)
         cert = certified_gap_upper(H4, evecs[:, 0], evecs[:, 1])
         assert isinstance(cert, Certificate)
         assert cert.mode == "certified"
@@ -422,7 +421,7 @@ class TestCertifiedGapUpper:
 
     def test_xx_model_returns_certificate(self):
         H = xx_model_ham(2)
-        evals, evecs = _eigh(H)
+        _evals, evecs = _eigh(H)
         cert = certified_gap_upper(H, evecs[:, 0], evecs[:, 1])
         assert isinstance(cert, Certificate)
         assert cert.mode == "certified"
@@ -513,14 +512,14 @@ class TestGapReport:
 
     def test_n4_report_all_keys(self):
         H4 = transverse_ising_ham(4, J=1.0, h=0.5)
-        evals, evecs = _eigh(H4)
+        _evals, evecs = _eigh(H4)
         report = gap_report(H4, evecs[:, 0], evecs[:, 1])
         expected_keys = {"gap_exact", "E0_var", "E1_var", "gap_var", "temple_lb", "gap_cert"}
         assert set(report.keys()) == expected_keys
 
     def test_n4_gap_exact_approx_known(self):
         H4 = transverse_ising_ham(4, J=1.0, h=0.5)
-        evals, evecs = _eigh(H4)
+        _evals, evecs = _eigh(H4)
         report = gap_report(H4, evecs[:, 0], evecs[:, 1])
         np.testing.assert_allclose(report["gap_exact"], 0.0948, atol=0.005)
 

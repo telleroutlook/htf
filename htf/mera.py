@@ -22,13 +22,11 @@ Honest scope
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
 
 import numpy as np
 
 from .structure import enforce_isometry, enforce_unitary
-
 
 # ──────────────────── low-level contraction helpers ───────────────
 
@@ -97,8 +95,8 @@ class MERALayer:
 
     n_in: int
     chi: int
-    disentanglers: List[np.ndarray]
-    isometries: List[np.ndarray]
+    disentanglers: list[np.ndarray]
+    isometries: list[np.ndarray]
 
     @property
     def n_out(self) -> int:
@@ -121,7 +119,7 @@ class MERA:
 
     n_sites: int
     chi: int
-    layers: List[MERALayer]
+    layers: list[MERALayer]
     top: np.ndarray
 
     # ── state vector ──────────────────────────────────────────────
@@ -176,7 +174,7 @@ class MERA:
         parts.append(self.top)
         return np.concatenate(parts)
 
-    def from_flat_params(self, params: np.ndarray) -> "MERA":
+    def from_flat_params(self, params: np.ndarray) -> MERA:
         """Reconstruct a MERA with the same structure from a flat parameter vector."""
         chi = self.chi
         offset = 0

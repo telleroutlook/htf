@@ -145,7 +145,7 @@ def certified_gap_upper(
 
     n = len(psi0)
 
-    def _arb_energy(state: np.ndarray) -> "arb":
+    def _arb_energy(state: np.ndarray) -> arb:
         s_row = arb_mat([[arb(float(state[i])) for i in range(n)]])
         s_col = arb_mat([[arb(float(state[i]))] for i in range(n)])
         H_mat = arb_mat([[arb(float(ham[i, j])) for j in range(n)] for i in range(n)])

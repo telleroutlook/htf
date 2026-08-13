@@ -24,15 +24,13 @@ Honest scope
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Sequence
 
 import numpy as np
-from scipy.optimize import minimize, OptimizeResult
+from scipy.optimize import OptimizeResult, minimize
 
-from .variational import transverse_ising_ham, xx_model_ham, energy_expectation
-from .gap import spectral_gap_exact
-
+from .variational import transverse_ising_ham, xx_model_ham
 
 # ────────────────────── parametric Hamiltonian ────────────────────────────
 
@@ -60,7 +58,7 @@ class ParametricHam:
         else:
             raise ValueError(f"Unknown model '{self.model}'. Choose 'ising' or 'xx'.")
 
-    def ham(self, params: Sequence[float]) -> np.ndarray:
+    def ham(self, params: Sequence[float] | np.ndarray) -> np.ndarray:
         """Build the Hamiltonian matrix for the given parameter vector."""
         p = list(params)
         if self.model == "ising":
@@ -72,11 +70,11 @@ class ParametricHam:
             return xx_model_ham(self.n_sites, J=J)
         raise ValueError(f"Unknown model '{self.model}'.")
 
-    def ground_energy(self, params: Sequence[float]) -> float:
+    def ground_energy(self, params: Sequence[float] | np.ndarray) -> float:
         """Exact ground-state energy (smallest eigenvalue)."""
         return float(np.linalg.eigvalsh(self.ham(params))[0])
 
-    def spectrum(self, params: Sequence[float], k: int = 4) -> np.ndarray:
+    def spectrum(self, params: Sequence[float] | np.ndarray, k: int = 4) -> np.ndarray:
         """Lowest ``k`` eigenvalues."""
         evals = np.linalg.eigvalsh(self.ham(params))
         return evals[:k]
@@ -143,8 +141,8 @@ def inverse_design(
     target_e0: float,
     model: str = "ising",
     n_sites: int = 4,
-    param_bounds: Optional[list[tuple[float, float]]] = None,
-    x0: Optional[np.ndarray] = None,
+    param_bounds: list[tuple[float, float]] | None = None,
+    x0: np.ndarray | None = None,
     n_restarts: int = 5,
     seed: int = 0,
     tol: float = 1e-10,
@@ -183,7 +181,7 @@ def inverse_design(
         return (phys.ground_energy(p) - target_e0) ** 2
 
     rng = np.random.default_rng(seed)
-    best: Optional[OptimizeResult] = None
+    best: OptimizeResult | None = None
 
     starts: list[np.ndarray] = []
     if x0 is not None:
@@ -222,8 +220,8 @@ def hamiltonian_learning(
     target_energies: Sequence[float],
     model: str = "ising",
     n_sites: int = 4,
-    param_bounds: Optional[list[tuple[float, float]]] = None,
-    x0: Optional[np.ndarray] = None,
+    param_bounds: list[tuple[float, float]] | None = None,
+    x0: np.ndarray | None = None,
     n_restarts: int = 5,
     seed: int = 0,
     tol: float = 1e-10,
@@ -266,7 +264,7 @@ def hamiltonian_learning(
         return float(np.sum((achieved - tgt) ** 2))
 
     rng    = np.random.default_rng(seed)
-    best: Optional[OptimizeResult] = None
+    best: OptimizeResult | None = None
     starts: list[np.ndarray] = []
     if x0 is not None:
         starts.append(np.asarray(x0, dtype=float))
@@ -300,7 +298,7 @@ def hamiltonian_learning(
 
 # ────────────────────── energy gradient ──────────────────────────────────
 
-def _ham_component_matrices(phys: "ParametricHam") -> list[np.ndarray] | None:
+def _ham_component_matrices(phys: ParametricHam) -> list[np.ndarray] | None:
     """Return the fixed component matrices for a linear parametric Hamiltonian.
 
     H(params) = Σ_i params[i] * components[i]
@@ -311,7 +309,6 @@ def _ham_component_matrices(phys: "ParametricHam") -> list[np.ndarray] | None:
     I2 = np.eye(2, dtype=float)
     Z  = np.array([[1.0, 0.0], [0.0, -1.0]])
     X  = np.array([[0.0, 1.0], [1.0, 0.0]])
-    Y  = np.array([[0.0, -1.0j], [1.0j, 0.0]])
 
     dim = 2 ** n
 
@@ -346,7 +343,7 @@ def _ham_component_matrices(phys: "ParametricHam") -> list[np.ndarray] | None:
 
 def energy_gradient(
     params: Sequence[float],
-    phys: "ParametricHam",
+    phys: ParametricHam,
     eps: float = 1e-5,
 ) -> np.ndarray:
     """Gradient of the ground-state energy w.r.t. ``params``.
@@ -377,7 +374,7 @@ def energy_gradient(
             jax.config.update("jax_enable_x64", True)
             comps_jax = [jnp.asarray(c.real, dtype=jnp.float64) for c in components]
 
-            def _energy(p_jax: "jax.Array") -> "jax.Array":
+            def _energy(p_jax: jax.Array) -> jax.Array:
                 H = sum(p_jax[i] * comps_jax[i] for i in range(len(comps_jax)))
                 return jnp.linalg.eigvalsh(H)[0]
 

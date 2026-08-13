@@ -16,7 +16,6 @@ Honest scope
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 import numpy as np
 
@@ -34,7 +33,7 @@ class ChiPoint:
 class ScalingReport:
     """Full χ-convergence study result."""
     n_sites: int
-    chi_points: List[ChiPoint] = field(default_factory=list)
+    chi_points: list[ChiPoint] = field(default_factory=list)
     E_extrapolated: float = float("nan")  # power-law fit; [OUT] scope
     E_extrap_stderr: float = float("nan")
     fit_exponent: float = float("nan")    # b in a/χ^b
@@ -59,7 +58,7 @@ class ScalingReport:
 
 def chi_convergence_study(
     n_sites: int,
-    chi_list: List[int],
+    chi_list: list[int],
     ham_factory,
     n_iter: int = 50,
     seed: int = 0,
@@ -130,8 +129,8 @@ def chi_convergence_study(
 
 
 def _power_law_fit(
-    chi_vals: List[int],
-    energies: List[float],
+    chi_vals: list[int],
+    energies: list[float],
 ) -> tuple[float, float, float]:
     """Fit ``E(χ) = E_∞ + a / χ^b`` via log-linearised least squares.
 

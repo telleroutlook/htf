@@ -7,13 +7,12 @@ structurally illegal diagram cannot be built ("physically-illegal code won't
 compile"). No numerics live here — only structure.
 """
 from __future__ import annotations
-from typing import Tuple
 
 
 class Wire:
     """An object of the category: a labelled vector space of dimension ``dim``."""
 
-    __slots__ = ("name", "dim")
+    __slots__ = ("dim", "name")
 
     def __init__(self, name: str, dim: int):
         if int(dim) <= 0:
@@ -33,10 +32,10 @@ class Wire:
         return hash((self.name, self.dim))
 
 
-Ty = Tuple[Wire, ...]  # a type is a tuple of wires
+Ty = tuple[Wire, ...]  # a type is a tuple of wires
 
 
-def dims(ty: Ty) -> Tuple[int, ...]:
+def dims(ty: Ty) -> tuple[int, ...]:
     """The tuple of dimensions of a type (what the tensor layer actually sees)."""
     return tuple(w.dim for w in ty)
 
@@ -47,10 +46,10 @@ class Diagram:
     dom: Ty = ()
     cod: Ty = ()
 
-    def __rshift__(self, other: "Diagram") -> "Then":
+    def __rshift__(self, other: Diagram) -> Then:
         return Then(self, other)
 
-    def __matmul__(self, other: "Diagram") -> "Tensor":
+    def __matmul__(self, other: Diagram) -> Tensor:
         return Tensor(self, other)
 
     def __repr__(self) -> str:

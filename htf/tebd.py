@@ -15,16 +15,20 @@ Honest scope [工程]
 """
 from __future__ import annotations
 
-import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import scipy.linalg
 
-from .mps import MPS, _left_canonicalise, mps_apply_gate, mps_inner, mps_normalise, mps_to_state
-
+from .mps import (
+    MPS,
+    _left_canonicalise,
+    mps_apply_gate,
+    mps_inner,
+    mps_normalise,
+    mps_to_state,
+)
 
 # ── Hamiltonian helpers ────────────────────────────────────────────────────
 
@@ -243,10 +247,10 @@ def tebd_step(
     mps: MPS,
     h_terms: list[np.ndarray],
     dt: float,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     imaginary: bool = False,
     trotter_order: int = 1,
-    n_threads: Optional[int] = None,
+    n_threads: int | None = None,
 ) -> tuple[MPS, float]:
     """One TEBD Trotter step.
 
@@ -292,7 +296,7 @@ def tebd_step(
 def _apply_all_bonds(
     mps: MPS,
     gates: list[np.ndarray],
-    chi: Optional[int],
+    chi: int | None,
 ) -> tuple[MPS, float]:
     """Apply all bond gates sequentially (1st-order)."""
     total_disc = 0.0
@@ -306,7 +310,7 @@ def _apply_bond_tensors(
     A_l: np.ndarray,
     A_r: np.ndarray,
     gate: np.ndarray,
-    chi: Optional[int],
+    chi: int | None,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Apply a 2-site gate to (A_l, A_r); return (new_Al, new_Ar, discarded).
 
@@ -333,9 +337,9 @@ def _apply_bond_tensors(
 def _apply_bond_parity(
     mps: MPS,
     gates: list[np.ndarray],
-    chi: Optional[int],
+    chi: int | None,
     even: bool,
-    n_threads: Optional[int] = None,
+    n_threads: int | None = None,
 ) -> tuple[MPS, float]:
     """Apply even (0-1, 2-3, …) or odd (1-2, 3-4, …) bond gates.
 
@@ -383,11 +387,11 @@ def tebd_evolve(
     h_terms: list[np.ndarray],
     dt: float,
     n_steps: int,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     imaginary: bool = False,
     trotter_order: int = 1,
     measure_every: int = 1,
-    n_threads: Optional[int] = None,
+    n_threads: int | None = None,
 ) -> TEBDResult:
     """Full TEBD time evolution.
 
@@ -474,7 +478,7 @@ def dmrg_sweep(
     mps: MPS,
     h_terms: list[np.ndarray],
     n_sweeps: int = 10,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     tol: float = 1e-8,
 ) -> DMRGResult:
     """Single-site DMRG variational ground-state search.
@@ -628,7 +632,7 @@ def _heff_dense_bond(mps: MPS, H_full: np.ndarray, left_site: int) -> np.ndarray
 def _local_eig(
     H_eff: np.ndarray,
     A_old: np.ndarray,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     go_right: bool = True,
 ) -> tuple[np.ndarray, float]:
     """Solve H_eff v = E v for the lowest eigenvalue and reshape as a tensor."""
@@ -646,7 +650,7 @@ def dmrg_sweep_2site(
     mps: MPS,
     h_terms: list[np.ndarray],
     n_sweeps: int = 10,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     tol: float = 1e-8,
 ) -> DMRGResult:
     """Two-site DMRG variational ground-state search.
@@ -712,7 +716,7 @@ def dmrg_sweep_2site(
 
 def _svd_truncate(
     M: np.ndarray,
-    chi: Optional[int],
+    chi: int | None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """SVD of M with optional truncation to chi singular values."""
     U, s, Vh = scipy.linalg.svd(M, full_matrices=False)

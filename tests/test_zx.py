@@ -23,7 +23,6 @@ from htf.zx import (
     zx_to_matrix,
 )
 
-
 # ─────────────────────── TestZXGraph ─────────────────────────────────────
 
 class TestZXGraph:
@@ -351,7 +350,7 @@ class TestZxToMatrix:
         g.outputs.append(out)
         g.add_edge(inp, out)
         # Stranded node — not reachable from any input
-        orphan = g.add_node(ZXNodeType.Z, phase=math.pi, label="orphan")
+        g.add_node(ZXNodeType.Z, phase=math.pi, label="orphan")
         with pytest.raises(NotImplementedError, match="circuit"):
             zx_to_matrix(g)
 
@@ -418,7 +417,7 @@ class TestColorChange:
         g.add_edge(z1, h)
         g.add_edge(h, z2)
         g.add_edge(z2, z3)  # z2 has both H and Z neighbours
-        n = color_change(g)
+        color_change(g)
         # z2 should not have changed (has non-H neighbour z3)
         assert z2 in g.nodes
         assert g.nodes[z2].kind == ZXNodeType.Z
@@ -530,7 +529,7 @@ class TestBialgebra:
         return g, z0, x0
 
     def test_fires_on_1x1(self):
-        g, z0, x0 = self._make_1x1()
+        g, _z0, _x0 = self._make_1x1()
         n = bialgebra(g)
         assert n == 1
 
@@ -541,7 +540,7 @@ class TestBialgebra:
         assert x0 not in g.nodes
 
     def test_new_nodes_created(self):
-        g, z0, x0 = self._make_1x1()
+        g, _z0, _x0 = self._make_1x1()
         n_before = len(g.nodes)
         bialgebra(g)
         # 2 nodes removed, 1 X + 1 Z added
@@ -591,7 +590,7 @@ class TestBialgebra:
         assert n >= 0
 
     def test_log_records_step(self):
-        g, z0, x0 = self._make_1x1()
+        g, _z0, _x0 = self._make_1x1()
         log = ZXRewriteLog()
         bialgebra(g, log)
         assert len(log) >= 1
@@ -623,22 +622,22 @@ class TestLocalComplement:
         return g, center, h_l, h_r
 
     def test_fires_on_pi_half(self):
-        g, center, h_l, h_r = self._make_lc_graph()
+        g, _center, _h_l, _h_r = self._make_lc_graph()
         n = local_complement(g)
         assert n >= 1
 
     def test_center_node_removed(self):
-        g, center, h_l, h_r = self._make_lc_graph()
+        g, center, _h_l, _h_r = self._make_lc_graph()
         local_complement(g)
         assert center not in g.nodes
 
     def test_fires_on_negative_pi_half(self):
-        g, center, h_l, h_r = self._make_lc_graph(phase=-math.pi / 2)
+        g, _center, _h_l, _h_r = self._make_lc_graph(phase=-math.pi / 2)
         n = local_complement(g)
         assert n >= 1
 
     def test_no_fire_on_non_clifford_phase(self):
-        g, center, h_l, h_r = self._make_lc_graph(phase=0.3)
+        g, center, _h_l, _h_r = self._make_lc_graph(phase=0.3)
         n = local_complement(g)
         assert n == 0
         assert center in g.nodes
@@ -658,7 +657,7 @@ class TestLocalComplement:
         assert center in g.nodes
 
     def test_neighbour_phases_shifted(self):
-        g, center, h_l, h_r = self._make_lc_graph(phase=math.pi / 2)
+        g, _center, h_l, h_r = self._make_lc_graph(phase=math.pi / 2)
         # Direct neighbours of center are h_l and h_r; their phases get shifted by -π/2
         local_complement(g)
         # h_l and h_r should still exist (they connect to outer nodes)
@@ -668,7 +667,7 @@ class TestLocalComplement:
                 assert abs(g.nodes[nid].phase - (-math.pi / 2)) < 1e-9
 
     def test_log_records_step(self):
-        g, center, h_l, h_r = self._make_lc_graph()
+        g, _center, _h_l, _h_r = self._make_lc_graph()
         log = ZXRewriteLog()
         local_complement(g, log)
         assert len(log) >= 1
@@ -694,19 +693,19 @@ class TestPhaseGadgetFuse:
         return g, z1, z2, xnode
 
     def test_fires_on_identical_neighbour_sets(self):
-        g, z1, z2, _ = self._make_two_gadgets()
+        g, _z1, _z2, _ = self._make_two_gadgets()
         n = phase_gadget_fuse(g)
         assert n >= 1
 
     def test_one_z_node_remains(self):
-        g, z1, z2, _ = self._make_two_gadgets()
+        g, _z1, _z2, _ = self._make_two_gadgets()
         phase_gadget_fuse(g)
         z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
         assert len(z_nodes) == 1
 
     def test_fused_phase_is_sum(self):
         alpha, beta = 0.3, 0.7
-        g, z1, z2, _ = self._make_two_gadgets(alpha, beta)
+        g, _z1, _z2, _ = self._make_two_gadgets(alpha, beta)
         phase_gadget_fuse(g)
         z_nodes = [nd for nd in g.nodes.values() if nd.kind == ZXNodeType.Z]
         assert abs(z_nodes[0].phase - (alpha + beta)) < 1e-9
@@ -736,7 +735,7 @@ class TestPhaseGadgetFuse:
         assert abs(z_nodes[0].phase - sum(phases)) < 1e-9
 
     def test_log_records_step(self):
-        g, z1, z2, _ = self._make_two_gadgets()
+        g, _z1, _z2, _ = self._make_two_gadgets()
         log = ZXRewriteLog()
         phase_gadget_fuse(g, log)
         assert len(log) >= 1

@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .topology import Box, Diagram, Id, Tensor, Then, Wire
+from .topology import Box, Diagram, Id, Tensor, Then
 
 # ────────────────────── internal graph builder ────────────────────────────
 
@@ -95,7 +95,6 @@ def _visit(
         return in_f, out_g, x_end, max(y_f, y_g)
 
     if isinstance(diag, Tensor):
-        n_f_cod = len(diag.f.cod)
         in_f, out_f, x_f, y_after_f = _visit(diag.f, nodes, edges, counter, x, y)
         in_g, out_g, x_g, y_after_g = _visit(diag.g, nodes, edges, counter, x, y_after_f)
         return in_f + in_g, out_f + out_g, max(x_f, x_g), y_after_g

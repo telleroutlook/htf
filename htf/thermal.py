@@ -23,7 +23,6 @@ from __future__ import annotations
 import os
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 
@@ -186,8 +185,7 @@ def thermal_expectation(
     site:         lattice site index (0-based).
     d:            physical dimension.
     """
-    D     = d * d
-    O_ext = np.kron(operator, np.eye(d))          # (D, D): identity on ancilla
+    O_ext = np.kron(operator, np.eye(d))          # (d², d²): identity on ancilla
     num   = float(mps_expectation(mps_purified, [(site, O_ext)]).real)
     den   = float(mps_inner(mps_purified, mps_purified).real)
     return num / den
@@ -257,7 +255,7 @@ def thermal_scan(
     chi: int = 16,
     d: int = 2,
     dt: float = 0.05,
-    n_workers: Optional[int] = None,
+    n_workers: int | None = None,
 ) -> ThermalScanResult:
     """Parallel β-scan via imaginary-time TEBD.
 

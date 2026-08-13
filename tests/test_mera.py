@@ -13,7 +13,6 @@ from htf.mera import (
 )
 from htf.structure import isometry_defect, unitary_defect
 
-
 # ──────────────────── helpers ─────────────────────────────────────────
 
 def _make_isometry(chi: int, seed: int = 0) -> np.ndarray:

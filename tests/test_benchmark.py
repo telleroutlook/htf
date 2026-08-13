@@ -1,26 +1,24 @@
 """Tests for htf/benchmark.py — certified reproducibility benchmark suite."""
 import json
-import math
 
 import pytest
 
 from htf.benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
-
 
 # ─────────────────── TestBenchmarkResult ─────────────────────────────────
 
 class TestBenchmarkResult:
 
     def _make(self, **kw):
-        defaults = dict(
-            model="ising", n_sites=4, chi=2, seed=0,
-            E0_var=-3.3, E0_error_bound=1e-14,
-            gap_exact=0.095, gap_var=4.5,
-            gap_cert_result=4.5, gap_cert_error=1e-13,
-            temple_lb=-4.0, temple_condition_met=False,
-            os_passed=True, max_entropy=0.58,
-            likely_area_law=True, n_iter_used=50, elapsed_s=0.1,
-        )
+        defaults = {
+            "model": "ising", "n_sites": 4, "chi": 2, "seed": 0,
+            "E0_var": -3.3, "E0_error_bound": 1e-14,
+            "gap_exact": 0.095, "gap_var": 4.5,
+            "gap_cert_result": 4.5, "gap_cert_error": 1e-13,
+            "temple_lb": -4.0, "temple_condition_met": False,
+            "os_passed": True, "max_entropy": 0.58,
+            "likely_area_law": True, "n_iter_used": 50, "elapsed_s": 0.1,
+        }
         defaults.update(kw)
         return BenchmarkResult(**defaults)
 

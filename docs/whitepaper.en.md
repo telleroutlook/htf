@@ -2,7 +2,7 @@
 
 **Holographic Tensor Framework — Certified, Type-Safe String-Diagram / Tensor-Network Engine**
 
-Version 0.13.0 · Language: Python 3.10+ · License: MIT
+Version 0.23.0 · Language: Python 3.10+ · License: MIT
 
 ---
 
@@ -193,24 +193,28 @@ report.to_json()   # replayable JSON certificate
 Every `BenchmarkReport` records `htf_version`, `seed`, `n_iter`, and all certified
 results; given the same inputs and HTF version, output is bit-for-bit reproducible.
 
-### 4.10 ZX-Calculus Diagram Rewriting (§4-E) `[研究]`
+### 4.10 ZX-Calculus Diagram Rewriting (§4-E / §8-B) `[研究]`
 
 ```python
-from htf.zx import zx_from_circuit, simplify, zx_to_matrix, ZXRewriteLog
+from htf.zx import zx_from_circuit, clifford_simplify, zx_to_matrix, ZXRewriteLog
 from htf.qasm import Gate
 
 gates = [Gate("h", [0]), Gate("cx", [0, 1])]
 g   = zx_from_circuit(gates, n_qubits=2)
 log = ZXRewriteLog()
-n   = simplify(g, log=log)  # applies 5 rules exhaustively
-U   = zx_to_matrix(g)       # reconstruct unitary (circuit-topology only)
+n   = clifford_simplify(g, log=log)  # 8-rule full Clifford pipeline
+U   = zx_to_matrix(g)                # reconstruct unitary
 ```
 
-Five sound rewrite rules: `spider_fusion`, `identity_removal`, `hadamard_cancel`,
-`color_change`, `pi_copy`. Every step is recorded in a proof-carrying `ZXRewriteLog`.
+Eight sound rewrite rules (§8-B Clifford pipeline): `spider_fusion`,
+`identity_removal`, `hadamard_cancel`, `color_change`, `pi_copy`,
+`bialgebra`, `local_complement`, `phase_gadget_fuse`. The `simplify`
+function applies the core 5-rule set; `clifford_simplify` runs the full
+8-rule Clifford simplification. Every step is recorded in a proof-carrying
+`ZXRewriteLog`.
 
-**`zx_to_matrix`** raises `NotImplementedError` for non-circuit-topology graphs
-(cross-wire nodes, disconnected components) — no silent wrong results.
+**`zx_to_matrix`** raises `NotImplementedError` for non-circuit-topology
+graphs (cross-wire nodes, disconnected components) — no silent wrong results.
 
 ### 4.11 QASM 2.0 Interoperability (§4-F) `[工程]`
 
@@ -287,6 +291,67 @@ Generates valid Lean 4 syntax with `import Mathlib`. Every `theorem` has a `sorr
 stub that marks a proof obligation for a human Lean expert. HTF does not invoke the
 Lean server; use `lake build` externally to type-check. Full formalisation is `[研究]`.
 
+### 4.16 MPS + TEBD + DMRG (§8-A / §9-A–C) `[工程]`
+
+```python
+from htf.mps import MPS, random_mps, mps_from_state, mps_inner, mps_norm
+from htf.tebd import tebd_evolve, dmrg_sweep_2site, heisenberg_bonds, tfim_bonds
+
+bonds = heisenberg_bonds(n=8, J=1.0, h=0.0)
+mps   = random_mps(8, d=2, chi=16, seed=0)
+
+# Real-time TEBD evolution (2nd-order Strang splitting, optional bond parallelism)
+result = tebd_evolve(mps, bonds, dt=0.05, n_steps=20, chi=32, n_threads=4)
+
+# Variational ground state via 2-site DMRG (escapes local minima)
+from htf.tebd import DMRGResult
+gs = dmrg_sweep_2site(mps, bonds, n_sweeps=10, chi=32)
+```
+
+Physical models: `tfim_bonds`, `xx_bonds`, `heisenberg_bonds`,
+`bose_hubbard_bonds`; all support `periodic=True`. TDVP (`tdvp_evolve`)
+provides imaginary/real-time evolution without Trotter error.
+
+### 4.17 MPO + MPO-DMRG + Parallel Multi-Start (§9-E–I) `[工程]`
+
+```python
+from htf.mpo import (
+    MPO, nn_hamiltonian_mpo, dmrg_sweep_mpo_2site,
+    dmrg_multistart, mpo_chi_convergence,
+)
+
+H_mpo = nn_hamiltonian_mpo(bonds, n=8, d=2)   # finite-automaton MPO, bond dim W
+mps   = random_mps(8, d=2, chi=4, seed=0)
+
+# 2-site MPO-DMRG (subspace expansion; escapes 1-site local minima)
+result = dmrg_sweep_mpo_2site(mps, H_mpo, n_sweeps=10, chi=32)
+
+# Parallel multi-start DMRG — ProcessPoolExecutor, no GPU required
+ms = dmrg_multistart(H_mpo, n_seeds=8, n_workers=4, chi=32)
+print(ms.best.energies[-1], ms.all_energies)
+
+# χ-convergence study — all chi×seed jobs in one flat parallel batch
+report = mpo_chi_convergence(H_mpo, chi_list=[4, 8, 16, 32], n_seeds=4, n_workers=4)
+print(report.summary())
+```
+
+### 4.18 Finite-Temperature States + Parallel β-Scan (§9-D / §9-J) `[工程]`
+
+```python
+from htf.thermal import thermal_state, thermal_scan, ThermalScanResult
+
+bonds = tfim_bonds(n=4, J=1.0, h=0.5)
+
+# Single β — imaginary-time TEBD on purified MPS
+result = thermal_state(bonds, n=4, beta=2.0, chi=16, d=2, dt=0.05)
+# result.partition_function, result.free_energy_upper, result.energies
+
+# Parallel β-scan — each β evolves independently (ProcessPoolExecutor)
+scan: ThermalScanResult = thermal_scan(bonds, n=4, beta_list=[0.5, 1.0, 2.0, 4.0],
+                                        chi=16, d=2, dt=0.05, n_workers=4)
+print(scan.summary())   # sorted ascending by β
+```
+
 ---
 
 ## 5. Agent-Drivable CLI
@@ -353,10 +418,12 @@ without a replayable certificate.
 | Package | Role | Required |
 |---|---|---|
 | `numpy>=1.23` | Core array operations | Yes |
-| `scipy` | Matrix expm (open systems, transfer matrix) | Yes |
+| `scipy` | Matrix expm, SVD (open systems, TEBD, DMRG) | Yes |
 | `python-flint>=0.5` | Arb interval arithmetic (certified mode) | Optional (`pip install htf[certified]`) |
 | `mcp>=1.0` | MCP server transport | Optional (`pip install htf[mcp]`) |
 | `opt_einsum` | Optimised contraction-path selection (float mode) | Optional (auto-detected) |
+| `jax` | Exact autograd for `energy_gradient` in inverse design | Optional (auto-detected; falls back to finite-difference) |
+| `concurrent.futures` | ProcessPoolExecutor / ThreadPoolExecutor parallelism (DMRG, TEBD, β-scan) | Stdlib — zero new dependencies |
 
 ---
 

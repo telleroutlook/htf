@@ -15,7 +15,7 @@ import pytest
 
 from htf import Box, Certificate, Id, TensorFunctor, Wire, contract
 from htf.certificate import Certificate  # noqa: F811 (re-import is intentional)
-from htf.topology import Diagram, Then, Tensor
+from htf.topology import Diagram, Then
 
 
 def _make_fake_diagram(w: Wire) -> Diagram:

@@ -190,7 +190,7 @@ class TestThermalScan:
             assert p.partition_function > 0
 
     def test_parallel_path(self, tfim_setup):
-        n, d, bonds, E0 = tfim_setup
+        n, d, bonds, _E0 = tfim_setup
         result = thermal_scan(bonds, n, [1.0, 2.0], chi=8, d=d, dt=0.1,
                               n_workers=2)
         assert isinstance(result, ThermalScanResult)

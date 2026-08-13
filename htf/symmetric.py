@@ -31,11 +31,9 @@ Honest scope [研究]
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
-
 
 # ────────────────────── charge basis ──────────────────────────────────────
 
@@ -134,7 +132,7 @@ def check_u1_invariance(
     max_violation = float(np.max(T_2d[violation_mask])) if n_violations > 0 else 0.0
 
     conserved_rows = np.where(significant & ~violates)[0]
-    seen_sectors: set[int] = set(int(q) for q in cod_charges[conserved_rows])
+    seen_sectors: set[int] = {int(q) for q in cod_charges[conserved_rows]}
 
     return {
         "is_invariant":   n_violations == 0,

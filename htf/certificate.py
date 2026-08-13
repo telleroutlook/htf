@@ -11,17 +11,17 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
 class Certificate:
     result: Any
     mode: str = "float"
-    error_bound: Optional[float] = None  # None in float mode: no guarantee
+    error_bound: float | None = None  # None in float mode: no guarantee
     backend: str = "numpy"
-    chi: Optional[int] = None            # bond dimension / truncation (the regulator)
-    seed: Optional[int] = None
+    chi: int | None = None            # bond dimension / truncation (the regulator)
+    seed: int | None = None
     htf_version: str = "0.2.0"
     notes: str = ""
 

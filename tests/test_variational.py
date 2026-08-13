@@ -14,12 +14,11 @@ from htf.variational import (
     xx_model_ham,
 )
 
-
 # ─────────────────────────── Helpers ──────────────────────────────
 
 def ground_state_vec(ham: np.ndarray) -> np.ndarray:
     """Return the eigenvector corresponding to the smallest eigenvalue."""
-    eigenvalues, eigenvectors = np.linalg.eigh(ham)
+    _eigenvalues, eigenvectors = np.linalg.eigh(ham)
     return eigenvectors[:, 0]
 
 
@@ -342,19 +341,19 @@ class TestOptimizeMera:
         H = transverse_ising_ham(2, J=1.0, h=0.5)
         e0 = np.linalg.eigvalsh(H)[0]
         mera = random_mera(n_sites=2, chi=2, seed=10)
-        optimised, history = optimize_mera(H, mera, n_iter=50)
+        _optimised, history = optimize_mera(H, mera, n_iter=50)
         e_final = history[-1]
         assert e_final >= e0 - 1e-8
 
     def test_optimize_with_n_iter_1(self):
         # Should not crash with minimal iterations
-        optimised, history = optimize_mera(self.H2, self.mera, n_iter=1)
+        _optimised, history = optimize_mera(self.H2, self.mera, n_iter=1)
         assert len(history) >= 1
 
     def test_optimize_xx_model(self):
         H = xx_model_ham(2)
         mera = random_mera(n_sites=2, chi=2, seed=13)
-        optimised, history = optimize_mera(H, mera, n_iter=10)
+        _optimised, history = optimize_mera(H, mera, n_iter=10)
         assert len(history) >= 2
         assert history[0] >= history[-1] - 1e-8
 
@@ -368,7 +367,7 @@ class TestOptimizeMera:
     def test_optimised_constraints_enforced(self):
         # After optimize_mera, enforce_constraints should be idempotent (state unchanged)
         optimised, _ = optimize_mera(self.H2, self.mera, n_iter=10)
-        psi_before = optimised.state_vector().copy()
+        optimised.state_vector().copy()
         optimised.enforce_constraints()
         # Top should be normalised to unit norm already
         norm = float(np.linalg.norm(optimised.top))

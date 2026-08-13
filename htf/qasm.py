@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 
@@ -234,7 +233,7 @@ def _parse_angle(expr: str) -> float:
     """Evaluate a QASM angle expression (e.g. ``"pi/2"``, ``"3*pi/4"``)."""
     expr = expr.replace("pi", str(np.pi))
     try:
-        return float(eval(expr, {"__builtins__": {}}, {}))  # noqa: S307
+        return float(eval(expr, {"__builtins__": {}}, {}))
     except Exception as exc:
         raise ValueError(f"Cannot evaluate angle expression: {expr!r}") from exc
 

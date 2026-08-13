@@ -1,8 +1,7 @@
 """Tests for htf/mcp_server.py — MCP server construction and tool listing."""
-import json
 import pytest
 
-from htf.mcp_server import _build_server, HAS_MCP
+from htf.mcp_server import HAS_MCP, _build_server
 
 
 @pytest.mark.skipif(not HAS_MCP, reason="mcp package not installed")

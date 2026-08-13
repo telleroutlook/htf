@@ -172,7 +172,7 @@ class TestU1Blocks:
         I = np.eye(2).astype(complex)
         b = spin_half_basis()
         bst = u1_blocks(I, [b], [b])
-        for Q, blk in bst.blocks.items():
+        for blk in bst.blocks.values():
             assert np.allclose(blk, np.eye(blk.shape[0]), atol=1e-12)
 
     def test_to_dense_recovers_original(self):

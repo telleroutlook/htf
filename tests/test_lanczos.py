@@ -1,6 +1,5 @@
 """Tests for htf/lanczos.py — Lanczos algorithm and two-sided spectral bounds."""
 import numpy as np
-import pytest
 
 from htf.lanczos import (
     TwoSidedBounds,
@@ -40,34 +39,34 @@ class TestLanczos:
     def test_alpha_length_equals_k(self):
         H = _diag_ham(6)
         v0 = np.random.default_rng(0).standard_normal(6)
-        alpha, beta, V = lanczos(H, v0, k=4)
+        alpha, _beta, _V = lanczos(H, v0, k=4)
         assert len(alpha) == 4
 
     def test_beta_length_is_k_minus_1(self):
         H = _diag_ham(6)
         v0 = np.random.default_rng(0).standard_normal(6)
-        alpha, beta, V = lanczos(H, v0, k=4)
+        _alpha, beta, _V = lanczos(H, v0, k=4)
         assert len(beta) == 3
 
     def test_V_columns_orthonormal(self):
         H = _diag_ham(8)
         v0 = np.random.default_rng(1).standard_normal(8)
-        alpha, beta, V = lanczos(H, v0, k=5)
+        _alpha, _beta, V = lanczos(H, v0, k=5)
         gram = V.T @ V
         assert np.allclose(gram, np.eye(gram.shape[0]), atol=1e-10)
 
     def test_k_capped_at_n(self):
         H = _diag_ham(3)
         v0 = np.ones(3) / np.sqrt(3)
-        alpha, beta, V = lanczos(H, v0, k=100)
+        alpha, _beta, _V = lanczos(H, v0, k=100)
         assert len(alpha) <= 3
 
     def test_v0_normalised_internally(self):
         H = _diag_ham(4)
         v0_scaled = 5.0 * np.array([1.0, 0.0, 0.0, 0.0])
         v0_unit   = np.array([1.0, 0.0, 0.0, 0.0])
-        a1, b1, V1 = lanczos(H, v0_scaled, k=3)
-        a2, b2, V2 = lanczos(H, v0_unit,   k=3)
+        a1, _b1, _V1 = lanczos(H, v0_scaled, k=3)
+        a2, _b2, _V2 = lanczos(H, v0_unit,   k=3)
         assert np.allclose(a1, a2, atol=1e-12)
 
     def test_tridiagonal_reconstructs_projection(self):
@@ -75,7 +74,7 @@ class TestLanczos:
         v0 = np.random.default_rng(7).standard_normal(6)
         k  = 4
         alpha, beta, V = lanczos(H, v0, k)
-        m = len(alpha)
+        len(alpha)
         T = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
         # V^T A V should equal T
         assert np.allclose(V.T @ H @ V, T, atol=1e-8)
@@ -84,7 +83,7 @@ class TestLanczos:
         # H diagonal, v0 = e_0 — subspace is invariant after 1 step
         H = np.diag([0.0, 1.0, 2.0, 3.0])
         v0 = np.array([1.0, 0.0, 0.0, 0.0])
-        alpha, beta, V = lanczos(H, v0, k=4)
+        alpha, _beta, _V = lanczos(H, v0, k=4)
         # Should stop early (only 1 effective step for eigenvector v0)
         assert len(alpha) <= 2
 

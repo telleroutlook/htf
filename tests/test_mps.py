@@ -8,6 +8,7 @@ from htf.mps import (
     MPS,
     _left_canonicalise,
     mps_add,
+    mps_apply_gate,
     mps_expectation,
     mps_from_state,
     mps_inner,
@@ -15,10 +16,8 @@ from htf.mps import (
     mps_normalise,
     mps_to_state,
     mps_truncate,
-    mps_apply_gate,
     random_mps,
 )
-
 
 # ── fixtures ──────────────────────────────────────────────────────────────
 
@@ -237,7 +236,7 @@ class TestMpsAdd:
 class TestMpsTruncate:
     def test_bond_dim_reduced(self):
         mps = random_mps(5, d=2, chi=8, seed=2)
-        mps_t, disc = mps_truncate(mps, chi=3)
+        mps_t, _disc = mps_truncate(mps, chi=3)
         for b in mps_t.bond_dims:
             assert b <= 3
 
@@ -259,7 +258,7 @@ class TestMpsTruncate:
         rng = np.random.default_rng(11)
         psi = rng.standard_normal(16); psi /= np.linalg.norm(psi)
         mps = mps_from_state(psi, d=2, chi=None)
-        mps_t, disc = mps_truncate(mps, chi=2)
+        mps_t, _disc = mps_truncate(mps, chi=2)
         psi_t = mps_to_state(mps_t)
         psi_t /= np.linalg.norm(psi_t)
         fidelity = float(np.abs(np.dot(psi.conj(), psi_t)) ** 2)

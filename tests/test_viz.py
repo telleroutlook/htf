@@ -1,9 +1,7 @@
 """Tests for htf/viz.py — string-diagram node-graph visualization."""
 import json
 
-import pytest
-
-from htf.topology import Box, Id, Tensor, Then, Wire
+from htf.topology import Box, Id, Wire
 from htf.viz import diagram_to_dict, diagram_to_html, save_diagram_html
 
 # ──────── helpers ─────────────────────────────────────────────────────────

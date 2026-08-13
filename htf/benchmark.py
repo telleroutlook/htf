@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import List, Optional
 
 import numpy as np
 
@@ -53,7 +52,7 @@ class BenchmarkReport:
     chi: int
     n_iter: int
     seed: int
-    results: List[BenchmarkResult] = field(default_factory=list)
+    results: list[BenchmarkResult] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -102,7 +101,7 @@ def run_benchmark(
     chi: int = 2,
     n_iter: int = 50,
     seed: int = 0,
-    models: Optional[List[str]] = None,
+    models: list[str] | None = None,
 ) -> BenchmarkReport:
     """Run the HTF certified reproducibility benchmark suite.
 

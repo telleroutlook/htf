@@ -1,6 +1,4 @@
 """Tests for htf/lean_export.py — Lean 4 proof-assistant export (§4-L)."""
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -15,7 +13,6 @@ from htf.lean_export import (
 )
 from htf.structure import StructureReport
 from htf.topology import Box, Id, Wire
-
 
 # ─────────── certificate_to_lean ─────────────────────────────────────────
 
@@ -253,7 +250,7 @@ class TestExportLean:
     def test_creates_file(self, tmp_path):
         cert = Certificate(result=-3.0, mode="float", error_bound=None)
         path = tmp_path / "out.lean"
-        src = export_lean([("certificate", cert, "e0")], path)
+        export_lean([("certificate", cert, "e0")], path)
         assert path.exists()
 
     def test_returns_source_string(self, tmp_path):

@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import types
 
 try:
     from mcp.server.mcpserver import MCPServer
@@ -46,7 +47,7 @@ except ImportError:
     HAS_MCP = False
 
 
-def _build_server() -> "MCPServer":
+def _build_server() -> MCPServer:
     """Construct and configure the HTF MCP server."""
     if not HAS_MCP:
         raise ImportError("htf.mcp_server requires 'mcp'. Install with: pip install mcp")
@@ -92,11 +93,7 @@ def _build_server() -> "MCPServer":
         from .mera import random_mera
         from .variational import optimize_mera, variational_bound
 
-        class _Args:
-            pass
-
-        a = _Args()
-        a.model, a.n, a.J, a.h = model, n, J, h
+        a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         mera0 = random_mera(n, chi=chi, seed=seed)
         mera_opt, history = optimize_mera(H, mera0, n_iter=n_iter, tol=1e-6)
@@ -134,11 +131,7 @@ def _build_server() -> "MCPServer":
         from .mera import random_mera
         from .variational import optimize_mera
 
-        class _Args:
-            pass
-
-        a = _Args()
-        a.model, a.n, a.J, a.h = model, n, J, h
+        a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         mera0 = random_mera(n, chi=chi, seed=seed)
         mera_gs, _ = optimize_mera(H, mera0, n_iter=n_iter, tol=1e-6)
@@ -183,11 +176,7 @@ def _build_server() -> "MCPServer":
         from .cli import _build_ham, _report_to_dict
         from .os_axioms import os_positivity_report
 
-        class _Args:
-            pass
-
-        a = _Args()
-        a.model, a.n, a.J, a.h = model, n, J, h
+        a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         rep = os_positivity_report(H, n, beta=beta, d=2)
         out = {
@@ -246,11 +235,7 @@ def _build_server() -> "MCPServer":
         from .cli import _build_ham
         from .lanczos import temple_lanczos
 
-        class _Args:
-            pass
-
-        a = _Args()
-        a.model, a.n, a.J, a.h = model, n, J, h
+        a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         bounds = temple_lanczos(H, k=k, seed=seed)
         out = {

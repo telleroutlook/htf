@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from .topology import Box, Id, Then, Tensor, dims
 from .functor import TensorFunctor
+from .topology import Box, Id, Tensor, Then, dims
 
 # opt_einsum provides optimised contraction-path selection.
 # If available it is used automatically in float mode; otherwise numpy fallback.
@@ -64,7 +64,7 @@ def _eval(d, F: TensorFunctor) -> np.ndarray:
             idx_out = list(range(nc)) + list(range(nc + nb, nc + nb + nd))
             return _opt_einsum.contract(Gg, idx_gg, Ff, idx_ff, idx_out)
         g_in = list(range(nc, nc + nb))   # g's input axes
-        f_out = list(range(0, nb))        # f's output axes
+        f_out = list(range(nb))        # f's output axes
         return np.tensordot(Gg, Ff, axes=(g_in, f_out))
 
     if isinstance(d, Tensor):
@@ -74,7 +74,7 @@ def _eval(d, F: TensorFunctor) -> np.ndarray:
         ngo, ngi = len(d.g.cod), len(d.g.dom)
         outer = np.tensordot(Ff, Gg, axes=0)  # fcod+fdom+gcod+gdom
         perm = (
-            list(range(0, nfo))
+            list(range(nfo))
             + list(range(nfo + nfi, nfo + nfi + ngo))
             + list(range(nfo, nfo + nfi))
             + list(range(nfo + nfi + ngo, nfo + nfi + ngo + ngi))
@@ -151,7 +151,7 @@ def _eval_certified(d, F: TensorFunctor):
 
 def _extract_arb_mat(
     mat, result_shape: tuple
-) -> tuple[np.ndarray, float]:
+) -> tuple[np.ndarray | float, float]:
     """Extract (midpoint_array, max_radius) from a flint ``arb_mat``.
 
     *result_shape* is the target numpy shape (dims(cod) + dims(dom)).
@@ -165,8 +165,7 @@ def _extract_arb_mat(
             e = mat[i, j]
             mid[i, j] = float(e.mid())
             r = float(e.rad())
-            if r > max_rad:
-                max_rad = r
+            max_rad = max(max_rad, r)
     if result_shape:
         return mid.reshape(result_shape), max_rad
     return float(mid[0, 0]), max_rad

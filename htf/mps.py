@@ -22,8 +22,7 @@ Honest scope [工程]
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
 import scipy.linalg
@@ -57,7 +56,7 @@ class MPS:
         bonds = self.bond_dims
         return max(bonds) if bonds else 1
 
-    def copy(self) -> "MPS":
+    def copy(self) -> MPS:
         return MPS([t.copy() for t in self.tensors])
 
 
@@ -65,7 +64,7 @@ def random_mps(
     n: int,
     d: int,
     chi: int,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     dtype=np.float64,
 ) -> MPS:
     """Random MPS in left-canonical form with bond dimension chi."""
@@ -83,7 +82,7 @@ def random_mps(
 def mps_from_state(
     psi: np.ndarray,
     d: int,
-    chi: Optional[int] = None,
+    chi: int | None = None,
 ) -> MPS:
     """Convert a dense state vector to MPS via successive SVD.
 
@@ -126,7 +125,7 @@ def mps_to_state(mps: MPS) -> np.ndarray:
     result = mps.tensors[0]           # (1, d, chi_r)
     result = result.reshape(mps.phys_dim, -1)  # (d, chi_r)
     for A in mps.tensors[1:]:
-        chi_m, d, chi_r = A.shape
+        _chi_m, _d, chi_r = A.shape
         # result: (d^i, chi_m) × A: (chi_m, d, chi_r) → (d^{i+1}, chi_r)
         result = np.tensordot(result, A, axes=([1], [0]))
         # result now: (d^i, d, chi_r) → reshape
@@ -201,7 +200,7 @@ def mps_add(psi: MPS, phi: MPS) -> MPS:
     return MPS(tensors)
 
 
-def mps_truncate(mps: MPS, chi: int) -> tuple["MPS", float]:
+def mps_truncate(mps: MPS, chi: int) -> tuple[MPS, float]:
     """SVD-compress MPS to bond dimension chi.
 
     Returns (compressed_mps, discarded_weight).  The discarded weight is
@@ -261,8 +260,8 @@ def mps_apply_gate(
     mps: MPS,
     gate: np.ndarray,
     sites: list[int],
-    chi: Optional[int] = None,
-) -> tuple["MPS", float]:
+    chi: int | None = None,
+) -> tuple[MPS, float]:
     """Apply a 1- or 2-site gate to an MPS with optional SVD truncation.
 
     Parameters
@@ -291,7 +290,7 @@ def mps_apply_gate(
             raise ValueError("2-site gate must be applied to adjacent sites")
         A = tensors[i]   # (chi_l, d, chi_m)
         B = tensors[j]   # (chi_m, d, chi_r)
-        chi_l, d, chi_m = A.shape
+        chi_l, d, _chi_m = A.shape
         _, _, chi_r      = B.shape
         # Contract A-B into a rank-4 tensor, apply gate, then SVD
         AB = np.einsum("asb, btc -> astc", A, B)          # (chi_l, d, d, chi_r)

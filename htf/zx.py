@@ -33,10 +33,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional
 
 import numpy as np
-
 
 # ────────────────────── node kind ────────────────────────────────────────
 
@@ -142,7 +140,7 @@ class ZXGraph:
         """Number of qubits inferred from input boundary nodes."""
         return len(self.inputs)
 
-    def copy(self) -> "ZXGraph":
+    def copy(self) -> ZXGraph:
         """Return a deep copy."""
         g = ZXGraph()
         g.nodes    = {k: ZXNode(v.node_id, v.kind, v.phase, v.qubit, v.label)
@@ -333,7 +331,7 @@ class ZXRewriteLog:
         return len(self.steps)
 
 
-def spider_fusion(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def spider_fusion(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Merge adjacent same-coloured spiders (Z–Z or X–X).
 
     **Rule**: two spiders of the same colour connected by a single wire
@@ -372,7 +370,7 @@ def spider_fusion(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
-def identity_removal(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def identity_removal(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Remove 2-legged zero-phase spiders (identity spiders).
 
     **Rule**: a Z or X spider with exactly 2 legs and phase 0 is
@@ -409,7 +407,7 @@ def identity_removal(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
-def hadamard_cancel(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def hadamard_cancel(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Cancel pairs of adjacent Hadamard boxes.
 
     **Rule**: H · H = I; two H nodes connected by a single internal wire
@@ -452,7 +450,7 @@ def hadamard_cancel(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
-def color_change(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def color_change(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Convert a spider flanked by H boxes to the opposite colour.
 
     **Rule**: an X spider with all its neighbours being H boxes can be
@@ -502,7 +500,7 @@ def color_change(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
-def pi_copy(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def pi_copy(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Apply the π-copy rule: Z(π) copies through X(0) spiders.
 
     **Rule**: if a Z(π) spider is connected to an X(0) spider, the Z(π)
@@ -535,7 +533,7 @@ def pi_copy(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
                 # add new Z(π) nodes on all other legs of X
                 g.remove_edge(z_id, x_id)
                 g.remove_node(z_id)
-                other_nbs = [nb for nb in g.neighbours(x_id)]
+                other_nbs = list(g.neighbours(x_id))
                 new_z_ids = []
                 for nb in other_nbs:
                     g.remove_edge(x_id, nb)
@@ -560,8 +558,8 @@ def pi_copy(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
 
 def simplify(
     g: ZXGraph,
-    rules: Optional[list[str]] = None,
-    log: Optional[ZXRewriteLog] = None,
+    rules: list[str] | None = None,
+    log: ZXRewriteLog | None = None,
     max_iter: int = 100,
 ) -> int:
     """Apply rewrite rules exhaustively until no more apply.
@@ -636,10 +634,9 @@ def zx_to_matrix(g: ZXGraph) -> np.ndarray:
     # Reconstruct a gate list by walking from inputs to outputs
     gates: list[Gate] = []
     visited: set[int] = set(g.inputs)
-    boundary = set(g.inputs)
 
     def _spider_to_gate(nid: int, kind: ZXNodeType, phase: float,
-                        qubit: int) -> Optional[Gate]:
+                        qubit: int) -> Gate | None:
         if kind == ZXNodeType.Z:
             if abs(phase) < 1e-12:
                 return None            # identity
@@ -711,11 +708,11 @@ def zx_to_matrix(g: ZXGraph) -> np.ndarray:
 
 # ────────────────────── §8-B extended Clifford rules ────────────────────────
 
-def _is_zero_phase(node: "ZXNode") -> bool:
+def _is_zero_phase(node: ZXNode) -> bool:
     """Return True when node.phase is within 1e-9 of zero."""
     return abs(node.phase) < 1e-9
 
-def bialgebra(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def bialgebra(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Z(0) – X(0) bialgebra (copy) rule — termination-safe variant.
 
     **Rule**: a zero-phase Z-spider connected to a zero-phase X-spider,
@@ -763,7 +760,7 @@ def bialgebra(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
-def local_complement(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def local_complement(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Local complementation (LC) on a Clifford (π/2-phase) spider.
 
     **Rule**: a Z or X spider with phase ±π/2 (a Clifford generator) that
@@ -833,7 +830,7 @@ def local_complement(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
-def phase_gadget_fuse(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+def phase_gadget_fuse(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Fuse parallel phase gadgets connected to the same set of qubits.
 
     A *phase gadget* is a Z-spider of arbitrary phase that connects via
@@ -848,7 +845,6 @@ def phase_gadget_fuse(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     [研究] Sound; detecting the full set of gadgets sharing a qubit basis
     in arbitrary diagrams requires more graph analysis.
     """
-    import math as _math
 
     applied = 0
     while True:
@@ -889,7 +885,7 @@ def phase_gadget_fuse(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
 
 def clifford_simplify(
     g: ZXGraph,
-    log: Optional[ZXRewriteLog] = None,
+    log: ZXRewriteLog | None = None,
     max_iter: int = 200,
 ) -> int:
     """Full Clifford ZX simplification pipeline.

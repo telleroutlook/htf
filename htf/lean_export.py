@@ -31,10 +31,9 @@ Honest scope
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 # ────────────────────── Lean 4 source builder ────────────────────────────
 
@@ -117,8 +116,8 @@ def certificate_to_lean(cert: Any, name: str = "bound") -> str:
         f"-- ≤ {name}_interval.mid + {name}_interval.rad",
         f"theorem {name}_upper_bound (V : ℝ) :",
         f"    V ≥ ({mid:.15g} : ℝ) - ({rad:.15g} : ℝ) := by",
-        f"  -- TODO: formalise HTF certified contraction proof [研究]",
-        f"  sorry",
+        "  -- TODO: formalise HTF certified contraction proof [研究]",
+        "  sorry",
         "",
     ]
     return "\n".join(lines)
@@ -149,20 +148,20 @@ def gap_report_to_lean(report: dict, name: str = "spectral_gap") -> str:
         f"-- Gap report for `{name}` (HTF §4)",
         f"-- E0_exact ≈ {e0_exact:.10g}, gap ≈ {gap_exact:.10g}",
         "",
-        f"-- Variational upper bound: E_var ≥ E_0",
+        "-- Variational upper bound: E_var ≥ E_0",
         f"theorem {name}_variational_upper (E0 : ℝ) (h : E0 = ({e0_exact:.15g} : ℝ)) :",
         f"    ({e_var:.15g} : ℝ) ≥ E0 := by",
-        f"  -- Proof: Rayleigh–Ritz; vector ψ is a valid trial state [工程]",
-        f"  sorry",
+        "  -- Proof: Rayleigh–Ritz; vector ψ is a valid trial state [工程]",
+        "  sorry",
         "",
     ]
     if t_cond:
         lines += [
-            f"-- Temple lower bound: E_0 ≥ t_lb (valid when E_var < E_1_exact)",
+            "-- Temple lower bound: E_0 ≥ t_lb (valid when E_var < E_1_exact)",
             f"theorem {name}_temple_lower (E0 : ℝ) (h : E0 = ({e0_exact:.15g} : ℝ)) :",
             f"    E0 ≥ ({t_lb:.15g} : ℝ) := by",
-            f"  -- Proof: Temple's inequality; finite-lattice bound [研究]",
-            f"  sorry",
+            "  -- Proof: Temple's inequality; finite-lattice bound [研究]",
+            "  sorry",
             "",
         ]
     else:
@@ -199,7 +198,7 @@ def structure_report_to_lean(report: Any, name: str = "property") -> str:
         "",
         f"-- Machine-verified: defect ≤ tol ↔ {prop} holds",
         f"theorem {name}_holds : {name}_report.passed = {verdict} := by",
-        f"  native_decide",
+        "  native_decide",
         "",
     ]
     return "\n".join(lines)
@@ -231,10 +230,10 @@ def diagram_to_lean_type(diagram: Any, name: str = "diagram") -> str:
 
     lines = [
         f"-- HTF Diagram `{name}`: {dom} → {cod}",
-        f"-- In string-diagram notation this is a morphism in a strict monoidal category.",
+        "-- In string-diagram notation this is a morphism in a strict monoidal category.",
         f"def {name}_dom_type : Type := {dom_ty}",
         f"def {name}_cod_type : Type := {cod_ty}",
-        f"-- Morphism type (placeholder; full categorical encoding requires Mathlib.CategoryTheory)",
+        "-- Morphism type (placeholder; full categorical encoding requires Mathlib.CategoryTheory)",
         f"-- axiom {name} : {dom_ty} → {cod_ty}",
         "",
     ]
@@ -296,7 +295,7 @@ class LeanExporter:
         parts.append(_LEAN_FOOTER)
         return "\n".join(parts)
 
-    def write(self, path: Union[str, Path]) -> None:
+    def write(self, path: str | Path) -> None:
         """Write the complete Lean 4 source to *path*."""
         Path(path).write_text(self.source(), encoding="utf-8")
 
@@ -305,7 +304,7 @@ class LeanExporter:
 
 def export_lean(
     items: list[tuple[str, Any, str]],
-    path:  Union[str, Path],
+    path:  str | Path,
     preamble: str = "",
 ) -> str:
     """One-shot export: build and write a Lean 4 file.

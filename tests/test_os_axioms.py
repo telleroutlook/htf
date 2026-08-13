@@ -11,7 +11,6 @@ from htf.os_axioms import (
 )
 from htf.variational import transverse_ising_ham, xx_model_ham
 
-
 # ─────────────────── fixtures ────────────────────────────────────────────
 
 @pytest.fixture
@@ -201,7 +200,7 @@ class TestCheckReflectionSymmetry:
         # Asymmetric on-site field: add a local Z only on site 0
         H = transverse_ising_ham(4, J=1.0, h=0.5)
         Z = np.diag([1.0, -1.0])
-        rng = np.random.default_rng(0)
+        np.random.default_rng(0)
         # Add random asymmetric on-site perturbation on site 0 only
         H_asym = H.copy()
         field = 0.5 * np.kron(Z, np.eye(8))

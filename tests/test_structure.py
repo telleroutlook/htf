@@ -5,18 +5,17 @@ import pytest
 from htf import Box, TensorFunctor, Wire
 from htf.structure import (
     StructureReport,
-    check_isometry,
-    check_unitary,
     check_box_isometry,
     check_box_unitary,
+    check_isometry,
     check_reflection_positivity,
+    check_unitary,
     enforce_isometry,
     enforce_unitary,
     gram_min_eig,
     isometry_defect,
     unitary_defect,
 )
-
 
 # ──────────────────────── helpers ────────────────────────────────────
 
@@ -184,7 +183,7 @@ class TestCheckIsometry:
 
     def test_tolerance_boundary(self):
         M = _random_isometry(3, 6, seed=22)
-        r_strict = check_isometry(M, tol=1e-15, n_cod=1)
+        check_isometry(M, tol=1e-15, n_cod=1)
         r_loose = check_isometry(M, tol=1.0, n_cod=1)
         # With very tight tol it may fail due to floating-point noise;
         # with loose tol it must pass.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "htf"
-version = "0.13.0"
+version = "0.23.0"
 description = "A certified, type-safe string-diagram / tensor-network framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,7 +24,7 @@ dependencies = ["numpy>=1.23"]
 accel = ["jax", "opt_einsum"]          # optional GPU / contraction-path acceleration
 certified = ["python-flint>=0.5"]      # certified mode: Arb interval arithmetic
 mcp = ["mcp>=1.0"]                     # MCP server wrapper (§7 TODO)
-dev = ["pytest>=7", "python-flint>=0.5"]
+dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy"]
 
 [project.scripts]
 htf = "htf.cli:main"
@@ -36,3 +36,26 @@ packages = ["htf"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "C4", "BLE", "RUF"]
+ignore = [
+    "E501",    # line too long — physics equations legitimately exceed 88/120
+    "E741",    # ambiguous variable name — I, l are standard linear-algebra notation
+    "E702",    # multiple statements — deliberate one-liners in tests
+    "RUF001",  # ambiguous string chars — intentional Unicode math (−, ×, ℝ, …)
+    "RUF002",  # ambiguous docstring chars — same as above
+    "RUF003",  # ambiguous comment chars — same as above
+    "RUF005",  # list-concat — deliberate
+    "RUF022",  # __all__ not sorted — grouped by module, not alphabetically
+    "RUF043",  # regex metacharacters in match= — intentional
+    "BLE001",  # blind exception — noqa on intentional catches; CI catches new ones
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+no_strict_optional = true

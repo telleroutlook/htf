@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from htf import Box, Certificate, TensorFunctor, contract
+from htf import Certificate, TensorFunctor, contract
 from htf.lattice import (
     effect_box,
     heat_step_box,
@@ -12,7 +11,6 @@ from htf.lattice import (
     site_wire,
     state_box,
 )
-
 
 # ─────────────────────── laplacian_box ─────────────────────────────
 
@@ -44,7 +42,7 @@ class TestLaplacianBox:
 
 class TestHeatStepBox:
     def test_shape(self):
-        box, M = heat_step_box(6, D=0.1, dt=0.05)
+        _box, M = heat_step_box(6, D=0.1, dt=0.05)
         assert M.shape == (6, 6)
 
     def test_single_step_matches_direct(self):

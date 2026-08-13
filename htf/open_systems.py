@@ -24,13 +24,10 @@ Honest scope
 """
 from __future__ import annotations
 
-from typing import List
-
 import numpy as np
 from scipy.linalg import expm
 
-from .structure import StructureReport, check_reflection_positivity
-
+from .structure import StructureReport
 
 # ─────────────────────── density matrix ──────────────────────────────────
 
@@ -56,7 +53,7 @@ def density_matrix_from_pure(state_vec: np.ndarray) -> np.ndarray:
 def partial_trace(
     rho: np.ndarray,
     n_sites: int,
-    keep_sites: List[int],
+    keep_sites: list[int],
     d: int = 2,
 ) -> np.ndarray:
     """Reduce ρ by tracing out all sites not in *keep_sites*.
@@ -149,7 +146,7 @@ def check_density_matrix(
 
 # ─────────────────────── Kraus / CPTP ────────────────────────────────────
 
-def choi_matrix(kraus_ops: List[np.ndarray]) -> np.ndarray:
+def choi_matrix(kraus_ops: list[np.ndarray]) -> np.ndarray:
     """Choi–Jamiołkowski matrix of the channel Φ(ρ) = Σ_k K_k ρ K_k†.
 
     Convention: J[i*d+j, k*d+l] = Φ(|i⟩⟨j|)[k, l]
@@ -180,7 +177,7 @@ def choi_matrix(kraus_ops: List[np.ndarray]) -> np.ndarray:
 
 
 def check_kraus_completeness(
-    kraus_ops: List[np.ndarray],
+    kraus_ops: list[np.ndarray],
     tol: float = 1e-10,
 ) -> StructureReport:
     """Check the trace-preserving completeness relation Σ_k K_k† K_k = I.
@@ -205,7 +202,7 @@ def check_kraus_completeness(
 
 def lindblad_superoperator(
     ham: np.ndarray,
-    lindblad_ops: List[np.ndarray],
+    lindblad_ops: list[np.ndarray],
 ) -> np.ndarray:
     """Full Lindblad superoperator as a (d²×d²) matrix.
 
@@ -245,7 +242,7 @@ def lindblad_superoperator(
 def lindblad_step(
     rho: np.ndarray,
     ham: np.ndarray,
-    lindblad_ops: List[np.ndarray],
+    lindblad_ops: list[np.ndarray],
     dt: float,
 ) -> np.ndarray:
     """Exact Lindblad step ρ(t+dt) = exp(dt L)[ρ] via matrix exponentiation.
@@ -266,7 +263,7 @@ def lindblad_step(
 
 def steady_state(
     ham: np.ndarray,
-    lindblad_ops: List[np.ndarray],
+    lindblad_ops: list[np.ndarray],
     tol: float = 1e-12,
 ) -> np.ndarray:
     """Steady-state density matrix ρ_ss satisfying L(ρ_ss) = 0, Tr(ρ_ss) = 1.

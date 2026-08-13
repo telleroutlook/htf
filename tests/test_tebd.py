@@ -1,16 +1,13 @@
 """Tests for htf.tebd — TEBD time evolution and DMRG."""
-import math
 
 import numpy as np
 import pytest
 
 from htf.mps import (
-    MPS,
     mps_from_state,
     mps_inner,
     mps_norm,
     mps_normalise,
-    mps_to_state,
     random_mps,
 )
 from htf.tebd import (
@@ -29,7 +26,6 @@ from htf.tebd import (
     tfim_bonds,
     xx_bonds,
 )
-
 
 # ── Hamiltonian helpers ────────────────────────────────────────────────────
 
@@ -119,7 +115,7 @@ class TestTebdStep:
 
     def test_no_nan(self, setup):
         mps0, bonds = setup
-        mps1, disc = tebd_step(mps0, bonds, dt=0.05, chi=8, imaginary=False)
+        mps1, _disc = tebd_step(mps0, bonds, dt=0.05, chi=8, imaginary=False)
         for t in mps1.tensors:
             assert not np.any(np.isnan(t))
 
@@ -458,7 +454,7 @@ class TestDmrgSweep2Site:
         assert isinstance(result, DMRGResult)
 
     def test_energy_decreases(self, setup):
-        mps0, bonds, E0 = setup
+        mps0, bonds, _E0 = setup
         result = dmrg_sweep_2site(mps0, bonds, n_sweeps=5, chi=4)
         assert result.energies[-1] <= result.energies[0] + 1e-6
 
@@ -473,7 +469,7 @@ class TestDmrgSweep2Site:
         assert len(result.energies) > 0
 
     def test_converged_flag(self, setup):
-        mps0, bonds, E0 = setup
+        mps0, bonds, _E0 = setup
         result = dmrg_sweep_2site(mps0, bonds, n_sweeps=50, chi=8, tol=1e-6)
         assert isinstance(result.converged, bool)
 
@@ -518,7 +514,7 @@ class TestTdvpEvolve:
         assert isinstance(result, TEBDResult)
 
     def test_imaginary_time_energy_decrease(self, setup):
-        mps0, bonds, E0 = setup
+        mps0, bonds, _E0 = setup
         result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=50, imaginary=True)
         assert result.energies[-1] < result.energies[0]
 
@@ -583,13 +579,12 @@ class TestTebdParallelBonds:
 
     def test_parallel_matches_sequential_step(self, setup):
         mps, bonds = setup
-        gates = [
+        [
             np.eye(4).reshape(2, 2, 2, 2) for _ in bonds
         ]  # identity gates → exact, no SVD noise
-        from htf.tebd import _apply_bond_parity, _bond_gate
-        from htf.tebd import tfim_bonds, nn_hamiltonian
+        from htf.tebd import _bond_gate, tfim_bonds
         bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
-        gates2 = [_bond_gate(b, 0.01, False) for b in bonds_tfim]
+        [_bond_gate(b, 0.01, False) for b in bonds_tfim]
 
         mps_seq,  d_seq  = tebd_step(mps, bonds_tfim, dt=0.01,
                                      chi=8, trotter_order=2, n_threads=1)
@@ -600,7 +595,7 @@ class TestTebdParallelBonds:
         assert abs(d_seq - d_par) < 1e-14
 
     def test_parallel_evolve_matches_sequential(self, setup):
-        mps, bonds = setup
+        mps, _bonds = setup
         from htf.tebd import tfim_bonds
         bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
         r_seq = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=10,
@@ -612,7 +607,7 @@ class TestTebdParallelBonds:
             np.testing.assert_allclose(t_s, t_p, atol=1e-12)
 
     def test_n_threads_ignored_for_order1(self, setup):
-        mps, bonds = setup
+        mps, _bonds = setup
         from htf.tebd import tfim_bonds
         bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
         r1 = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=5,
@@ -622,7 +617,7 @@ class TestTebdParallelBonds:
         np.testing.assert_allclose(r1.energies, r2.energies, atol=1e-14)
 
     def test_no_nan_parallel(self, setup):
-        mps, bonds = setup
+        mps, _bonds = setup
         from htf.tebd import tfim_bonds
         bonds_tfim = tfim_bonds(6, J=1.0, h=0.5)
         result = tebd_evolve(mps, bonds_tfim, dt=0.02, n_steps=10,
@@ -631,9 +626,8 @@ class TestTebdParallelBonds:
             assert not np.any(np.isnan(t))
 
     def test_energy_reasonable_parallel(self, setup):
-        mps, bonds = setup
-        from htf.tebd import tfim_bonds, nn_hamiltonian
-        from htf.mps import mps_from_state
+        mps, _bonds = setup
+        from htf.tebd import nn_hamiltonian, tfim_bonds
         n, d = 6, 2
         bonds_tfim = tfim_bonds(n, J=1.0, h=0.5)
         H = nn_hamiltonian(bonds_tfim, n, d)

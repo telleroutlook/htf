@@ -15,7 +15,6 @@ from htf.difficulty import (
 )
 from htf.variational import transverse_ising_ham
 
-
 # ───────────────────────────── State helpers ─────────────────────────────────
 
 def product_state(n_sites: int) -> np.ndarray:

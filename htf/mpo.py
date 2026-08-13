@@ -24,7 +24,6 @@ from __future__ import annotations
 import os
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 import scipy.linalg
@@ -52,7 +51,7 @@ class MPO:
     def phys_dim(self) -> int:
         return self.tensors[0].shape[1]
 
-    def copy(self) -> "MPO":
+    def copy(self) -> MPO:
         return MPO([t.copy() for t in self.tensors])
 
 
@@ -69,7 +68,7 @@ def random_mpo(
     n: int,
     d: int = 2,
     chi: int = 2,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> MPO:
     """Random MPO with given bond dimension (not Hermitian in general)."""
     rng = np.random.default_rng(seed)
@@ -85,7 +84,7 @@ def mpo_from_matrix(
     H: np.ndarray,
     n: int,
     d: int,
-    chi: Optional[int] = None,
+    chi: int | None = None,
 ) -> MPO:
     """Convert a full operator matrix H (shape d^n × d^n) to MPO via SVD.
 
@@ -164,7 +163,7 @@ def nn_hamiltonian_mpo(
         dtype = complex if is_cplx else float
 
         if i == 0:
-            U0, s0, Vt0 = svds[0]
+            U0, s0, _Vt0 = svds[0]
             r0 = len(s0)
             W_r = 2 + r0
             W = np.zeros((1, d, d, W_r), dtype=dtype)
@@ -176,7 +175,7 @@ def nn_hamiltonian_mpo(
             tensors.append(W)
 
         elif i == n - 1:
-            Uprev, sprev, Vtprev = svds[n - 2]
+            _Uprev, sprev, Vtprev = svds[n - 2]
             r_prev = len(sprev)
             W_l = 2 + r_prev
             W = np.zeros((W_l, d, d, 1), dtype=dtype)
@@ -187,8 +186,8 @@ def nn_hamiltonian_mpo(
             tensors.append(W)
 
         else:
-            Uprev, sprev, Vtprev = svds[i - 1]
-            Ucurr, scurr, Vtcurr = svds[i]
+            _Uprev, sprev, Vtprev = svds[i - 1]
+            Ucurr, scurr, _Vtcurr = svds[i]
             r_prev, r_curr = len(sprev), len(scurr)
             W_l = 2 + r_prev
             W_r = 2 + r_curr
@@ -436,7 +435,7 @@ def dmrg_sweep_mpo(
     mps: MPS,
     mpo: MPO,
     n_sweeps: int = 10,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     tol: float = 1e-8,
 ) -> MPODMRGResult:
     """MPO-environment single-site DMRG variational ground-state search.
@@ -601,7 +600,7 @@ def dmrg_sweep_mpo_2site(
     mps: MPS,
     mpo: MPO,
     n_sweeps: int = 10,
-    chi: Optional[int] = None,
+    chi: int | None = None,
     tol: float = 1e-8,
 ) -> MPODMRGResult:
     """MPO-environment two-site DMRG variational ground-state search.
@@ -730,8 +729,8 @@ def dmrg_multistart(
     chi_init: int = 2,
     n_sweeps: int = 10,
     tol: float = 1e-8,
-    n_workers: Optional[int] = None,
-    seeds: Optional[list] = None,
+    n_workers: int | None = None,
+    seeds: list | None = None,
 ) -> MultiStartDMRGResult:
     """Parallel multi-start two-site MPO-DMRG.
 
@@ -799,7 +798,7 @@ def mpo_chi_convergence(
     chi_init: int = 2,
     n_sweeps: int = 10,
     tol: float = 1e-8,
-    n_workers: Optional[int] = None,
+    n_workers: int | None = None,
     seed_offset: int = 0,
 ) -> MPOScalingReport:
     """Parallel MPO χ-convergence study.

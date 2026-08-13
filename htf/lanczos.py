@@ -17,12 +17,10 @@ Honest scope
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
 from .certificate import Certificate
-
 
 # ─────────────────────── Lanczos core ────────────────────────────────────
 
@@ -92,7 +90,7 @@ def lanczos(
 
 def lanczos_eigs(
     A: np.ndarray,
-    v0: Optional[np.ndarray] = None,
+    v0: np.ndarray | None = None,
     k: int = 30,
     seed: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -116,9 +114,8 @@ def lanczos_eigs(
     n = A.shape[0]
     if v0 is None:
         rng = np.random.default_rng(seed)
-        v0  = rng.standard_normal(n)
+        v0 = np.asarray(rng.standard_normal(n))
     alpha, beta, V = lanczos(A, v0, k)
-    m = len(alpha)
     T = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
     evals, evecs_T = np.linalg.eigh(T)
     # Map Ritz vectors back to the original space
@@ -135,7 +132,7 @@ def lanczos_ground_state(
 
     Returns the Ritz vector with the smallest Ritz value, normalised.
     """
-    evals, ritz_vecs = lanczos_eigs(A, k=k, seed=seed)
+    _evals, ritz_vecs = lanczos_eigs(A, k=k, seed=seed)
     psi = ritz_vecs[:, 0]
     return psi / np.linalg.norm(psi)
 
@@ -213,7 +210,7 @@ def temple_lanczos(
 
     h2_exp = h2_expectation(H, psi0)
     t_lb   = temple_lower_bound(E0_var, h2_exp, E1_ritz)
-    cond   = E0_var < E1_ritz and not (t_lb == float("-inf"))
+    cond   = E0_var < E1_ritz and t_lb != float("-inf")
 
     # Certified upper bound via flint Arb if available; else float mode
     try:

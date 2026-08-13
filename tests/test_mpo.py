@@ -3,7 +3,6 @@ import numpy as np
 import pytest
 
 from htf.mpo import (
-    MPO,
     MPOChiPoint,
     MPODMRGResult,
     MPOScalingReport,
@@ -13,23 +12,21 @@ from htf.mpo import (
     dmrg_sweep_mpo_2site,
     identity_mpo,
     mpo_apply_mps,
+    mpo_chi_convergence,
     mpo_expectation,
     mpo_from_matrix,
     mpo_hermitian_conjugate,
     mpo_to_matrix,
-    mpo_chi_convergence,
     nn_hamiltonian_mpo,
     random_mpo,
 )
-from htf.mps import MPS, mps_from_state, mps_inner, mps_norm
+from htf.mps import mps_from_state, mps_inner
 from htf.tebd import (
-    dmrg_sweep,
     heisenberg_bonds,
     nn_hamiltonian,
     tfim_bonds,
     xx_bonds,
 )
-
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -282,21 +279,21 @@ class TestDmrgSweepMpo:
         return bonds, mpo, E0, n, d
 
     def test_result_type(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=4, seed=0)
         result = dmrg_sweep_mpo(mps, mpo, n_sweeps=2)
         assert isinstance(result, MPODMRGResult)
 
     def test_energies_non_empty(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=4, seed=0)
         result = dmrg_sweep_mpo(mps, mpo, n_sweeps=3)
         assert len(result.energies) > 0
 
     def test_energy_decreases(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=8, seed=5)
         result = dmrg_sweep_mpo(mps, mpo, n_sweeps=5)
@@ -304,7 +301,7 @@ class TestDmrgSweepMpo:
 
     def test_heisenberg_converges_to_exact(self, heisenberg_setup):
         # Heisenberg is easy for 1-site DMRG; converges reliably
-        bonds, mpo, E0, n, d = heisenberg_setup
+        _bonds, mpo, E0, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=8, seed=0)
         result = dmrg_sweep_mpo(mps, mpo, n_sweeps=15, chi=8)
@@ -336,7 +333,7 @@ class TestDmrgSweepMpo:
         assert abs(result.energies[-1] - E0) < 1e-6
 
     def test_chi_limits_bond_dim(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         chi = 2
         mps = random_mps(n, d, chi=8, seed=1)
@@ -346,7 +343,7 @@ class TestDmrgSweepMpo:
             assert t.shape[2] <= chi or t.shape[2] == 1
 
     def test_no_nan(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=4, seed=2)
         result = dmrg_sweep_mpo(mps, mpo, n_sweeps=5)
@@ -355,7 +352,7 @@ class TestDmrgSweepMpo:
             assert not np.any(np.isnan(t))
 
     def test_energy_upper_bounds_exact(self, heisenberg_setup):
-        bonds, mpo, E0, n, d = heisenberg_setup
+        _bonds, mpo, E0, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=8, seed=0)
         result = dmrg_sweep_mpo(mps, mpo, n_sweeps=15, chi=8)
@@ -394,28 +391,28 @@ class TestDmrgSweepMpo2Site:
         return bonds, mpo, E0, n, d
 
     def test_result_type(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=2, seed=0)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=2)
         assert isinstance(result, MPODMRGResult)
 
     def test_energies_non_empty(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=2, seed=0)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=3)
         assert len(result.energies) > 0
 
     def test_energy_decreases(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=4, seed=5)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=5)
         assert result.energies[-1] <= result.energies[0] + 1e-6
 
     def test_heisenberg_converges_exact(self, heisenberg_setup):
-        bonds, mpo, E0, n, d = heisenberg_setup
+        _bonds, mpo, E0, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=2, seed=0)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=20, chi=8)
@@ -423,14 +420,14 @@ class TestDmrgSweepMpo2Site:
 
     def test_tfim_converges_exact(self, tfim_setup):
         # Key advantage over 1-site: 2-site escapes local minima for TFIM n=4
-        bonds, mpo, E0, n, d = tfim_setup
+        _bonds, mpo, E0, n, d = tfim_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=2, seed=7)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=20, chi=8)
         assert abs(result.energies[-1] - E0) < 1e-5
 
     def test_tfim_valid_upper_bound(self, tfim_setup):
-        bonds, mpo, E0, n, d = tfim_setup
+        _bonds, mpo, E0, n, d = tfim_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=4, seed=3)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=10, chi=8)
@@ -438,7 +435,7 @@ class TestDmrgSweepMpo2Site:
 
     def test_2site_better_than_1site_tfim(self, tfim_setup):
         # 2-site variational space contains 1-site; expect lower or equal energy
-        bonds, mpo, E0, n, d = tfim_setup
+        _bonds, mpo, _E0, n, d = tfim_setup
         from htf.mps import random_mps
         seed = 7
         mps1 = random_mps(n, d, chi=2, seed=seed)
@@ -448,7 +445,7 @@ class TestDmrgSweepMpo2Site:
         assert r2.energies[-1] <= r1.energies[-1] + 1e-6
 
     def test_chi_limits_bond_dim(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         chi = 3
         mps = random_mps(n, d, chi=2, seed=1)
@@ -458,7 +455,7 @@ class TestDmrgSweepMpo2Site:
             assert t.shape[2] <= chi or t.shape[2] == 1
 
     def test_no_nan(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=2, seed=2)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=5)
@@ -467,7 +464,7 @@ class TestDmrgSweepMpo2Site:
             assert not np.any(np.isnan(t))
 
     def test_n_sweeps_reported(self, heisenberg_setup):
-        bonds, mpo, _, n, d = heisenberg_setup
+        _bonds, mpo, _, n, d = heisenberg_setup
         from htf.mps import random_mps
         mps = random_mps(n, d, chi=2, seed=0)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=3)

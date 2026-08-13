@@ -33,7 +33,6 @@ from .engine import contract
 from .functor import TensorFunctor
 from .topology import Box, Wire
 
-
 # ─────────────────────── helpers ─────────────────────────────────────────
 
 

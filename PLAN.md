@@ -38,7 +38,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `partial_trace`、`check_density_matrix`（Hermitian+PSD+单位迹三重核验）、
       `choi_matrix`、`check_kraus_completeness`、`lindblad_superoperator`、
       `lindblad_step`（矩阵指数精确积分）、`steady_state`（约束线性系统求解）。`[工程]`
-- [x] 测试（`tests/`）：`python -m pytest -q` **893 个全绿**；总覆盖率 ≥ 98%。
+- [x] 测试（`tests/`）：`python -m pytest -q` **893 个全绿**；总覆盖率 ≥ 98%。（旧里程碑记录，当前见下）
 - [x] ZX-演算图重写（`htf/zx.py`，§4-E）：`ZXNodeType`/`ZXNode`/`ZXGraph`（多重图）；
       `zx_from_circuit`（标准门→ZX节点）；`spider_fusion`（同色蜘蛛融合）；
       `identity_removal`（零相位双腿蜘蛛消除）；`hadamard_cancel`（相邻 H 盒对消）；
@@ -53,7 +53,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - [x] 可微逆向设计 / 哈密顿量学习（`htf/inverse.py`，§4-J）：`ParametricHam`（TFIM/XX
       参数族）、`inverse_design`（找到使 E_0 等于目标值的参数）、`hamiltonian_learning`
       （从观测能级恢复参数）、`energy_gradient`（中心有限差分梯度）。`[工程]`/`[研究]`
-- [x] 测试（`tests/`）：`python -m pytest -q` **934 个全绿**；总覆盖率 ≥ 98%。
+- [x] 测试（`tests/`）：`python -m pytest -q` **934 个全绿**；总覆盖率 ≥ 98%。（旧里程碑记录，当前见下）
 - [x] U(1) 对称 / 块稀疏张量（`htf/symmetric.py`，§4-G）：`ChargedBasis`、
       `check_u1_invariance`、`project_to_u1`、`u1_blocks`、`BlockSparseTensor`、
       `block_sparse_matmul`。`[研究]`
@@ -61,7 +61,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `gap_report_to_lean`、`structure_report_to_lean`、`diagram_to_lean_type`、
       `LeanExporter`、`export_lean`；生成合法 Lean 4 语法骨架文件，每个 `sorry` 均为
       标注的证明义务；`[研究]` 部分（实际形式化证明）留给 Lean 专家完成。
-- [x] 当前版本：`v0.12.0`
+- [x] 当前版本：`v0.23.0`（§9-K 完成后，1212 测试全绿）
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -137,15 +137,15 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 
 ## 8. 竞品差距追赶计划（v0.13.0+）
 
-竞品分析与差距：
+竞品分析与差距（**已追赶状态**，截至 v0.23.0）：
 
-| 竞品 | 核心优势 | HTF 当前缺口 |
+| 竞品 | 核心优势 | HTF 状态 |
 |---|---|---|
-| ITensor / TeNPy | 工业级 MPS/DMRG/TEBD | 只有 MERA，无 MPS 数据结构 |
-| Quimb | JAX autograd，GPU | 逆向设计用有限差分梯度 |
-| PyZX | 完整 Clifford ZX pipeline | 仅 5 条规则，无 LC/双代数 |
-| TensorNetwork(Google) | 大规模路径优化，GPU | opt_einsum 已支持；GPU 需 JAX |
-| DisCoPy | 成熟弦图语言，多函子 | 基础拓扑层已够用 |
+| ITensor / TeNPy | 工业级 MPS/DMRG/TEBD | ✅ MPS + TEBD（§8-A）；1/2-site DMRG（§8-A/§9-B）；MPO + MPO-DMRG 1/2-site（§9-E/F/G）；并行多初始态 DMRG（§9-H）；周期边界/多物理模型（§9-A） |
+| Quimb | JAX autograd，GPU | ✅ JAX autograd 精确梯度（§8-C，可选依赖）；ProcessPoolExecutor CPU 并行（§9-H/I/J）；ThreadPoolExecutor TEBD 键内并行（§9-K）；GPU 缺席时零依赖多核加速 |
+| PyZX | 完整 Clifford ZX pipeline | ✅ 双代数/局部互补/相位小工具融合/完整 Clifford 化简（§8-B，8 规则） |
+| TensorNetwork(Google) | 大规模路径优化，GPU | ✅ opt_einsum 路径优化已支持；χ 收敛并行研究（§9-I）；GPU 可通过可选 JAX 依赖接入（§8-C） |
+| DisCoPy | 成熟弦图语言，多函子 | ✅ 基础拓扑层（Wire/Box/Diagram）已足够；QASM 互操作（§4-F）；Lean 4 导出（§4-L） |
 
 **按可行性排序的差距追赶项：**
 

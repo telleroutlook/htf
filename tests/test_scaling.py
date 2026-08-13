@@ -9,7 +9,6 @@ import pytest
 from htf.scaling import ChiPoint, ScalingReport, _power_law_fit, chi_convergence_study
 from htf.variational import transverse_ising_ham
 
-
 # ───────────────────────────── Fixtures / helpers ─────────────────────────────
 
 def make_ham(n: int, chi: int) -> np.ndarray:
