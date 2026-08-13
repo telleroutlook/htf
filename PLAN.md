@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.16.0）
+## 1. 当前状态（v0.17.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -209,6 +209,16 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
   `thermal_expectation`（单位点热期望值 ⟨O⟩_β）。
 - 关闭 TeNPy 在有限温物理方向的差距。
 - [x] 已完成（1130 测试通过）
+
+### §9-E MPO（矩阵乘积算符）数据结构 `[工程]`
+- `htf/mpo.py`：`MPO` dataclass（每张量形状 (W_l, d, d, W_r)）；
+  `identity_mpo`、`random_mpo`、`mpo_from_matrix`（SVD 精确构造）、
+  `mpo_to_matrix`（重建全矩阵）、`nn_hamiltonian_mpo`（有限自动机构造，
+  键维 = 2 + rank(h_i)，避免 O(d^{2n}) 全矩阵）、`mpo_apply_mps`
+  （MPO 作用到 MPS，返回新 MPS）、`mpo_expectation`（⟨ψ|O|ψ⟩）、
+  `mpo_hermitian_conjugate`（共轭转置）。
+- 关闭 ITensor/TeNPy 在 MPO 数据结构方向的差距。
+- [x] 已完成（1155 测试通过，0 失败）
 
 ---
 
