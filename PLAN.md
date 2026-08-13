@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.2.0）
+## 1. 当前状态（v0.4.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -25,7 +25,12 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       顶向下收缩 `state_vector()`；参数序列化 `to_flat_params`/`from_flat_params`。`[工程]`
 - [x] 变分基态（`htf/variational.py`）：`transverse_ising_ham`、`xx_model_ham`、
       `energy_expectation`、`optimize_mera`（L-BFGS-B）、`variational_bound`（认证上界）。`[工程]`
-- [x] 测试（`tests/`）与示例；`python -m pytest -q` 309 个全绿；**总覆盖率 99%，每模块 ≥ 93%**。
+- [x] OS-正性机器核验（`htf/os_axioms.py`）：`transfer_matrix`、`reflection_operator`、
+      `check_transfer_positivity`、`check_reflection_symmetry`、`os_positivity_report`；
+      三重独立检验（转移矩阵 PSD、[H,R]=0、OS-Gram G=T+RTR≥0）。`[工程]`
+- [x] 扩展 CLI（`htf/cli.py`）：`gap`、`variational`、`difficulty`、`os-check` 子命令，
+      全部 JSON 输出，供 agent 直接驱动。`[工程]`
+- [x] 测试（`tests/`）与示例；`python -m pytest -q` 586 个全绿；**总覆盖率 ≥ 98%**。
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -63,16 +68,20 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - **Phase 4 — 认证有限格点物理（核心目标）。** `[研究]`+`[OUT]` 对格点哈密顿量（含小格点规范
   理论）给谱隙**认证有限格点上/下界**，严格误差控制下做 `χ→∞` 外推，机器核验 OS-正性/规范不变；
   产出**认证有限格点定理** + 难度地图。**明确不声称（`[OUT]`）：不是连续 Yang–Mills 质量隙的证明。**
-  进行中（v0.3.0）：
+  ✅ 已完成（v0.4.0）：
   - `htf/gap.py`：`spectral_gap_exact`、`h2_expectation`、`temple_lower_bound`（刚性有限格点下界）、
     `first_excited_upper`（变分激发态上界）、`certified_gap_upper`（Arb 认证版）、`gap_report`。
   - `htf/scaling.py`：`chi_convergence_study`（通用 `ham_factory` 接口）、`ScalingReport`、
     幂律外推（`[启发]`，非认证）。
   - `htf/difficulty.py`：`entanglement_entropy`、`entanglement_spectrum`、
     `bipartite_entanglement_profile`、`DifficultyReport`、`difficulty_report`（难度分级）。
+  - `htf/os_axioms.py`：`transfer_matrix`、`reflection_operator`、`check_transfer_positivity`、
+    `check_reflection_symmetry`、`os_positivity_report`（三重 OS-正性机器核验）。
+  - CLI 扩展：`gap`、`variational`、`difficulty`、`os-check`，全 JSON 输出。
   - `examples/phase4_certified_physics.py`：全流程 demo，所有断言通过。
-  - 499 个测试全绿；总覆盖率 98%，每模块 ≥ 93%。
-  - **门（部分）：** 认证上界成立 ✅；Temple 下界逻辑正确（需 E_var < E_1 条件）✅；难度图产出 ✅。
+  - 586 个测试全绿；总覆盖率 ≥ 98%，每模块 ≥ 93%。
+  - **门：** 认证上界成立 ✅；Temple 下界逻辑正确（需 E_var < E_1 条件）✅；难度图产出 ✅；
+    OS-正性三重机器核验通过 ✅；CLI 子命令完整 ✅。
 
 ## 4. 扩展能力（选做子集，非全做）
 
