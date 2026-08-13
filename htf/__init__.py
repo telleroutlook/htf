@@ -37,6 +37,14 @@ from .gap import (
     spectral_gap_exact,
     temple_lower_bound,
 )
+from .inverse import (
+    InverseDesignResult,
+    LearningResult,
+    ParametricHam,
+    energy_gradient,
+    hamiltonian_learning,
+    inverse_design,
+)
 from .lanczos import (
     TwoSidedBounds,
     lanczos,
@@ -95,7 +103,7 @@ from .variational import (
     xx_model_ham,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -123,6 +131,9 @@ __all__ = [
     "spectral_gap_exact", "h2_expectation",
     "temple_lower_bound", "first_excited_upper",
     "certified_gap_upper", "gap_report",
+    # inverse (§4-J)
+    "ParametricHam", "InverseDesignResult", "LearningResult",
+    "inverse_design", "hamiltonian_learning", "energy_gradient",
     # lanczos (§4-I)
     "lanczos", "lanczos_eigs", "lanczos_ground_state",
     "temple_lanczos", "two_sided_bounds", "TwoSidedBounds",

@@ -1,0 +1,331 @@
+"""HTF §4-J — Differentiable inverse design and Hamiltonian learning.
+
+Provides two complementary workflows:
+
+1. **Inverse design** — given a target ground-state energy ``E_target``,
+   find Hamiltonian parameters ``(J, h)`` (TFIM) or ``(J,)`` (XX) that
+   minimise ``|E_0(params) - E_target|``.
+
+2. **Hamiltonian learning** — given a set of observed energies (e.g. from
+   an experiment or a reference solver), recover the parameters of a
+   known model family that best reproduces them.
+
+Honest scope
+------------
+* Optimisation is by L-BFGS-B with finite-difference gradients (SciPy).
+  Analytical gradients (Hellmann–Feynman) are `[研究]`.
+* Identifiability (uniqueness of the recovered parameters) depends on the
+  observable set and is not guaranteed — use ``n_restarts`` to mitigate
+  local minima.
+* All energies are float-mode; certifying the inversion result is `[研究]`.
+* Continuum-limit guarantees are `[OUT]`.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Callable, Optional, Sequence
+
+import numpy as np
+from scipy.optimize import minimize, OptimizeResult
+
+from .variational import transverse_ising_ham, xx_model_ham, energy_expectation
+from .gap import spectral_gap_exact
+
+
+# ────────────────────── parametric Hamiltonian ────────────────────────────
+
+@dataclass
+class ParametricHam:
+    """A parametric Hamiltonian family with named scalar parameters.
+
+    Attributes
+    ----------
+    model    : ``"ising"`` or ``"xx"``.
+    n_sites  : lattice size.
+    param_names : ordered list of optimisable parameter names.
+
+    Call ``ham(params)`` to build the matrix for a given parameter vector.
+    """
+    model:       str
+    n_sites:     int
+    param_names: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.model == "ising":
+            self.param_names = self.param_names or ["J", "h"]
+        elif self.model == "xx":
+            self.param_names = self.param_names or ["J"]
+        else:
+            raise ValueError(f"Unknown model '{self.model}'. Choose 'ising' or 'xx'.")
+
+    def ham(self, params: Sequence[float]) -> np.ndarray:
+        """Build the Hamiltonian matrix for the given parameter vector."""
+        p = list(params)
+        if self.model == "ising":
+            J = p[0] if len(p) > 0 else 1.0
+            h = p[1] if len(p) > 1 else 0.5
+            return transverse_ising_ham(self.n_sites, J=J, h=h)
+        if self.model == "xx":
+            J = p[0] if len(p) > 0 else 1.0
+            return xx_model_ham(self.n_sites, J=J)
+        raise ValueError(f"Unknown model '{self.model}'.")
+
+    def ground_energy(self, params: Sequence[float]) -> float:
+        """Exact ground-state energy (smallest eigenvalue)."""
+        return float(np.linalg.eigvalsh(self.ham(params))[0])
+
+    def spectrum(self, params: Sequence[float], k: int = 4) -> np.ndarray:
+        """Lowest ``k`` eigenvalues."""
+        evals = np.linalg.eigvalsh(self.ham(params))
+        return evals[:k]
+
+    def n_params(self) -> int:
+        return len(self.param_names)
+
+
+# ────────────────────── result dataclasses ───────────────────────────────
+
+@dataclass
+class InverseDesignResult:
+    """Result of an inverse-design run.
+
+    Attributes
+    ----------
+    params_opt   : recovered parameter vector (best restart).
+    E0_achieved  : ground-state energy at ``params_opt``.
+    E0_target    : the target energy passed in.
+    residual     : ``|E0_achieved - E0_target|``.
+    n_restarts   : number of independent L-BFGS-B restarts performed.
+    converged    : True if at least one restart reported convergence.
+    param_names  : name of each entry in ``params_opt``.
+    notes        : honest-scope annotation.
+    """
+    params_opt:  np.ndarray
+    E0_achieved: float
+    E0_target:   float
+    residual:    float
+    n_restarts:  int
+    converged:   bool
+    param_names: list[str]
+    notes:       str = ""
+
+
+@dataclass
+class LearningResult:
+    """Result of a Hamiltonian-learning run.
+
+    Attributes
+    ----------
+    params_opt   : recovered parameter vector (best restart).
+    loss_final   : final loss value (sum of squared energy residuals).
+    target_energies : the target energy levels passed in.
+    achieved_energies : energy levels at ``params_opt``.
+    n_restarts   : number of independent L-BFGS-B restarts performed.
+    converged    : True if at least one restart reported convergence.
+    param_names  : name of each entry in ``params_opt``.
+    notes        : honest-scope annotation.
+    """
+    params_opt:        np.ndarray
+    loss_final:        float
+    target_energies:   np.ndarray
+    achieved_energies: np.ndarray
+    n_restarts:        int
+    converged:         bool
+    param_names:       list[str]
+    notes:             str = ""
+
+
+# ────────────────────── inverse design ───────────────────────────────────
+
+def inverse_design(
+    target_e0: float,
+    model: str = "ising",
+    n_sites: int = 4,
+    param_bounds: Optional[list[tuple[float, float]]] = None,
+    x0: Optional[np.ndarray] = None,
+    n_restarts: int = 5,
+    seed: int = 0,
+    tol: float = 1e-10,
+) -> InverseDesignResult:
+    """Find Hamiltonian parameters whose ground-state energy equals ``target_e0``.
+
+    Minimises ``(E_0(params) - target_e0)^2`` with L-BFGS-B.
+
+    Parameters
+    ----------
+    target_e0    : desired ground-state energy.
+    model        : ``"ising"`` or ``"xx"``.
+    n_sites      : lattice size.
+    param_bounds : box constraints for each parameter, e.g. ``[(0.1, 5.0), (0.0, 3.0)]``.
+                   Defaults to ``[(0.01, 10.0)]`` per parameter.
+    x0           : initial parameter vector (overrides random restarts if given).
+    n_restarts   : number of independent random restarts.
+    seed         : RNG seed for restarts.
+    tol          : convergence tolerance.
+
+    Returns
+    -------
+    :class:`InverseDesignResult`
+
+    Honest scope
+    ------------
+    Local minima are possible; increase ``n_restarts`` to mitigate.
+    Uniqueness of the solution is model-dependent and not guaranteed `[研究]`.
+    """
+    phys = ParametricHam(model=model, n_sites=n_sites)
+    n_p  = phys.n_params()
+    if param_bounds is None:
+        param_bounds = [(0.01, 10.0)] * n_p
+
+    def loss(p: np.ndarray) -> float:
+        return (phys.ground_energy(p) - target_e0) ** 2
+
+    rng = np.random.default_rng(seed)
+    best: Optional[OptimizeResult] = None
+
+    starts: list[np.ndarray] = []
+    if x0 is not None:
+        starts.append(np.asarray(x0, dtype=float))
+    for _ in range(n_restarts):
+        p = np.array([rng.uniform(lo, hi) for lo, hi in param_bounds])
+        starts.append(p)
+
+    for start in starts:
+        res = minimize(loss, start, method="L-BFGS-B", bounds=param_bounds,
+                       options={"ftol": tol, "gtol": tol, "maxiter": 500})
+        if best is None or res.fun < best.fun:
+            best = res
+
+    p_opt     = np.asarray(best.x)
+    e0_achiev = phys.ground_energy(p_opt)
+    return InverseDesignResult(
+        params_opt=p_opt,
+        E0_achieved=e0_achiev,
+        E0_target=target_e0,
+        residual=abs(e0_achiev - target_e0),
+        n_restarts=len(starts),
+        converged=bool(best.success),
+        param_names=phys.param_names,
+        notes=(
+            f"L-BFGS-B inverse design; model={model}; n_sites={n_sites}; "
+            "local minima possible — use n_restarts>1; "
+            "uniqueness not guaranteed [研究]; continuum limit [OUT]"
+        ),
+    )
+
+
+# ────────────────────── Hamiltonian learning ─────────────────────────────
+
+def hamiltonian_learning(
+    target_energies: Sequence[float],
+    model: str = "ising",
+    n_sites: int = 4,
+    param_bounds: Optional[list[tuple[float, float]]] = None,
+    x0: Optional[np.ndarray] = None,
+    n_restarts: int = 5,
+    seed: int = 0,
+    tol: float = 1e-10,
+) -> LearningResult:
+    """Recover Hamiltonian parameters from a set of observed energy levels.
+
+    Minimises the sum of squared residuals
+    ``Σ_k (E_k(params) - target_k)^2``
+    where the sum runs over the ``len(target_energies)`` lowest eigenvalues.
+
+    Parameters
+    ----------
+    target_energies : observed energy levels to fit (ascending order expected).
+    model           : ``"ising"`` or ``"xx"``.
+    n_sites         : lattice size.
+    param_bounds    : box constraints.  Defaults to ``[(0.01, 10.0)]`` per param.
+    x0              : initial parameter vector (overrides restarts if given).
+    n_restarts      : number of independent random restarts.
+    seed            : RNG seed.
+    tol             : convergence tolerance.
+
+    Returns
+    -------
+    :class:`LearningResult`
+
+    Honest scope
+    ------------
+    Recovery is only guaranteed when ``target_energies`` is consistent with
+    the model family and the observable set is sufficient `[研究]`.
+    """
+    tgt  = np.asarray(target_energies, dtype=float)
+    k    = len(tgt)
+    phys = ParametricHam(model=model, n_sites=n_sites)
+    n_p  = phys.n_params()
+    if param_bounds is None:
+        param_bounds = [(0.01, 10.0)] * n_p
+
+    def loss(p: np.ndarray) -> float:
+        achieved = phys.spectrum(p, k=k)
+        return float(np.sum((achieved - tgt) ** 2))
+
+    rng    = np.random.default_rng(seed)
+    best: Optional[OptimizeResult] = None
+    starts: list[np.ndarray] = []
+    if x0 is not None:
+        starts.append(np.asarray(x0, dtype=float))
+    for _ in range(n_restarts):
+        p = np.array([rng.uniform(lo, hi) for lo, hi in param_bounds])
+        starts.append(p)
+
+    for start in starts:
+        res = minimize(loss, start, method="L-BFGS-B", bounds=param_bounds,
+                       options={"ftol": tol, "gtol": tol, "maxiter": 500})
+        if best is None or res.fun < best.fun:
+            best = res
+
+    p_opt    = np.asarray(best.x)
+    achieved = phys.spectrum(p_opt, k=k)
+    return LearningResult(
+        params_opt=p_opt,
+        loss_final=float(best.fun),
+        target_energies=tgt,
+        achieved_energies=achieved,
+        n_restarts=len(starts),
+        converged=bool(best.success),
+        param_names=phys.param_names,
+        notes=(
+            f"L-BFGS-B Hamiltonian learning; model={model}; n_sites={n_sites}; "
+            f"fitting {k} energy levels; "
+            "identifiability depends on observable set [研究]; continuum [OUT]"
+        ),
+    )
+
+
+# ────────────────────── energy gradient ──────────────────────────────────
+
+def energy_gradient(
+    params: Sequence[float],
+    phys: ParametricHam,
+    eps: float = 1e-5,
+) -> np.ndarray:
+    """Numerical gradient of the ground-state energy w.r.t. ``params``.
+
+    Uses centred finite differences with step size ``eps``.
+
+    Parameters
+    ----------
+    params : current parameter vector.
+    phys   : :class:`ParametricHam` instance.
+    eps    : finite-difference step size.
+
+    Returns
+    -------
+    Gradient vector of the same length as ``params``.
+
+    Notes
+    -----
+    Analytical (Hellmann–Feynman) gradients are ``[研究]`` and not yet
+    implemented.
+    """
+    p    = np.asarray(params, dtype=float)
+    grad = np.zeros_like(p)
+    for i in range(len(p)):
+        pp = p.copy(); pp[i] += eps
+        pm = p.copy(); pm[i] -= eps
+        grad[i] = (phys.ground_energy(pp) - phys.ground_energy(pm)) / (2 * eps)
+    return grad
