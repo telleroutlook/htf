@@ -88,9 +88,19 @@ class MERALayer:
     Attributes
     ----------
     n_in         : number of input sites.
-    chi          : bond / physical dimension.
+    chi          : bond dimension AND local physical dimension (see note below).
     disentanglers: ``n_in // 2`` real orthogonal tensors, each ``(chi,chi,chi,chi)``.
     isometries   : ``n_in // 2`` isometric tensors, each ``(chi,chi,chi)``.
+
+    Note (P1-1)
+    -----------
+    ``chi`` serves as **both** the bond dimension and the local physical (site)
+    dimension in this implementation.  Every site has a Hilbert space of
+    dimension ``chi``, so disentanglers have shape ``(chi,chi,chi,chi)`` and
+    isometries have shape ``(chi,chi,chi)``.  For qubit systems use ``chi=2``.
+    A separate ``d_phys`` parameter is not supported; the conflation is a known
+    limitation.  Disentangler tensor axes: ``(out1, out2, in1, in2)``; isometry
+    tensor axes: ``(out, in1, in2)``.
     """
 
     n_in: int

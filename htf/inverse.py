@@ -330,12 +330,14 @@ def _ham_component_matrices(phys: ParametricHam) -> list[np.ndarray] | None:
         return [H_ZZ, H_X]   # H = J*H_ZZ + h*H_X
 
     if phys.model == "xx":
-        Y_real = np.array([[0.0, -1.0], [1.0, 0.0]])  # same as xx_model_ham
+        # Y_real = [[0,-1],[1,0]] = -i*Y_Pauli, so Y_real⊗Y_real = -(Y_Pauli⊗Y_Pauli).
+        # X⊗X + Y_Pauli⊗Y_Pauli = X⊗X - Y_real⊗Y_real  (same fix as xx_model_ham P0-4).
+        Y_real = np.array([[0.0, -1.0], [1.0, 0.0]])
         H_XX = np.zeros((dim, dim))
         for i in range(n - 1):
             ops_x = [X if j == i or j == i + 1 else I2 for j in range(n)]
             ops_y = [Y_real if j == i or j == i + 1 else I2 for j in range(n)]
-            H_XX -= 0.5 * (_kron_op(ops_x) + _kron_op(ops_y))
+            H_XX -= 0.5 * (_kron_op(ops_x) - _kron_op(ops_y))
         return [H_XX]   # H = J*H_XX
 
     return None

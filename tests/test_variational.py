@@ -139,8 +139,29 @@ class TestXXModelHam:
         assert H.shape == (2, 2)
         np.testing.assert_allclose(H, np.zeros((2, 2)), atol=1e-12)
 
+    def test_n2_matrix_entries_oracle(self):
+        # Regression: P0-4 fix. XX coupling must connect |01>↔|10>, NOT |00>↔|11>.
+        # X⊗X + Y_Pauli⊗Y_Pauli = [[0,0,0,0],[0,0,2,0],[0,2,0,0],[0,0,0,0]]
+        # H = -J/2 * that = [[0,0,0,0],[0,0,-1,0],[0,-1,0,0],[0,0,0,0]]
+        H = xx_model_ham(2, J=1.0)
+        expected = np.array([
+            [0., 0., 0., 0.],
+            [0., 0., -1., 0.],
+            [0., -1., 0., 0.],
+            [0., 0., 0., 0.],
+        ])
+        np.testing.assert_allclose(H, expected, atol=1e-12)
 
-# ──────────────────── energy_expectation ──────────────────────────
+    def test_n2_couples_spin_flip_sector(self):
+        # Ground state must be in S_z=0 sector: (|01>-|10>)/sqrt(2) or similar.
+        H = xx_model_ham(2, J=1.0)
+        evals, evecs = np.linalg.eigh(H)
+        gs = evecs[:, 0]
+        # |00> and |11> components must be zero (S_z != 0 sector)
+        assert abs(gs[0]) < 1e-10, "|00> component must vanish in ground state"
+        assert abs(gs[3]) < 1e-10, "|11> component must vanish in ground state"
+
+
 
 class TestEnergyExpectation:
     def setup_method(self):

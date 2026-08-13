@@ -1,20 +1,38 @@
-"""HTF Phase 4 — Osterwalder-Schrader positivity checks.
+"""HTF Phase 4 — Finite-lattice reflection diagnostics.
 
-Machine-verifies OS-positivity for finite-lattice Hamiltonians via
-transfer-matrix analysis.  Three independent checks are combined:
+Provides structural diagnostics for finite-lattice Hamiltonians via
+transfer-matrix analysis.
 
-1. ``check_transfer_positivity``: T = exp(−βH) is PSD.
-2. ``check_reflection_symmetry``: [H, R] = 0 (spatial reflection).
-3. ``os_positivity_report``: checks 1+2 plus OS-Gram matrix G = T + RTR ≥ 0.
+.. warning:: **P0-5 — These are NOT OS-positivity checks.**
+    For any real symmetric Hamiltonian:
+
+    * ``check_transfer_positivity``: T = exp(−βH) is *always* PSD
+      (eigenvalues exp(−β λ_i) > 0 by construction).
+    * ``os_gram_positivity``: G = T + RTR is a sum of two PSD matrices,
+      hence *always* PSD.
+    * Therefore checks 1 and 3 pass for every real symmetric H by definition.
+      The *only* non-trivial check is ``reflection_symmetry`` ([H,R]=0).
+
+    True Osterwalder-Schrader reflection positivity requires a Gram form
+    ⟨ΘF_i, F_j⟩ on positive-time observable algebras — not a plain PSD
+    check on T.  Use ``finite_lattice_reflection_diagnostics`` (the
+    canonical name); the old ``os_positivity_report`` is an alias kept for
+    backwards compatibility but will be removed in a future release.
+
+1. ``check_transfer_positivity``: T = exp(−βH) is PSD (always true).
+2. ``check_reflection_symmetry``: [H, R] = 0 (only non-trivial check).
+3. ``finite_lattice_reflection_diagnostics``: checks 1+2 + Gram PSD (always true).
 
 Honest scope
 ------------
 * All checks cover **finite lattices** (n_sites sites, local dim d).
-* A passing report is a finite-lattice *necessary* condition for OS-RP;
-  it does not imply OS-positivity of any continuum QFT — that is [OUT].
+* A passing report is only a reflection-symmetry check; it is **not** an
+  OS-positivity certificate and does not imply OS-RP of any continuum QFT.
 * Works for real symmetric Hamiltonians (standard lattice spin models).
 """
 from __future__ import annotations
+
+import warnings
 
 import numpy as np
 from scipy.linalg import expm
@@ -112,16 +130,43 @@ def os_positivity_report(
     d: int = 2,
     tol: float = 1e-10,
 ) -> dict:
-    """Full OS-positivity machine check for a finite-lattice Hamiltonian.
+    """Deprecated alias for :func:`finite_lattice_reflection_diagnostics`.
 
-    Performs three independent checks:
+    .. deprecated::
+        Use ``finite_lattice_reflection_diagnostics`` instead.
+        This name implied OS-positivity verification, which it does not
+        perform (P0-5).
+    """
+    warnings.warn(
+        "os_positivity_report is deprecated and misleadingly named (P0-5): "
+        "checks 1 and 3 pass for all real symmetric H by construction; "
+        "use finite_lattice_reflection_diagnostics instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return finite_lattice_reflection_diagnostics(ham, n_sites, beta=beta, d=d, tol=tol)
 
-    1. ``transfer_positivity``: T = exp(−βH) is PSD
-       (min eigenvalue of T ≥ −tol).
-    2. ``reflection_symmetry``: [H, R] = 0
-       (||HR − RH||_max ≤ tol).
-    3. ``os_gram_positivity``: OS-Gram matrix G = T + RTR is PSD
-       (symmetrised transfer matrix; min eigenvalue ≥ −tol).
+
+def finite_lattice_reflection_diagnostics(
+    ham: np.ndarray,
+    n_sites: int,
+    beta: float = 1.0,
+    d: int = 2,
+    tol: float = 1e-10,
+) -> dict:
+    """Finite-lattice structural diagnostics for a Hamiltonian.
+
+    .. warning::
+        This is **not** a true OS-positivity check (P0-5).  Checks 1 and 3
+        pass for *all* real symmetric Hamiltonians by construction (transfer
+        matrix and G=T+RTR are always PSD).  The only non-trivial check is
+        ``reflection_symmetry`` ([H,R]=0).
+
+    Performs three diagnostics:
+
+    1. ``transfer_positivity``: T = exp(−βH) is PSD — always true.
+    2. ``reflection_symmetry``: [H, R] = 0 — the only informative check.
+    3. ``os_gram_positivity``: G = T + RTR is PSD — always true.
 
     Parameters
     ----------
@@ -145,7 +190,8 @@ def os_positivity_report(
     r_gram = check_reflection_positivity(G, tol=tol)
     r_gram.property_name = "os_gram_positivity"
     r_gram.notes = (
-        f"G = T + RTR, min_eig={float(np.linalg.eigvalsh(G).min()):.3e}"
+        f"G = T + RTR, min_eig={float(np.linalg.eigvalsh(G).min()):.3e}; "
+        "always PSD for real symmetric H — not an independent OS check (P0-5)"
     )
 
     all_passed = r_trans.passed and r_refl.passed and r_gram.passed
@@ -155,7 +201,9 @@ def os_positivity_report(
         "os_gram_positivity": r_gram,
         "all_passed": all_passed,
         "notes": (
-            f"finite-lattice OS-positivity check: n_sites={n_sites}, d={d}, beta={beta}; "
-            "OS-positivity of any continuum QFT is [OUT]"
+            f"finite-lattice reflection diagnostics: n_sites={n_sites}, d={d}, beta={beta}; "
+            "checks 1+3 always pass for real symmetric H; "
+            "only check 2 ([H,R]=0) is non-trivial; "
+            "OS-positivity of any continuum QFT is [OUT]; P0-5"
         ),
     }

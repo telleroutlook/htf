@@ -69,7 +69,9 @@ def xx_model_ham(n: int, J: float = 1.0) -> np.ndarray:
     """
     I = np.eye(2, dtype=float)
     X = np.array([[0.0, 1.0], [1.0, 0.0]])
-    Y = np.array([[0.0, -1.0], [1.0, 0.0]])  # real version: iY → antisymmetric
+    # Y_real = [[0,-1],[1,0]] = -i * Y_Pauli, so Y_real⊗Y_real = -(Y_Pauli⊗Y_Pauli).
+    # To get X⊗X + Y_Pauli⊗Y_Pauli we must SUBTRACT Y_real⊗Y_real.
+    Y = np.array([[0.0, -1.0], [1.0, 0.0]])
 
     dim = 2 ** n
     H = np.zeros((dim, dim))
@@ -77,7 +79,7 @@ def xx_model_ham(n: int, J: float = 1.0) -> np.ndarray:
     for i in range(n - 1):
         opsX = [X if j == i else (X if j == i + 1 else I) for j in range(n)]
         opsY = [Y if j == i else (Y if j == i + 1 else I) for j in range(n)]
-        H -= J * 0.5 * (_kron_op(opsX) + _kron_op(opsY))
+        H -= J * 0.5 * (_kron_op(opsX) - _kron_op(opsY))
 
     return H
 

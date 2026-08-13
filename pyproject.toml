@@ -18,20 +18,25 @@ keywords = [
     "MERA",
     "reproducibility",
 ]
-dependencies = ["numpy>=1.23"]
+dependencies = ["numpy>=1.23", "scipy>=1.9"]  # scipy used at import time in mps/mpo/tebd/open_systems/os_axioms
 
 [project.optional-dependencies]
 accel = ["jax", "opt_einsum"]          # optional GPU / contraction-path acceleration
 certified = ["python-flint>=0.5"]      # certified mode: Arb interval arithmetic
-mcp = ["mcp>=1.0"]                     # MCP server wrapper (§7 TODO)
-dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy", "scipy"]
+mcp = ["mcp>=2,<3"]                    # MCP server wrapper (mcp 2.x API)
+adapters = ["quimb>=0.6"]              # optional backend adapters (quimb MPS)
+dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy"]  # scipy now in core
 
 [project.scripts]
 htf = "htf.cli:main"
 htf-mcp = "htf.mcp_server:main"
+htf-verify = "htf.verify:main"
 
 [tool.setuptools]
-packages = ["htf"]
+packages = ["htf", "htf.adapters", "htf.schemas"]
+
+[tool.setuptools.package-data]
+"htf.schemas" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

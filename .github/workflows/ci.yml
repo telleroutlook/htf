@@ -35,4 +35,21 @@ jobs:
         run: mypy htf/ --ignore-missing-imports --no-strict-optional
 
       - name: Test (pytest)
-        run: python -m pytest -q --tb=short
+        run: |
+          set -o pipefail
+          python -m pytest -q --tb=short 2>&1 | tee pytest_out.txt
+
+      - name: Validate test count badge
+        if: matrix.python-version == '3.11'
+        run: |
+          COUNT=$(grep -oP '^\d+(?= passed)' pytest_out.txt | tail -1)
+          BADGE=$(grep -oP '(?<=tests-)\d+(?=%20passing)' README.md)
+          if [ -z "$COUNT" ]; then
+            echo "::error::Could not parse pytest passed count from pytest_out.txt"
+            exit 1
+          fi
+          if [ "$COUNT" != "$BADGE" ]; then
+            echo "::error::Badge mismatch: pytest=$COUNT README=$BADGE — update README.md badge"
+            exit 1
+          fi
+          echo "Badge OK: $COUNT tests passing"

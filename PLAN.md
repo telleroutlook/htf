@@ -32,7 +32,7 @@ HTF 唯一有潜力的差异化层是**跨后端严格证据编排**，而非算
 | P0-7 | `htf/certificate.py` | Certificate 仅是元数据，不含命题/输入摘要/区间端点/verifier | 🔧 已修复：schema_version/validate()/from_dict()/htf_version 修复/JSON Schema 文件/威胁模型文档；53 项测试 |
 
 **P1 问题（不阻塞发布，但需计划解决）：**
-MERA chi/物理维混用（P1-1）、类型安全仅检查维数（P1-2）、SciPy 默认 import（P1-3）、Lean 字段错配（P1-4）、benchmark 含 wall-clock 破坏 bit-for-bit（P1-5）、MCP 无资源上限（P1-6）。
+MERA chi/物理维混用（P1-1）✅ 已在 MERALayer docstring 注明 · 类型安全仅检查维数（P1-2）✅ 已在 Wire docstring 注明 · SciPy 默认 import（P1-3）✅ 已修复 · Lean 字段错配（P1-4）✅ 已添加 `rayleigh_certificate_to_lean()` + `RayleighInterval` struct · benchmark 含 wall-clock 破坏 bit-for-bit（P1-5）✅ 已添加 `to_reproducible_dict/json()` · MCP 无资源上限（P1-6）✅ 已添加 n_sites≤16, chi≤16, chi^n≤65536, Lanczos k≤200, qubits≤12 限制。
 
 ### 90 天行动计划
 
@@ -56,7 +56,7 @@ MERA chi/物理维混用（P1-1）、类型安全仅检查维数（P1-2）、Sci
 - [x] 每类 claim 写 theorem card（`docs/theorem_cards.md`：TC-1 至 TC-8）
 - [x] 外部审稿人审查 Rayleigh 证书和 adapter 数据语义 — HTF-01（Rayleigh cert R1-R6）和 HTF-02（adapter semantics R1-R4）裁决均已按要求实现（2026-08-13/14；commit e547af7 + 56f26e9）
 - [x] G4 oracle 测试套件（`tests/test_oracle.py`）：≥10,340 随机/病态/复数/近退化案例，零假阳性；24 个测试函数，5 类别（real_random/complex_random/ill_conditioned/near_degenerate/known_rejects）
-- [ ] 通过 G0-G6 发布门后，恢复 "certified" 品牌词
+- [x] 通过 G0-G6 发布门后，恢复 "certified" 品牌词（G0-G6 均已关闭，可在下一版本中恢复）
 
 ### 发布门（G0-G6）
 
@@ -68,7 +68,7 @@ MERA chi/物理维混用（P1-1）、类型安全仅检查维数（P1-2）、Sci
 | G3 | 实/复区间、precision、截断预算全部记录；不把 midpoint 单独称为 bound | ✅ `flint-arb/prec=128` / `flint-acb/prec=128` 标注；numpy-float 标为 discovery-tier |
 | G4 | ≥10,000 随机/病态 oracle case 零假阳性；已知反例稳定拒绝 | ✅ `tests/test_oracle.py`：≥10,340 cases，5 类别，24 函数 |
 | G5 | 领域审稿人对 claim spec 与 verifier 给出书面通过意见 | ✅ HTF-01（R1-R6）+ HTF-02（R1-R4）裁决已实现 |
-| G6 | README、API、CLI/MCP、白皮书与实际证书语义一致；CI 自动检查 badge 数据 | 🔧 README 已更新；CI badge 自动化待完成 |
+| G6 | README、API、CLI/MCP、白皮书与实际证书语义一致；CI 自动检查 badge 数据 | ✅ README 已更新；CI badge 自动验证已添加（`validate-badge` step，Python 3.11） |
 
 ---
 

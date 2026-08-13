@@ -341,22 +341,24 @@ class TestZxToMatrix:
         assert U.shape == (1, 1)
 
     def test_non_circuit_topology_raises(self):
-        """A node stranded off the input-to-output path must raise NotImplementedError."""
+        """An orphan non-boundary node (no edges) must raise NotImplementedError."""
         g = ZXGraph()
-        # Single qubit circuit: in0 -> out0
         inp = g.add_node(ZXNodeType.INPUT, qubit=0, label="in0")
         out = g.add_node(ZXNodeType.OUTPUT, qubit=0, label="out0")
         g.inputs.append(inp)
         g.outputs.append(out)
         g.add_edge(inp, out)
-        # Stranded node — not reachable from any input
+        # Orphan node — no edges at all
         g.add_node(ZXNodeType.Z, phase=math.pi, label="orphan")
-        with pytest.raises(NotImplementedError, match="circuit"):
+        with pytest.raises(NotImplementedError):
             zx_to_matrix(g)
 
-    def test_cross_wire_connection_raises(self):
-        """A spider connected from two different qubit wires raises NotImplementedError."""
-        # Build: in0 -> Z_shared <- in1 -> out1; out0 disconnected
+    def test_cross_wire_spider_evaluates_correctly(self):
+        """A 4-legged Z(0) spider connecting inp0, inp1, out0, out1.
+
+        Z(0,4)[i,j,k,l] = δ(all=0) + δ(all=1), so the 4×4 matrix has
+        ones only at (row=|00⟩, col=|00⟩) and (row=|11⟩, col=|11⟩).
+        """
         g = ZXGraph()
         inp0 = g.add_node(ZXNodeType.INPUT, qubit=0)
         inp1 = g.add_node(ZXNodeType.INPUT, qubit=1)
@@ -365,13 +367,16 @@ class TestZxToMatrix:
         g.inputs = [inp0, inp1]
         g.outputs = [out0, out1]
         shared = g.add_node(ZXNodeType.Z, phase=0.0, label="shared")
-        # Connect shared spider to BOTH input wires (cross-wire)
         g.add_edge(inp0, shared)
         g.add_edge(inp1, shared)
         g.add_edge(shared, out0)
         g.add_edge(shared, out1)
-        with pytest.raises(NotImplementedError):
-            zx_to_matrix(g)
+        M = zx_to_matrix(g)
+        assert M.shape == (4, 4)
+        expected = np.zeros((4, 4), dtype=complex)
+        expected[0, 0] = 1.0   # |00⟩ → |00⟩
+        expected[3, 3] = 1.0   # |11⟩ → |11⟩
+        np.testing.assert_allclose(np.abs(M), np.abs(expected), atol=1e-12)
 
 
 # ─────────────────────── TestColorChange ─────────────────────────────────
@@ -836,4 +841,146 @@ class TestCliffordSimplify:
         g = zx_from_circuit(gates, n_qubits=2)
         n = clifford_simplify(g)
         assert isinstance(n, int)  # just must not hang
+
+
+# ─────────────────────── P0-6 regression tests ────────────────────────────
+
+class TestP06Regression:
+    """Regression suite for P0-6: 2-qubit ZX gate semantics (fixed).
+
+    ``zx_to_matrix`` evaluates diagrams up to a global scalar — a known
+    property of the ZX spider convention.  Gates H, X, Z, S, T match
+    exactly; rotation gates (Rx, Rz, Ry) and multi-qubit gates (CX, CZ,
+    SWAP) are proportional to the circuit reference (same structure, same
+    zero/nonzero pattern and relative phases, scalar factor may differ).
+    """
+
+    _ATOL = 1e-10
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _ref(gates, n):
+        from htf.qasm import circuit_unitary
+        return circuit_unitary(gates, n)
+
+    @staticmethod
+    def _zx(gates, n):
+        g = zx_from_circuit(gates, n)
+        return zx_to_matrix(g)
+
+    @staticmethod
+    def _assert_proportional(A: np.ndarray, B: np.ndarray, msg: str = "") -> None:
+        """Check A = c·B for some nonzero scalar c (same structure up to scale)."""
+        flat_a, flat_b = A.ravel(), B.ravel()
+        nz = np.abs(flat_b) > 1e-12
+        assert nz.any(), f"Reference is all zeros: {msg}"
+        c = flat_a[nz][0] / flat_b[nz][0]
+        np.testing.assert_allclose(flat_a[nz] / flat_b[nz], c,
+                                   atol=1e-8, err_msg=f"Ratios not constant: {msg}")
+        z_mask = ~nz
+        if z_mask.any():
+            np.testing.assert_allclose(np.abs(flat_a[z_mask]), 0,
+                                       atol=1e-10, err_msg=f"Nonzero where zero expected: {msg}")
+
+    # ── single-qubit gates ────────────────────────────────────────────────
+
+    def test_h_roundtrip(self):
+        gates = [Gate("h", [0])]
+        np.testing.assert_allclose(self._zx(gates, 1), self._ref(gates, 1), atol=self._ATOL)
+
+    def test_x_roundtrip(self):
+        gates = [Gate("x", [0])]
+        np.testing.assert_allclose(self._zx(gates, 1), self._ref(gates, 1), atol=self._ATOL)
+
+    def test_z_roundtrip(self):
+        gates = [Gate("z", [0])]
+        np.testing.assert_allclose(self._zx(gates, 1), self._ref(gates, 1), atol=self._ATOL)
+
+    def test_s_roundtrip(self):
+        gates = [Gate("s", [0])]
+        np.testing.assert_allclose(self._zx(gates, 1), self._ref(gates, 1), atol=self._ATOL)
+
+    def test_t_roundtrip(self):
+        gates = [Gate("t", [0])]
+        np.testing.assert_allclose(self._zx(gates, 1), self._ref(gates, 1), atol=self._ATOL)
+
+    def test_rx_roundtrip(self):
+        gates = [Gate("rx", [0], [0.7])]
+        self._assert_proportional(self._zx(gates, 1), self._ref(gates, 1), "Rx(0.7)")
+
+    def test_rz_roundtrip(self):
+        gates = [Gate("rz", [0], [1.2])]
+        self._assert_proportional(self._zx(gates, 1), self._ref(gates, 1), "Rz(1.2)")
+
+    def test_ry_p0_6_regression(self):
+        """P0-6: Ry now evaluates to the correct structure (proportional to Ry)."""
+        gates = [Gate("ry", [0], [0.7])]
+        self._assert_proportional(self._zx(gates, 1), self._ref(gates, 1), "Ry(0.7)")
+
+    def test_ry_various_angles(self):
+        for theta in (0.0, math.pi / 4, math.pi / 2, math.pi, 1.23):
+            gates = [Gate("ry", [0], [theta])]
+            self._assert_proportional(
+                self._zx(gates, 1), self._ref(gates, 1), f"Ry({theta:.3g})"
+            )
+
+    # ── 2-qubit gates ─────────────────────────────────────────────────────
+
+    def test_cx_p0_6_regression(self):
+        """P0-6: CX now evaluates to the correct structure (proportional to CX)."""
+        gates = [Gate("cx", [0, 1])]
+        self._assert_proportional(self._zx(gates, 2), self._ref(gates, 2), "CX")
+
+    def test_cx_ctrl_1_tgt_0(self):
+        gates = [Gate("cx", [1, 0])]
+        self._assert_proportional(self._zx(gates, 2), self._ref(gates, 2), "CX(1,0)")
+
+    def test_cz_p0_6_regression(self):
+        """P0-6: CZ now evaluates to the correct structure (proportional to CZ)."""
+        gates = [Gate("cz", [0, 1])]
+        self._assert_proportional(self._zx(gates, 2), self._ref(gates, 2), "CZ")
+
+    def test_swap_p0_6_regression(self):
+        """P0-6: SWAP now evaluates to the correct structure (proportional to SWAP)."""
+        gates = [Gate("swap", [0, 1])]
+        self._assert_proportional(self._zx(gates, 2), self._ref(gates, 2), "SWAP")
+
+    def test_swap_is_its_own_inverse(self):
+        """SWAP·SWAP is proportional to identity (ZX scalar accumulates)."""
+        gates = [Gate("swap", [0, 1]), Gate("swap", [0, 1])]
+        M = self._zx(gates, 2)
+        self._assert_proportional(M, np.eye(4, dtype=complex), "SWAP²")
+
+    def test_cx_bell_state(self):
+        """H⊗I then CX: ZX result is proportional to Bell basis columns."""
+        gates = [Gate("h", [0]), Gate("cx", [0, 1])]
+        U = self._zx(gates, 2)
+        col0 = U[:, 0]
+        expected_col0 = np.array([1, 0, 0, 1], dtype=complex) / math.sqrt(2)
+        self._assert_proportional(col0.reshape(1, -1), expected_col0.reshape(1, -1),
+                                  "Bell col0")
+
+    def test_identity_circuit_2qubits(self):
+        g = zx_from_circuit([], n_qubits=2)
+        M = zx_to_matrix(g)
+        np.testing.assert_allclose(M, np.eye(4, dtype=complex), atol=self._ATOL)
+
+    def test_cx_followed_by_cx_is_identity(self):
+        """CX·CX is proportional to identity (ZX scalar accumulates)."""
+        gates = [Gate("cx", [0, 1]), Gate("cx", [0, 1])]
+        M = self._zx(gates, 2)
+        self._assert_proportional(M, np.eye(4, dtype=complex), "CX²")
+
+    def test_cz_is_symmetric(self):
+        """CZ(0,1) = CZ(1,0) up to qubit relabelling (it's symmetric)."""
+        zx_01 = self._zx([Gate("cz", [0, 1])], 2)
+        zx_10 = self._zx([Gate("cz", [1, 0])], 2)
+        np.testing.assert_allclose(zx_01, zx_10, atol=self._ATOL)
+
+    def test_three_qubit_circuit(self):
+        """H on q0, CX(0,1), CX(1,2) — 3-qubit ZX evaluation (proportional to ref)."""
+        gates = [Gate("h", [0]), Gate("cx", [0, 1]), Gate("cx", [1, 2])]
+        self._assert_proportional(self._zx(gates, 3), self._ref(gates, 3),
+                                  "3-qubit H+CX+CX")
 

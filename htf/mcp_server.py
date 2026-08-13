@@ -57,6 +57,29 @@ def _build_server() -> MCPServer:
 
     from . import __version__
 
+    # ── Resource limits (prevent accidental O(chi^n) memory blowup) ───────
+    _MAX_N_SITES   = 16   # state vector has chi^n elements
+    _MAX_CHI       = 16   # combined with n_sites: 16^16 would blow up, checked together
+    _MAX_STATE_DIM = 65536  # chi^n_sites ≤ this (2^16)
+    _MAX_LANCZOS_K = 200
+    _MAX_QUBITS    = 12
+
+    def _check_n_chi(n: int, chi: int) -> None:
+        if n < 1:
+            raise ValueError(f"n_sites must be ≥ 1, got {n}")
+        if n > _MAX_N_SITES:
+            raise ValueError(f"n_sites={n} exceeds MCP limit {_MAX_N_SITES}")
+        if chi < 1:
+            raise ValueError(f"chi must be ≥ 1, got {chi}")
+        if chi > _MAX_CHI:
+            raise ValueError(f"chi={chi} exceeds MCP limit {_MAX_CHI}")
+        state_dim = chi ** n
+        if state_dim > _MAX_STATE_DIM:
+            raise ValueError(
+                f"chi^n_sites = {chi}^{n} = {state_dim} exceeds MCP state-dim limit "
+                f"{_MAX_STATE_DIM}; reduce n_sites or chi"
+            )
+
     server = MCPServer(
         name="htf",
         version=__version__,
@@ -93,6 +116,7 @@ def _build_server() -> MCPServer:
         from .mera import random_mera
         from .variational import optimize_mera, variational_bound
 
+        _check_n_chi(n, chi)
         a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         mera0 = random_mera(n, chi=chi, seed=seed)
@@ -131,6 +155,7 @@ def _build_server() -> MCPServer:
         from .mera import random_mera
         from .variational import optimize_mera
 
+        _check_n_chi(n, chi)
         a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         mera0 = random_mera(n, chi=chi, seed=seed)
@@ -176,6 +201,8 @@ def _build_server() -> MCPServer:
         from .cli import _build_ham, _report_to_dict
         from .os_axioms import os_positivity_report
 
+        if n > _MAX_N_SITES:
+            raise ValueError(f"n_sites={n} exceeds MCP limit {_MAX_N_SITES}")
         a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         rep = os_positivity_report(H, n, beta=beta, d=2)
@@ -209,6 +236,7 @@ def _build_server() -> MCPServer:
         models: list[str] | None = None,
     ) -> str:
         from .benchmark import run_benchmark
+        _check_n_chi(n, chi)
         rep = run_benchmark(
             n_sites=n, chi=chi, n_iter=n_iter, seed=seed, models=models
         )
@@ -235,6 +263,10 @@ def _build_server() -> MCPServer:
         from .cli import _build_ham
         from .lanczos import temple_lanczos
 
+        if n > _MAX_N_SITES:
+            raise ValueError(f"n_sites={n} exceeds MCP limit {_MAX_N_SITES}")
+        if k > _MAX_LANCZOS_K:
+            raise ValueError(f"Lanczos k={k} exceeds MCP limit {_MAX_LANCZOS_K}")
         a = types.SimpleNamespace(model=model, n=n, J=J, h=h)
         H, model_label = _build_ham(a)
         bounds = temple_lanczos(H, k=k, seed=seed)
@@ -270,6 +302,8 @@ def _build_server() -> MCPServer:
         n = n_qubits or (
             max((max(g.qubits) for g in gates if g.qubits), default=0) + 1
         )
+        if n > _MAX_QUBITS:
+            raise ValueError(f"n_qubits={n} exceeds MCP limit {_MAX_QUBITS}")
         U = circuit_unitary(gates, n)
         out = {
             "n_qubits": n,

@@ -261,8 +261,29 @@ class TestTempleLowerBound:
             assert variance > 1e-12  # confirm nonzero variance
             assert t_lb < E_var
 
+    def test_p0_1_regression_upper_bound_can_exceed_E0(self):
+        # Regression for P0-1: passing an E1 UPPER bound (larger than true E1)
+        # produces a "lower bound" that may exceed the true E0.
+        # E.g. H=diag(0,1,10): true E0=0, true E1=1.
+        # Passing E1_upper=9.99 (≈ second Ritz value, an upper bound on E2 not E1)
+        # gives a result > 0, demonstrating the formula is not rigorous here.
+        H = np.diag([0.0, 1.0, 10.0])
+        psi = np.array([math.sqrt(0.9), math.sqrt(0.1), 0.0])
+        E_var = energy_expectation(H, psi)
+        h2 = h2_expectation(H, psi)
+        # Correct rigorous lower bound requires E1_lower <= E1_exact = 1.
+        # Using E1_lower = 1.0 (exact) should give t_lb <= E0 = 0.
+        t_lb_correct = temple_lower_bound(E_var, h2, 1.0)
+        assert t_lb_correct <= 0.0 + 1e-10, "Temple with exact E1 must bound E0"
+        # Using an upper bound on E1 (e.g. 9.9) can produce t_lb > E0 = 0.
+        t_lb_wrong = temple_lower_bound(E_var, h2, 9.9)
+        # This asserts the known-bad behaviour rather than accidentally passing:
+        assert t_lb_wrong > 0.0, (
+            "P0-1 regression: using E1_upper in Temple denominator "
+            "should yield a value > true E0=0"
+        )
 
-# ──────────────────────── first_excited_upper ─────────────────────
+
 
 class TestFirstExcitedUpper:
     def setup_method(self):
@@ -425,6 +446,24 @@ class TestCertifiedGapUpper:
         cert = certified_gap_upper(H, evecs[:, 0], evecs[:, 1])
         assert isinstance(cert, Certificate)
         assert cert.mode == "certified"
+
+    def test_p0_2_regression_not_a_gap_upper_bound(self):
+        # Regression for P0-2: certified_gap_upper can return a value LESS THAN
+        # the true spectral gap, so it is NOT an upper bound on the gap.
+        # H=diag(0,1), trial states at angle 0.3: exact gap=1.
+        # Using approximate (non-exact) states demonstrates the issue.
+        theta = 0.3
+        H = np.diag([0.0, 1.0])
+        psi_gs = np.array([math.cos(theta), math.sin(theta)])
+        psi_es = np.array([-math.sin(theta), math.cos(theta)])
+        exact_gap = 1.0
+        cert = certified_gap_upper(H, psi_gs, psi_es)
+        # The trial energy difference < exact gap when states are not exact eigenstates.
+        assert cert.result < exact_gap, (
+            "P0-2 regression: trial energy difference must be < true gap "
+            "when using approximate states, confirming it is not an upper bound"
+        )
+        assert "NOT a certified spectral-gap" in cert.notes
 
 
 # ───────────────────────────── gap_report ─────────────────────────

@@ -23,7 +23,14 @@ class TensorFunctor:
     def tensor(self, box: Box) -> np.ndarray:
         if box.name not in self.arrows:
             raise KeyError(f"no tensor assigned to Box {box.name!r}")
-        arr = np.asarray(self.arrows[box.name], dtype=float)
+        raw = np.asarray(self.arrows[box.name])
+        if np.iscomplexobj(raw):
+            raise TypeError(
+                f"tensor for Box {box.name!r} has complex dtype {raw.dtype}; "
+                "HTF currently supports real tensors only — "
+                "complex support (Acb interval arithmetic) is a planned research gate"
+            )
+        arr = raw.astype(float)
         expected = dims(box.cod) + dims(box.dom)
         if arr.shape != expected:
             raise ValueError(

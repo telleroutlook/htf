@@ -10,7 +10,19 @@ from __future__ import annotations
 
 
 class Wire:
-    """An object of the category: a labelled vector space of dimension ``dim``."""
+    """An object of the category: a labelled vector space of dimension ``dim``.
+
+    Two wires are equal iff both their ``name`` **and** ``dim`` match.  Composition
+    checking therefore enforces name+dimension compatibility — a wire named
+    ``"spin"`` is not composable with a wire named ``"charge"`` even if both have
+    ``dim=2``.
+
+    Known limitation (P1-2): the type system enforces structural wire identity
+    (name + dimension).  It does **not** enforce deeper semantic constraints such
+    as gauge representations, tensor indices, or physical units.  Users are
+    responsible for ensuring that wires with matching names carry compatible
+    physical meaning across boxes.
+    """
 
     __slots__ = ("dim", "name")
 

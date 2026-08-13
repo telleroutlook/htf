@@ -176,23 +176,27 @@ def temple_lanczos(
     k: int = 30,
     seed: int = 0,
 ) -> TwoSidedBounds:
-    """Tight two-sided bounds on E_0 using Lanczos Ritz values.
+    """**Heuristic** two-sided estimates on E_0 using Lanczos Ritz values.
+
+    .. warning:: **Not a rigorous lower bound (P0-1).**
+        Temple's inequality requires a *lower bound* on E_1 in the denominator.
+        This function uses the second Ritz value (θ_1), which is a variational
+        *upper* bound on E_1.  With an upper bound in the denominator the
+        subtracted term is too small and the result can exceed E_0, producing a
+        false "lower bound".  Treat ``E0_lower`` as a heuristic diagnostic only.
 
     Algorithm
     ---------
     1. Run k-step Lanczos to get Ritz values {θ_0, θ_1, …}.
     2. Use θ_0 as the variational upper bound on E_0.
-    3. Use θ_1 as the variational upper bound on E_1.
-    4. Apply Temple's inequality lower bound on E_0.
-
-    The resulting interval [E0_lower, E0_upper] is a provably valid
-    finite-lattice bound when θ_0 < E_1_exact (Temple condition).
+    3. Use θ_1 as a proxy for E_1 (it is an upper bound, not a lower bound).
+    4. Apply the Temple formula — result is heuristic, not rigorous.
 
     Honest scope
     ------------
     * θ_0 and θ_1 are Ritz values (variational upper bounds), not certified.
-    * Temple condition checked against θ_1, not E_1_exact — it is possible that
-      θ_1 > E_1_exact and the condition fails.  Use ``temple_condition_met`` flag.
+    * Temple heuristic checked against θ_1 (upper bound on E_1); rigorous
+      lower bound requires a genuine lower bound on E_1 — see P0-1.
     * Continuum gap and χ-truncation bias are ``[OUT]``.
     """
     from .gap import h2_expectation, temple_lower_bound
@@ -245,7 +249,8 @@ def temple_lanczos(
         k_lanczos=len(evals),
         notes=(
             f"k_lanczos={k}; Ritz upper bounds; "
-            "Temple lower bound valid iff E_var < E_1_exact (finite-lattice); "
+            "Temple heuristic (NOT rigorous — uses Ritz upper bound as E1 proxy, "
+            "violates Temple E1_lower requirement; P0-1); "
             "continuum gap is [OUT]"
         ),
     )

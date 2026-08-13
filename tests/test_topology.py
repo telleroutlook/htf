@@ -67,3 +67,22 @@ def test_certified_mode_works():
     assert isinstance(cert, Certificate)
     assert cert.mode == "certified"
     assert cert.error_bound is not None
+
+
+def test_p0_3_regression_complex_input_raises_type_error():
+    # Regression P0-3: complex tensors must be rejected with TypeError, not
+    # silently truncated to float (which produced <1|S|1>=i → 0 ± 0 certified).
+    s = Wire("spin", 2)
+    S_gate = Box("S", (s,), (s,))          # phase gate diag(1, i)
+    S_matrix_complex = np.array([[1.0, 0.0], [0.0, 1j]])  # complex dtype
+    with pytest.raises(TypeError, match="complex"):
+        TensorFunctor({"S": S_matrix_complex}).tensor(S_gate)
+
+
+def test_p0_3_regression_real_float_still_accepted():
+    # Counterpart: real tensors must still work normally.
+    s = Wire("spin", 2)
+    X_gate = Box("X", (s,), (s,))
+    F = TensorFunctor({"X": np.array([[0.0, 1.0], [1.0, 0.0]])})
+    t = F.tensor(X_gate)
+    assert t.dtype == float

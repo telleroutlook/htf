@@ -41,7 +41,14 @@ class BenchmarkResult:
     elapsed_s: float        # wall-clock time for this model
 
     def to_dict(self) -> dict:
+        """Full dict including wall-clock ``elapsed_s`` (not bit-for-bit reproducible)."""
         return asdict(self)
+
+    def to_reproducible_dict(self) -> dict:
+        """Like ``to_dict()`` but excludes ``elapsed_s`` for bit-for-bit reproducibility."""
+        d = asdict(self)
+        d.pop("elapsed_s", None)
+        return d
 
 
 @dataclass
@@ -55,6 +62,7 @@ class BenchmarkReport:
     results: list[BenchmarkResult] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        """Full dict; each result includes ``elapsed_s`` (not bit-for-bit reproducible)."""
         return {
             "htf_version": self.htf_version,
             "n_sites": self.n_sites,
@@ -64,8 +72,23 @@ class BenchmarkReport:
             "results": [r.to_dict() for r in self.results],
         }
 
+    def to_reproducible_dict(self) -> dict:
+        """Like ``to_dict()`` but excludes ``elapsed_s`` for bit-for-bit reproducibility."""
+        return {
+            "htf_version": self.htf_version,
+            "n_sites": self.n_sites,
+            "chi": self.chi,
+            "n_iter": self.n_iter,
+            "seed": self.seed,
+            "results": [r.to_reproducible_dict() for r in self.results],
+        }
+
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
+
+    def to_reproducible_json(self, indent: int = 2) -> str:
+        """JSON without wall-clock fields; safe for bit-for-bit comparison."""
+        return json.dumps(self.to_reproducible_dict(), indent=indent)
 
     def summary(self) -> str:
         hdr = (
@@ -131,7 +154,7 @@ def run_benchmark(
     from .difficulty import difficulty_report
     from .gap import gap_report
     from .mera import random_mera
-    from .os_axioms import os_positivity_report
+    from .os_axioms import finite_lattice_reflection_diagnostics
     from .variational import (
         optimize_mera,
         transverse_ising_ham,
@@ -173,7 +196,7 @@ def run_benchmark(
         psi_es_raw = random_mera(n_sites, chi=chi, seed=seed + 1).state_vector()
         g = gap_report(H, psi_gs, psi_es_raw)
 
-        os_rep = os_positivity_report(H, n_sites, beta=1.0, d=2)
+        os_rep = finite_lattice_reflection_diagnostics(H, n_sites, beta=1.0, d=2)
         drep = difficulty_report(H, n_sites, n_iter=n_iter, seed=seed)
 
         report.results.append(BenchmarkResult(

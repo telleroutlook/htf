@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "htf://schemas/rayleigh-cert/v1",
+  "title": "HTF Rayleigh Certificate v1",
+  "description": "A replayable certificate that E0 <= interval.upper, produced by the Rayleigh-Ritz theorem.",
+  "type": "object",
+  "required": [
+    "schema_version", "claim", "theorem", "assumptions",
+    "input_digest", "interval", "backend", "htf_version", "verified"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "rayleigh-cert/v1",
+      "description": "Schema identifier; must be exactly 'rayleigh-cert/v1'."
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable statement of what is certified."
+    },
+    "theorem": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The mathematical theorem invoked."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "description": "Machine-checked preconditions; each entry must have passed before the certificate was issued."
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex digest of canonical (H || psi) bytes (row-major float64)."
+    },
+    "interval": {
+      "type": "object",
+      "required": ["lower", "upper", "midpoint", "radius"],
+      "additionalProperties": false,
+      "description": "Arb interval for the Rayleigh quotient; the certified claim is E0 <= upper.",
+      "properties": {
+        "lower":    {"type": "number", "description": "Lower endpoint of the interval."},
+        "upper":    {"type": "number", "description": "Upper endpoint; the certified bound."},
+        "midpoint": {"type": "number", "description": "Midpoint, for display only."},
+        "radius":   {"type": "number", "minimum": 0, "description": "Half-width (rounding radius); 0 when backend is numpy-float."}
+      }
+    },
+    "backend": {
+      "type": "string",
+      "description": "Arithmetic backend. 'flint-arb' means a rigorous Arb ball was computed; 'numpy-float' means no certified rounding."
+    },
+    "htf_version": {
+      "type": "string",
+      "description": "Version of HTF that produced this certificate."
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "True if verify_rayleigh_certificate() confirmed this certificate independently."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional context string."
+    }
+  },
+  "allOf": [
+    {
+      "description": "interval.lower must be <= interval.upper",
+      "if":   {"properties": {"interval": {"properties": {"lower": true, "upper": true}}}},
+      "then": {"properties": {"interval": {"properties": {"radius": {"minimum": 0}}}}}
+    }
+  ]
+}

@@ -192,11 +192,11 @@ def cmd_difficulty(args) -> None:
 
 
 def cmd_os_check(args) -> None:
-    """Osterwalder-Schrader positivity machine check via transfer matrix."""
-    from .os_axioms import os_positivity_report
+    """Finite-lattice reflection diagnostics via transfer matrix."""
+    from .os_axioms import finite_lattice_reflection_diagnostics
 
     H, model_label = _build_ham(args)
-    report = os_positivity_report(H, args.n, beta=args.beta, d=2)
+    report = finite_lattice_reflection_diagnostics(H, args.n, beta=args.beta, d=2)
     out = {
         "model": model_label,
         "n_sites": args.n,
@@ -358,6 +358,37 @@ def cmd_lean_export(args) -> None:
     }, indent=2))
 
 
+def cmd_rayleigh(args) -> None:
+    """Validated Rayleigh Certificate: certifies E0 ≤ upper for a trial state."""
+    from .rayleigh_cert import rayleigh_certificate, verify_rayleigh_certificate
+    from .mera import random_mera
+
+    H, model_label = _build_ham(args)
+    rng = np.random.default_rng(args.seed)
+    psi = rng.standard_normal(H.shape[0])
+    psi /= np.linalg.norm(psi)
+
+    cert = rayleigh_certificate(H, psi, notes=f"model={model_label}, seed={args.seed}")
+    verify_rayleigh_certificate(cert)
+
+    if getattr(args, "full", False):
+        print(cert.to_full_json(indent=2))
+    else:
+        print(json.dumps({
+            "model": model_label,
+            "n_sites": args.n,
+            "claim": cert.claim,
+            "theorem": cert.theorem,
+            "assumptions": cert.assumptions,
+            "interval": {"lower": cert.lower, "upper": cert.upper, "radius": cert.radius},
+            "input_digest": cert.input_digest,
+            "backend": cert.backend,
+            "htf_version": cert.htf_version,
+            "verified": cert.verified,
+            "notes": cert.notes,
+        }, indent=2))
+
+
 # ─────────────────────── main ────────────────────────────────────────────
 
 
@@ -503,6 +534,17 @@ def main(argv=None) -> None:
     sp_le.add_argument("--output", default="", metavar="FILE",
                        help="output .lean file path (default: htf_<model>_n<N>.lean)")
     sp_le.set_defaults(func=cmd_lean_export)
+
+    sp_ray = sub.add_parser(
+        "rayleigh",
+        help="produce and verify a Rayleigh Certificate (E0 ≤ upper)",
+    )
+    _add_model_args(sp_ray)
+    sp_ray.add_argument("--seed", type=int, default=42,
+                        help="RNG seed for random trial state (default: 42)")
+    sp_ray.add_argument("--full", action="store_true",
+                        help="emit full certificate JSON (includes canonical H/ψ for htf-verify)")
+    sp_ray.set_defaults(func=cmd_rayleigh)
 
     args = p.parse_args(argv)
     args.func(args)

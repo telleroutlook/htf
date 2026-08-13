@@ -48,22 +48,27 @@ def h2_expectation(ham: np.ndarray, state_vec: np.ndarray) -> float:
 def temple_lower_bound(
     E_var: float,
     h2_exp: float,
-    E1_upper: float,
+    E1_lower: float,
 ) -> float:
-    """Temple's inequality: rigorous lower bound on the ground-state energy E_0.
+    """Temple's inequality: **heuristic** estimate of a lower bound on E_0.
 
-    Given a trial state |ψ⟩ with variational energy ``E_var`` and second
-    moment ``h2_exp``, and an upper bound ``E1_upper`` on the first excited
-    energy::
+    Formula::
 
-        E_0 ≥ E_var − (⟨H²⟩ − E_var²) / (E1_upper − E_var)
+        result = E_var − (⟨H²⟩ − E_var²) / (E1_lower − E_var)
 
-    This is a **rigorous finite-lattice lower bound** (not a certified bound
-    on the spectral gap; bond-dimension bias is ``[OUT]``).
+    **Critical requirement:** ``E1_lower`` must be a *true lower bound* on E_1
+    (i.e. ``E1_lower ≤ E_1_exact``).  If an *upper* bound (e.g. a Ritz value) is
+    passed, the denominator is too large, the subtracted term too small, and the
+    result can **exceed E_0** — it is no longer a valid lower bound.
 
-    Returns ``-inf`` when ``E1_upper ≤ E_var`` (bound not applicable).
+    The current call-sites in :func:`gap_report` and :func:`temple_lanczos` pass
+    a Ritz variational upper bound.  Until a genuine lower bound on E_1 is
+    available, treat the returned value as a **heuristic diagnostic only**,
+    not a rigorous lower bound (P0-1).
+
+    Returns ``-inf`` when ``E1_lower ≤ E_var`` (bound not applicable).
     """
-    denom = E1_upper - E_var
+    denom = E1_lower - E_var
     if denom <= 0.0:
         return float("-inf")
     variance = h2_exp - E_var ** 2
@@ -115,14 +120,18 @@ def certified_gap_upper(
     state_gs: np.ndarray,
     state_es: np.ndarray,
 ) -> Certificate:
-    """Certified upper bound on the spectral gap via flint Arb.
+    """Arb-certified **trial energy difference** E1_var − E0_var.
 
-    Computes ``E_1_var − E_0_var`` where both energies are evaluated with
-    Arb interval arithmetic, giving a rigorous floating-point rounding bound.
+    .. warning::
+        This is **NOT** a certified upper bound on the spectral gap (P0-2).
+        A true gap upper bound requires ``E1_upper − E0_lower``; this function
+        computes ``E1_var − E0_var`` (both variational upper bounds), which can
+        be *smaller* than the true gap.  The result is a discovery-tier estimate
+        with Arb floating-point rounding certification only.
 
-    The returned ``Certificate.result`` is the gap estimate;
-    ``error_bound`` bounds the floating-point rounding error.
-    Bond-dimension truncation bias is ``[OUT]``.
+    The returned ``Certificate.result`` is the midpoint of the Arb interval;
+    ``error_bound`` bounds floating-point rounding (not the gap itself).
+    Bond-dimension and finite-size bias are ``[OUT]``.
     """
     try:
         from flint import arb, arb_mat
@@ -163,8 +172,8 @@ def certified_gap_upper(
         error_bound=float(gap_arb.rad()),
         backend="flint-arb",
         notes=(
-            "variational upper bound on spectral gap; "
-            "certifies floating-point rounding only; "
+            "trial energy difference E1_var - E0_var (NOT a certified spectral-gap "
+            "upper bound — P0-2); certifies floating-point rounding only; "
             "bond-dimension and finite-size bias are [OUT] (Phase 4 scope)"
         ),
     )
@@ -180,17 +189,21 @@ def gap_report(
     Returns a dict with:
 
     ``gap_exact``   — exact gap from full diagonalisation.
-    ``E0_var``      — variational ground-state energy.
+    ``E0_var``      — variational ground-state energy (upper bound on E_0).
     ``E1_var``      — variational first-excited energy (upper bound on E_1).
-    ``gap_var``     — ``E1_var − E0_var`` (upper bound on gap).
-    ``temple_lb``   — Temple's inequality lower bound on E_0.
-    ``gap_cert``    — :class:`~htf.certificate.Certificate` for gap_var.
+    ``gap_var``     — ``E1_var − E0_var`` (heuristic estimate; NOT a gap upper bound).
+    ``temple_lb``   — Temple heuristic (NOT a rigorous lower bound — P0-1;
+                      E1_var is an upper bound on E_1, not the required lower bound).
+    ``gap_cert``    — :class:`~htf.certificate.Certificate` for trial energy diff
+                      (NOT a certified gap upper bound — P0-2).
     """
     from .variational import energy_expectation
 
     E0_var   = energy_expectation(ham, state_gs)
     E1_var   = first_excited_upper(ham, state_gs, state_es)
     h2_exp   = h2_expectation(ham, state_gs)
+    # NOTE: passing E1_var (an upper bound) violates Temple's E1_lower requirement.
+    # The result is a heuristic diagnostic, not a rigorous lower bound (P0-1).
     t_lb     = temple_lower_bound(E0_var, h2_exp, E1_var)
     gap_cert = certified_gap_upper(ham, state_gs, state_es)
 

@@ -108,9 +108,15 @@ from .open_systems import (
 from .os_axioms import (
     check_reflection_symmetry,
     check_transfer_positivity,
+    finite_lattice_reflection_diagnostics,
     os_positivity_report,
     reflection_operator,
     transfer_matrix,
+)
+from .rayleigh_cert import (
+    RayleighCertificate,
+    rayleigh_certificate,
+    verify_rayleigh_certificate,
 )
 from .qasm import (
     Gate,
@@ -255,7 +261,10 @@ __all__ = [
     # os_axioms (Phase 4)
     "transfer_matrix", "reflection_operator",
     "check_transfer_positivity", "check_reflection_symmetry",
-    "os_positivity_report",
+    "finite_lattice_reflection_diagnostics",
+    "os_positivity_report",  # deprecated alias, kept for backwards compat
+    # rayleigh_cert — first closed-loop certificate
+    "RayleighCertificate", "rayleigh_certificate", "verify_rayleigh_certificate",
     # scaling (Phase 4)
     "ChiPoint", "ScalingReport", "chi_convergence_study",
     # benchmark (§4-K)

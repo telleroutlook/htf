@@ -15,7 +15,8 @@ obligation for a human Lean expert.
 
 Provides
 --------
-* ``CertificateToLean``  — format a ``Certificate`` as a Lean ``theorem``.
+* ``certificate_to_lean``          — format a legacy ``Certificate`` as a Lean ``theorem``.
+* ``rayleigh_certificate_to_lean`` — format a ``RayleighCertificate`` (schema v2) correctly.
 * ``DiagramToLean``      — express an HTF ``Diagram``'s type in Lean 4 syntax.
 * ``GapReportToLean``    — gap bounds as Lean theorem statements.
 * ``LeanExporter``       — collect items and write a complete ``.lean`` file.
@@ -55,7 +56,7 @@ end HTF
 """
 
 _LEAN_BASE_DEFS = """\
-/-- A floating-point interval representing a certified numeric result. -/
+/-- A floating-point interval representing a certified numeric result (legacy Certificate). -/
 structure CertInterval where
   /-- Midpoint of the interval. -/
   mid   : Float
@@ -63,6 +64,19 @@ structure CertInterval where
   rad   : Float
   /-- Mode: "certified" means the interval is a rigorous FP-rounding bound. -/
   mode  : String
+
+/-- Rayleigh Certificate v2 interval (lower/upper endpoint form, schema rayleigh-cert/v2). -/
+structure RayleighInterval where
+  /-- Certified lower endpoint of the Rayleigh quotient interval. -/
+  lower    : Float
+  /-- Certified upper endpoint; E_0 ≤ upper by Rayleigh-Ritz. -/
+  upper    : Float
+  /-- Midpoint = (lower + upper) / 2 (informational). -/
+  midpoint : Float
+  /-- Outward-rounded radius; [midpoint − radius, midpoint + radius] ⊆ [lower, upper]. -/
+  radius   : Float
+  /-- Backend: "flint-arb/prec=128", "flint-acb/prec=128", or "numpy-float". -/
+  backend  : String
 
 /-- Proof-carrying structural property report. -/
 structure StructReport where
@@ -118,6 +132,52 @@ def certificate_to_lean(cert: Any, name: str = "bound") -> str:
         f"    V ≥ ({mid:.15g} : ℝ) - ({rad:.15g} : ℝ) := by",
         "  -- TODO: formalise HTF certified contraction proof [研究]",
         "  sorry",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+# ────────────────────── RayleighCertificate (v2) → Lean ──────────────────
+
+def rayleigh_certificate_to_lean(cert: Any, name: str = "rayleigh_bound") -> str:
+    """Convert an HTF ``RayleighCertificate`` (schema v2) to a Lean 4 declaration block.
+
+    Parameters
+    ----------
+    cert : a ``RayleighCertificate`` from ``htf.rayleigh_cert`` (schema rayleigh-cert/v2).
+           Fields used: ``lower``, ``upper``, ``midpoint``, ``radius``, ``backend``,
+           ``claim``, ``input_digest``, ``schema_version``.
+    name : Lean identifier prefix.
+    """
+    lower    = float(cert.lower)
+    upper    = float(cert.upper)
+    midpoint = float(cert.midpoint)
+    radius   = float(cert.radius)
+    backend  = str(cert.backend)
+    claim    = str(getattr(cert, "claim", ""))
+    digest   = str(getattr(cert, "input_digest", ""))[:16]
+    schema_v = str(getattr(cert, "schema_version", "rayleigh-cert/v2"))
+
+    lines = [
+        f"-- HTF RayleighCertificate (schema {_lean_string(schema_v)})",
+        f"-- Claim: {_lean_string(claim)}",
+        f"-- Input digest (first 16 hex chars): {digest}…",
+        f"def {name}_interval : RayleighInterval :=",
+        f"  {{ lower    := {_lean_float(lower)},",
+        f"    upper    := {_lean_float(upper)},",
+        f"    midpoint := {_lean_float(midpoint)},",
+        f"    radius   := {_lean_float(radius)},",
+        f"    backend  := {_lean_string(backend)} }}",
+        "",
+        f"-- Soundness invariant: E_0 ≤ {name}_interval.upper  (Rayleigh-Ritz theorem)",
+        f"-- The true ground-state energy satisfies E_0 ≤ {upper:.15g}",
+        f"-- certified by Arb interval arithmetic (backend: {backend})",
+        f"theorem {name}_upper_sound (E0 : ℝ) :",
+        f"    E0 ≤ ({upper:.15g} : ℝ) := by",
+        "  -- Proof obligation: Rayleigh-Ritz; psi is a valid trial state [工程/研究]",
+        "  sorry",
+        "",
+        f"#check @{name}_upper_sound",
         "",
     ]
     return "\n".join(lines)

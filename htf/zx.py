@@ -3,7 +3,13 @@
 The ZX-calculus is a graphical language for quantum computation built on
 two families of spiders (Z and X) connected by wires and Hadamard boxes.
 Rewrite rules (spider fusion, identity removal, Hadamard cancellation) are
-**sound**: they preserve the linear map denoted by the diagram.
+locally sound and preserve the linear map.
+
+``zx_to_matrix`` evaluates any ZX diagram by tensor-network contraction.
+Results match ``circuit_unitary`` **up to a global scalar** (a known
+property of the ZX convention): gates H, X, Z, S, T match exactly;
+rotation gates (Rx, Rz, Ry) and multi-qubit gates differ by a real or
+complex scalar.  Use ``circuit_unitary`` when exact values are required.
 
 Provides
 --------
@@ -15,16 +21,17 @@ Provides
 * ``identity_removal``  — remove 2-legged zero-phase spiders.
 * ``hadamard_cancel``   — cancel adjacent H-box pairs.
 * ``simplify``          — apply a rule set exhaustively.
-* ``zx_to_matrix``      — evaluate the full unitary via path-sum (dense).
-* ``ZXRewriteLog``      — proof-carrying list of applied rewrites.
+* ``zx_to_matrix``      — evaluate the full unitary via tensor-network
+                          contraction (correct up to a global scalar;
+                          P0-6 fixed — CX/CZ/SWAP/Ry all correct).
+* ``ZXRewriteLog``      — rewrite-step audit trail (not a proof verifier).
 
 Honest scope [研究]
 -------------------
-* The rewrite rules implemented here are **locally sound** (they preserve
-  the linear map); global completeness (all equalities provable) is a
-  published research problem and is ``[研究]``.
-* ``zx_to_matrix`` uses a dense contraction — exponential in qubit count;
-  for large diagrams use a dedicated ZX simulator.
+* Single-qubit and multi-qubit rewrite rules are locally sound.
+* ``zx_to_matrix`` uses dense contraction — exponential in qubit count.
+* Results agree with ``circuit_unitary`` up to a global scalar (ZX
+  calculus convention); verify via ``circuit_unitary`` for exact values.
 * Non-Clifford gates are represented but rewrite rules are incomplete for
   them; use ``simplify`` with care and verify via ``zx_to_matrix``.
 """
@@ -255,12 +262,18 @@ def zx_from_circuit(gates, n_qubits: int) -> ZXGraph:
             wire[q] = nid
 
         elif name in ("ry",):
-            # Ry(θ) = S·Rx(θ)·S† (up to phase) — approximate in ZX
+            # Ry(θ) = Rz(π/2) · Rx(θ) · Rz(−π/2)  (exact, up to global phase).
+            # Circuit applies gates left-to-right (input→output), so the innermost
+            # (first applied) gate is Rz(−π/2) and the outermost is Rz(+π/2).
             q  = qubits[0]
             th = params[0] if params else 0.0
-            nid = g.add_node(ZXNodeType.X, phase=th, label=f"Ry({th:.3g})")
-            g.add_edge(wire[q], nid)
-            wire[q] = nid
+            zm = g.add_node(ZXNodeType.Z, phase=-math.pi / 2, label="Ry_Zm")
+            xn = g.add_node(ZXNodeType.X, phase=th,           label=f"Ry_X({th:.3g})")
+            zp = g.add_node(ZXNodeType.Z, phase=+math.pi / 2, label="Ry_Zp")
+            g.add_edge(wire[q], zm)
+            g.add_edge(zm, xn)
+            g.add_edge(xn, zp)
+            wire[q] = zp
 
         elif name in ("rz",):
             q   = qubits[0]
@@ -292,11 +305,23 @@ def zx_from_circuit(gates, n_qubits: int) -> ZXGraph:
             wire[q1] = z1
 
         else:
-            # Unknown gate: add as opaque Z node (phase=0 placeholder)
-            for q in qubits:
-                nid = g.add_node(ZXNodeType.Z, label=f"?{name}")
-                g.add_edge(wire[q], nid)
-                wire[q] = nid
+            if name in ("swap",):
+                # SWAP = CX(ctrl,tgt) · CX(tgt,ctrl) · CX(ctrl,tgt)
+                ctrl, tgt = qubits[0], qubits[1]
+                for c, t in ((ctrl, tgt), (tgt, ctrl), (ctrl, tgt)):
+                    z = g.add_node(ZXNodeType.Z, label="SWAP_Z")
+                    x = g.add_node(ZXNodeType.X, label="SWAP_X")
+                    g.add_edge(wire[c], z)
+                    g.add_edge(wire[t], x)
+                    g.add_edge(z, x)
+                    wire[c] = z
+                    wire[t] = x
+            else:
+                # Unknown gate: add as opaque Z node (phase=0 placeholder)
+                for q in qubits:
+                    nid = g.add_node(ZXNodeType.Z, label=f"?{name}")
+                    g.add_edge(wire[q], nid)
+                    wire[q] = nid
 
     # Create output boundary nodes
     for q in range(n_qubits):
@@ -311,7 +336,14 @@ def zx_from_circuit(gates, n_qubits: int) -> ZXGraph:
 
 @dataclass
 class ZXRewriteLog:
-    """Proof-carrying log of rewrite steps applied to a ZX graph.
+    """Rewrite-step audit trail for operations applied to a ZX graph.
+
+    .. note::
+        This is a structural audit log, not an independent proof verifier.
+        Each entry records which rule was applied and which nodes changed,
+        but there is no pre/post state hash or external checker.  Treat as
+        discovery-tier bookkeeping until a proper verifier is integrated
+        (P0-6 remediation).
 
     Each entry is a dict with keys ``rule``, ``nodes_removed``,
     ``nodes_added``, and ``description``.
@@ -600,106 +632,128 @@ def simplify(
 
 # ────────────────────── matrix evaluation ────────────────────────────────
 
+def _spider_tensor(kind: ZXNodeType, phase: float, n_legs: int) -> np.ndarray:
+    """Tensor for a ZX spider with *n_legs* legs.
+
+    Z spider(α, k):  T[i₁,…,iₖ] = δ(all 0) + e^{iα}·δ(all 1)
+    X spider(α, k):  H^⊗k · Z(α,k) · H^⊗k  (H = [[1,1],[1,-1]]/√2)
+    H box    (2 legs): [[1,1],[1,-1]]/√2  (standard Hadamard)
+    """
+    H_MAT = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / math.sqrt(2)
+
+    if kind == ZXNodeType.H:
+        if n_legs != 2:
+            raise ValueError(f"H box must have 2 legs; got {n_legs}")
+        return H_MAT.copy()
+
+    # Z spider
+    shape = (2,) * n_legs
+    T = np.zeros(shape, dtype=complex)
+    if n_legs == 0:
+        return T  # handled separately
+    idx_0 = tuple([0] * n_legs)
+    idx_1 = tuple([1] * n_legs)
+    T[idx_0] = 1.0
+    T[idx_1] = np.exp(1j * phase)
+
+    if kind == ZXNodeType.X:
+        # Apply H to every leg
+        for leg in range(n_legs):
+            T = np.tensordot(H_MAT, T, axes=([1], [leg]))
+            # tensordot puts the new axis at position 0; move it back to `leg`
+            T = np.moveaxis(T, 0, leg)
+
+    return T
+
+
 def zx_to_matrix(g: ZXGraph) -> np.ndarray:
-    """Evaluate the linear map of a ZX diagram by converting back to a circuit.
+    """Evaluate the linear map of a ZX diagram by tensor-network contraction.
 
-    The graph is converted qubit-by-qubit to a sequence of single- and
-    two-qubit operations using a topological traversal from inputs to
-    outputs.  The result is a unitary (or isometry) matrix.
+    Each edge is modelled as two half-edges contracted by a delta tensor;
+    each internal node contributes its ZX spider tensor.  The result is a
+    complex matrix of shape ``(2**n, 2**n)`` where *n* is the qubit count.
 
-    **Limitation**: this function works best for circuit-shaped ZX graphs
-    where the topological order is unambiguous.  For non-circuit graphs
-    (e.g. after aggressive rewriting that introduces loop-like structures)
-    it raises ``NotImplementedError``.
+    Correctly handles CX, CZ, SWAP, and any other multi-qubit ZX structure
+    (P0-6 fix).  Results agree with ``circuit_unitary`` **up to a global
+    scalar** — this is a fundamental property of the ZX calculus convention.
+    Gates H, X, Z, S, T happen to match exactly; rotation gates (Rx, Rz, Ry)
+    and multi-qubit gates differ by a known phase/scalar.
 
     Parameters
     ----------
-    g : ZX graph (typically the output of :func:`zx_from_circuit` after
-        some simplifications).
+    g : :class:`ZXGraph` — any topology (circuit or non-circuit).
 
     Returns
     -------
-    Complex ndarray of shape (2**n, 2**n) where n = number of qubits.
-    """
-    from .qasm import Gate, circuit_unitary
+    Complex ndarray ``U`` of shape ``(2**n, 2**n)``.
 
+    Raises
+    ------
+    NotImplementedError
+        If a non-boundary node has no edges (orphan node), indicating a
+        malformed / partially-deleted graph that cannot be evaluated.
+    ValueError
+        If input/output boundary nodes don't each have exactly one edge.
+    """
     n = g.n_qubits()
     if n == 0:
         return np.array([[1.0 + 0j]])
 
-    # Reconstruct a gate list by walking from inputs to outputs
-    gates: list[Gate] = []
-    visited: set[int] = set(g.inputs)
+    # ── assign half-edge indices ─────────────────────────────────────────
+    # Edge i → u-side index: 2*i,  v-side index: 2*i+1
+    node_leg_indices: dict[int, list[int]] = {nid: [] for nid in g.nodes}
+    for edge_idx, (u, v) in enumerate(g.edges):
+        node_leg_indices[u].append(2 * edge_idx)
+        node_leg_indices[v].append(2 * edge_idx + 1)
 
-    def _spider_to_gate(nid: int, kind: ZXNodeType, phase: float,
-                        qubit: int) -> Gate | None:
-        if kind == ZXNodeType.Z:
-            if abs(phase) < 1e-12:
-                return None            # identity
-            return Gate("rz", [qubit], [phase])
-        if kind == ZXNodeType.X:
-            if abs(phase) < 1e-12:
-                return None
-            return Gate("rx", [qubit], [phase])
-        if kind == ZXNodeType.H:
-            return Gate("h", [qubit])
-        return None
+    # ── free (boundary) indices ──────────────────────────────────────────
+    def _single_bond(nid: int, role: str) -> int:
+        bonds = node_leg_indices[nid]
+        if len(bonds) != 1:
+            raise ValueError(
+                f"{role} node {nid} has {len(bonds)} edges; expected exactly 1"
+            )
+        return bonds[0]
 
-    # Build qubit assignment: for each non-boundary node, find which qubit
-    # wire it lives on (only valid for circuit-topology graphs)
-    qubit_of: dict[int, int] = {}
-    for q, inp in enumerate(g.inputs):
-        qubit_of[inp] = q
-    for q, out in enumerate(g.outputs):
-        qubit_of[out] = q
+    input_free  = [_single_bond(g.inputs[q],  f"Input[{q}]")  for q in range(n)]
+    output_free = [_single_bond(g.outputs[q], f"Output[{q}]") for q in range(n)]
 
-    # Topological walk
-    front: list[int] = list(g.inputs)
-    for _ in range(len(g.nodes) * 2):
-        next_front: list[int] = []
-        for nid in front:
-            if nid in g.outputs:
-                continue
-            q = qubit_of.get(nid, -1)
-            for nb in g.neighbours(nid):
-                if nb in visited:
-                    continue
-                nb_node = g.nodes.get(nb)
-                if nb_node is None:
-                    continue
-                # A-2: detect cross-wire connections (non-circuit topology)
-                if nb in qubit_of and qubit_of[nb] != q:
-                    raise NotImplementedError(
-                        f"zx_to_matrix: node {nb} is reachable from both qubit "
-                        f"{qubit_of[nb]} and qubit {q}. The ZX graph is not "
-                        "circuit-topology after simplification. Evaluate the "
-                        "unitary *before* simplifying, or use a ZX simulator "
-                        "that supports arbitrary graph topology."
-                    )
-                qubit_of[nb] = q
-                visited.add(nb)
-                if nb_node.kind in (ZXNodeType.OUTPUT, ):
-                    continue
-                gate = _spider_to_gate(nb, nb_node.kind, nb_node.phase, q)
-                if gate:
-                    gates.append(gate)
-                next_front.append(nb)
-        if not next_front:
-            break
-        front = next_front
+    # ── build einsum operands ────────────────────────────────────────────
+    delta_2 = np.eye(2, dtype=complex)
+    einsum_args: list = []
 
-    # A-2: all nodes must be reachable from inputs
-    unreachable = set(g.nodes.keys()) - visited
-    if unreachable:
-        raise NotImplementedError(
-            f"zx_to_matrix: {len(unreachable)} node(s) unreachable from inputs "
-            f"(IDs: {sorted(unreachable)[:5]}). The ZX graph has non-circuit "
-            "topology (cycles or disconnected components) after simplification. "
-            "Evaluate the unitary *before* simplifying, or use a ZX simulator "
-            "that supports arbitrary graph topology."
-        )
+    # One delta tensor per edge (contracts the two half-edges)
+    for edge_idx in range(len(g.edges)):
+        einsum_args += [delta_2, [2 * edge_idx, 2 * edge_idx + 1]]
 
-    return circuit_unitary(gates, n)
+    # One spider tensor per internal node
+    for nid, node in sorted(g.nodes.items()):
+        if node.kind in (ZXNodeType.INPUT, ZXNodeType.OUTPUT):
+            continue
+
+        legs = node_leg_indices[nid]
+        k = len(legs)
+        if k == 0:
+            raise NotImplementedError(
+                f"zx_to_matrix: non-boundary node {nid!r} (kind={node.kind.name}, "
+                f"label={node.label!r}) has no edges. This indicates an orphan / "
+                "malformed node. Evaluate the graph before deleting internal nodes, "
+                "or remove the orphan explicitly."
+            )
+        einsum_args += [_spider_tensor(node.kind, node.phase, k), legs]
+
+    # ── contract ─────────────────────────────────────────────────────────
+    # Build einsum with input-free indices first, output-free indices second.
+    # This makes the raw tensor shape (2,)*n_inputs + (2,)*n_outputs, so the
+    # reshape gives M[in, out] (rows = input).  The final .T converts that to
+    # the standard gate convention M[out, in] (rows = output).
+    free_indices = input_free + output_free
+    einsum_args.append(free_indices)
+
+    result: np.ndarray = np.einsum(*einsum_args, optimize=True)
+
+    # Reshape (2,)*2n → (2^n, 2^n); .T converts M[in,out] → M[out,in].
+    return result.reshape(2 ** n, 2 ** n).T
 
 
 # ────────────────────── §8-B extended Clifford rules ────────────────────────

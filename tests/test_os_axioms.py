@@ -1,10 +1,13 @@
-"""Tests for htf/os_axioms.py — transfer matrix and OS-positivity checks."""
+"""Tests for htf/os_axioms.py — transfer matrix and reflection diagnostics."""
+import warnings
+
 import numpy as np
 import pytest
 
 from htf.os_axioms import (
     check_reflection_symmetry,
     check_transfer_positivity,
+    finite_lattice_reflection_diagnostics,
     os_positivity_report,
     reflection_operator,
     transfer_matrix,
@@ -228,20 +231,20 @@ class TestCheckReflectionSymmetry:
         assert r.passed
 
 
-# ─────────────────── TestOsPositivityReport ──────────────────────────────
+# ─────────────────── TestOsPositivityReport (now finite_lattice_reflection_diagnostics) ──
 
 class TestOsPositivityReport:
 
     def test_tfim_all_passed(self, tfim4):
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         assert rep["all_passed"] is True
 
     def test_xx_all_passed(self, xx4):
-        rep = os_positivity_report(xx4, 4)
+        rep = finite_lattice_reflection_diagnostics(xx4, 4)
         assert rep["all_passed"] is True
 
     def test_has_required_keys(self, tfim4):
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         for key in (
             "transfer_positivity", "reflection_symmetry",
             "os_gram_positivity", "all_passed", "notes",
@@ -249,38 +252,38 @@ class TestOsPositivityReport:
             assert key in rep
 
     def test_notes_is_string_with_out(self, tfim4):
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         assert isinstance(rep["notes"], str)
         assert "[OUT]" in rep["notes"]
 
     def test_transfer_positivity_is_structure_report(self, tfim4):
         from htf.structure import StructureReport
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         assert isinstance(rep["transfer_positivity"], StructureReport)
 
     def test_os_gram_property_name(self, tfim4):
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         assert rep["os_gram_positivity"].property_name == "os_gram_positivity"
 
     def test_different_beta_still_passes(self, tfim4):
-        rep = os_positivity_report(tfim4, 4, beta=0.5)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4, beta=0.5)
         assert rep["all_passed"] is True
 
     def test_beta_2_still_passes(self, tfim4):
-        rep = os_positivity_report(tfim4, 4, beta=2.0)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4, beta=2.0)
         assert rep["all_passed"] is True
 
     def test_2_site_system(self):
         H = transverse_ising_ham(2, J=1.0, h=1.0)
-        rep = os_positivity_report(H, 2)
+        rep = finite_lattice_reflection_diagnostics(H, 2)
         assert rep["all_passed"] is True
 
     def test_gram_defect_small(self, tfim4):
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         assert rep["os_gram_positivity"].defect < 1e-10
 
     def test_all_reports_passed_attr(self, tfim4):
-        rep = os_positivity_report(tfim4, 4)
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
         assert rep["transfer_positivity"].passed
         assert rep["reflection_symmetry"].passed
         assert rep["os_gram_positivity"].passed
@@ -289,6 +292,22 @@ class TestOsPositivityReport:
         H = transverse_ising_ham(4, J=1.0, h=0.5)
         Z = np.diag([1.0, -1.0])
         H_asym = H + 0.5 * np.kron(Z, np.eye(8))
-        rep = os_positivity_report(H_asym, 4)
+        rep = finite_lattice_reflection_diagnostics(H_asym, 4)
         assert not rep["reflection_symmetry"].passed
         assert not rep["all_passed"]
+
+    def test_deprecated_os_positivity_report_emits_warning(self, tfim4):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            os_positivity_report(tfim4, 4)
+        assert any(issubclass(x.category, DeprecationWarning) for x in w)
+
+    def test_p0_5_regression_transfer_positivity_always_passes(self, tfim4):
+        # Regression P0-5: transfer_positivity passes for ALL real symmetric H
+        # by construction — eigenvalues of exp(-βH) are always positive.
+        rep = finite_lattice_reflection_diagnostics(tfim4, 4)
+        assert rep["transfer_positivity"].passed
+        rep2 = finite_lattice_reflection_diagnostics(
+            np.diag([1.0, 2.0, 3.0, 4.0]), n_sites=2
+        )
+        assert rep2["transfer_positivity"].passed
