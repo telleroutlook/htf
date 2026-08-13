@@ -23,6 +23,7 @@ from htf.tebd import (
     dmrg_sweep_2site,
     heisenberg_bonds,
     nn_hamiltonian,
+    tdvp_evolve,
     tebd_evolve,
     tebd_step,
     tfim_bonds,
@@ -496,3 +497,66 @@ class TestDmrgSweep2Site:
         result = dmrg_sweep_2site(mps0, bonds, n_sweeps=3, chi=4)
         for t in result.mps_final.tensors:
             assert not np.any(np.isnan(t))
+
+
+# ── single-site TDVP ──────────────────────────────────────────────────────
+
+
+class TestTdvpEvolve:
+    @pytest.fixture
+    def setup(self):
+        n, d = 4, 2
+        bonds = tfim_bonds(n, J=1.0, h=0.5)
+        H     = nn_hamiltonian(bonds, n, d)
+        E0    = float(np.linalg.eigvalsh(H)[0])
+        mps0  = mps_normalise(random_mps(n, d, chi=4, seed=11))
+        return mps0, bonds, E0
+
+    def test_result_type(self, setup):
+        mps0, bonds, _ = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=5, imaginary=True)
+        assert isinstance(result, TEBDResult)
+
+    def test_imaginary_time_energy_decrease(self, setup):
+        mps0, bonds, E0 = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=50, imaginary=True)
+        assert result.energies[-1] < result.energies[0]
+
+    def test_imaginary_time_convergence(self, setup):
+        mps0, bonds, E0 = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=200, imaginary=True,
+                              measure_every=50)
+        assert abs(result.energies[-1] - E0) < 0.05
+
+    def test_real_time_norm_conserved(self, setup):
+        mps0, bonds, _ = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=20, imaginary=False)
+        from htf.mps import mps_inner
+        nrm = abs(mps_inner(result.mps_final, result.mps_final)) ** 0.5
+        assert abs(nrm - 1.0) < 1e-4
+
+    def test_trajectory_length(self, setup):
+        mps0, bonds, _ = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.1, n_steps=10,
+                              imaginary=True, measure_every=5)
+        # recorded at step 0, 5 plus final = 3 points
+        assert len(result.energies) == 3
+
+    def test_no_nan(self, setup):
+        mps0, bonds, _ = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=5, imaginary=False)
+        for t in result.mps_final.tensors:
+            assert not np.any(np.isnan(t))
+
+    def test_total_discarded_zero(self, setup):
+        mps0, bonds, _ = setup
+        result = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=5, imaginary=True)
+        assert result.total_discarded == 0.0
+
+    def test_tdvp_vs_tebd_ground_state(self, setup):
+        # Both methods should converge to similar ground-state energy
+        mps0, bonds, E0 = setup
+        r_tdvp = tdvp_evolve(mps0, bonds, dt=0.05, n_steps=200, imaginary=True)
+        r_tebd = tebd_evolve(mps0, bonds, dt=0.05, n_steps=200, chi=8, imaginary=True)
+        assert abs(r_tdvp.energies[-1] - E0) < 0.05
+        assert abs(r_tebd.energies[-1] - E0) < 0.05

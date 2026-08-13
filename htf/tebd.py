@@ -488,7 +488,7 @@ def dmrg_sweep(
 def _heff_dense(mps: MPS, H_full: np.ndarray, site: int) -> np.ndarray:
     """Build the local effective Hamiltonian for `site` by dense projection.
 
-    Returns a (chi_l*d*chi_r, chi_l*d*chi_r) symmetric real matrix.
+    Returns a (chi_l*d*chi_r, chi_l*d*chi_r) Hermitian matrix.
     P[:, col] is the global state when the tensor at `site` is the col-th
     local basis vector and all other tensors are fixed.
     """
@@ -496,18 +496,61 @@ def _heff_dense(mps: MPS, H_full: np.ndarray, site: int) -> np.ndarray:
     chi_l, d, chi_r = A.shape
     dim     = chi_l * d * chi_r
     state_d = H_full.shape[0]
+    cplx    = np.iscomplexobj(H_full) or any(np.iscomplexobj(t) for t in mps.tensors)
+    dtype   = complex if cplx else float
 
-    P = np.zeros((state_d, dim))
+    P = np.zeros((state_d, dim), dtype=dtype)
     for col in range(dim):
-        v = np.zeros(dim)
+        v = np.zeros(dim, dtype=dtype)
         v[col] = 1.0
         tensors_v = [t.copy() for t in mps.tensors]
         tensors_v[site] = v.reshape(chi_l, d, chi_r)
-        psi = mps_to_state(MPS(tensors_v))
-        P[:, col] = psi.real
+        P[:, col] = mps_to_state(MPS(tensors_v))
 
-    Heff = P.T @ H_full @ P
-    return (Heff + Heff.T) * 0.5   # symmetrize for numerical safety
+    Heff = P.conj().T @ H_full @ P
+    return (Heff + Heff.conj().T) * 0.5
+
+
+def _heff_dense_bond(mps: MPS, H_full: np.ndarray, left_site: int) -> np.ndarray:
+    """Build the zero-site effective Hamiltonian for bond (left_site, left_site+1).
+
+    Used in single-site TDVP for the backward half-step on the bond tensor C.
+    Returns a (chi_r * chi_l_next, chi_r * chi_l_next) Hermitian matrix where
+    chi_r  = mps.tensors[left_site].shape[2]
+    chi_l_next = mps.tensors[left_site+1].shape[0].
+    """
+    n           = mps.n_sites
+    d           = mps.phys_dim
+    chi_r       = mps.tensors[left_site].shape[2]
+    chi_l_next  = mps.tensors[left_site + 1].shape[0]
+    dim         = chi_r * chi_l_next
+
+    # L_flat: shape (d^{left_site+1}, chi_r) — contract A_0 ... A_{left_site}
+    L: np.ndarray = np.ones((1, 1))
+    for i in range(left_site + 1):
+        A   = mps.tensors[i]
+        dL  = L.shape[0]
+        chi_l_i, _, chi_r_i = A.shape
+        L = np.einsum("ia,ajb->ijb", L.reshape(dL, chi_l_i), A).reshape(dL * d, chi_r_i)
+
+    # R_flat: shape (chi_l_next, d^{n-left_site-1}) — contract A_{left_site+1}...A_{n-1}
+    R: np.ndarray = np.ones((1, 1))
+    for i in range(n - 1, left_site, -1):
+        A   = mps.tensors[i]
+        dR  = R.shape[1]
+        chi_l_i, _, chi_r_i = A.shape
+        R = np.einsum("aib,bj->aij", A, R.reshape(chi_r_i, dR)).reshape(chi_l_i, d * dR)
+
+    cplx  = np.iscomplexobj(H_full) or any(np.iscomplexobj(t) for t in mps.tensors)
+    dtype = complex if cplx else float
+    P     = np.zeros((H_full.shape[0], dim), dtype=dtype)
+    for col in range(dim):
+        al = col // chi_l_next
+        ar = col % chi_l_next
+        P[:, col] = np.outer(L[:, al], R[ar, :]).ravel()
+
+    Heff = P.conj().T @ H_full @ P
+    return (Heff + Heff.conj().T) * 0.5
 
 
 def _local_eig(
@@ -660,3 +703,134 @@ def _local_eig_2site(
     evals, evecs = np.linalg.eigh(H_eff)
     E = float(evals[0])
     return evecs[:, 0].reshape(chi_l, d, d, chi_r), E
+
+
+# ── single-site TDVP ──────────────────────────────────────────────────────
+
+
+def tdvp_evolve(
+    mps: MPS,
+    h_terms: list[np.ndarray],
+    dt: float,
+    n_steps: int,
+    imaginary: bool = False,
+    measure_every: int = 1,
+) -> TEBDResult:
+    """Single-site TDVP time evolution.
+
+    More accurate than TEBD within the current bond dimension: there is no
+    Trotter error for states already representable in the MPS manifold.
+    The bond dimension is preserved exactly; use ``mps_truncate`` or
+    ``dmrg_sweep_2site`` to change it.
+
+    Algorithm: 2nd-order symmetric 1-site TDVP (Haegeman et al., 2016).
+    Each step consists of a forward L→R half-sweep (site expm + bond backward
+    expm), a full step on the pivot site, and a backward R→L half-sweep.
+
+    Honest scope
+    ------------
+    * Dense effective Hamiltonian — suitable for small systems (``n ≤ 8``).
+    * For imaginary time (``imaginary=True``) the evolution is non-unitary;
+      the MPS is normalised after every step.
+    * No certification of errors; use ``temple_lanczos`` for a lower bound.
+      ``[工程]``
+
+    Parameters
+    ----------
+    mps:           initial MPS.
+    h_terms:       nearest-neighbour Hamiltonian bond matrices.
+    dt:            time step.
+    n_steps:       total number of steps.
+    imaginary:     use imaginary-time evolution (ground-state search).
+    measure_every: record energy every this many steps (plus step 0).
+    """
+    mps   = _left_canonicalise(mps.copy())
+    n     = mps.n_sites
+    d     = mps.phys_dim
+    H_full = nn_hamiltonian(h_terms, n, d)
+
+    # sign convention: forward site step = expm(alpha_fwd * H_eff)
+    alpha_fwd = -dt / 2 if imaginary else -1j * dt / 2
+
+    energies: list[float] = []
+    times: list[float]    = []
+
+    for step in range(n_steps):
+        if step % measure_every == 0:
+            norm2 = float(abs(mps_inner(mps, mps)).real)
+            energies.append(_nn_energy(mps, h_terms) / norm2)
+            times.append(step * dt)
+
+        # ── L→R half-sweep ────────────────────────────────────────────
+        for i in range(n - 1):
+            # Forward evolve site i by dt/2
+            H_eff = _heff_dense(mps, H_full, i)
+            chi_l, d_i, chi_r = mps.tensors[i].shape
+            v = mps.tensors[i].ravel().astype(complex)
+            mps.tensors[i] = (scipy.linalg.expm(alpha_fwd * H_eff) @ v).reshape(chi_l, d_i, chi_r)
+
+            # QR → left-canonicalise site i
+            A = mps.tensors[i]
+            Q, R_mat = scipy.linalg.qr(A.reshape(chi_l * d_i, chi_r), mode="economic")
+            k = Q.shape[1]
+            mps.tensors[i] = Q.reshape(chi_l, d_i, k)
+
+            # Backward evolve bond R_mat by dt/2
+            H_bond = _heff_dense_bond(mps, H_full, i)
+            c = R_mat.ravel().astype(complex)
+            c = scipy.linalg.expm(-alpha_fwd * H_bond) @ c
+            R_mat = c.reshape(k, chi_r)
+
+            # Absorb R_mat into site i+1
+            mps.tensors[i + 1] = np.einsum("ab,bsc->asc", R_mat, mps.tensors[i + 1])
+
+        # Pivot site (last site): full dt step
+        H_eff = _heff_dense(mps, H_full, n - 1)
+        chi_l, d_i, chi_r = mps.tensors[n - 1].shape
+        v = mps.tensors[n - 1].ravel().astype(complex)
+        mps.tensors[n - 1] = (scipy.linalg.expm(2 * alpha_fwd * H_eff) @ v).reshape(chi_l, d_i, chi_r)
+
+        # ── R→L half-sweep ────────────────────────────────────────────
+        for i in range(n - 2, -1, -1):
+            # LQ of site i+1 (QR of A^T)
+            A = mps.tensors[i + 1]
+            chi_l_i1, d_i1, chi_r_i1 = A.shape
+            Q_T, R_T = scipy.linalg.qr(A.reshape(chi_l_i1, d_i1 * chi_r_i1).T, mode="economic")
+            k = Q_T.shape[1]
+            mps.tensors[i + 1] = Q_T.T.reshape(k, d_i1, chi_r_i1)
+            C = R_T.T  # shape (chi_l_i1, k)
+
+            # Backward evolve bond C by dt/2
+            H_bond = _heff_dense_bond(mps, H_full, i)
+            c = C.ravel().astype(complex)
+            c = scipy.linalg.expm(-alpha_fwd * H_bond) @ c
+            C = c.reshape(chi_l_i1, k)
+
+            # Absorb C into site i
+            mps.tensors[i] = np.einsum("asc,cb->asb", mps.tensors[i], C)
+
+            # Forward evolve site i by dt/2
+            H_eff = _heff_dense(mps, H_full, i)
+            chi_l, d_i_s, chi_r = mps.tensors[i].shape
+            v = mps.tensors[i].ravel().astype(complex)
+            mps.tensors[i] = (scipy.linalg.expm(alpha_fwd * H_eff) @ v).reshape(chi_l, d_i_s, chi_r)
+
+        if imaginary:
+            mps = mps_normalise(mps)
+
+    # Final energy measurement
+    norm2 = float(abs(mps_inner(mps, mps)).real)
+    energies.append(_nn_energy(mps, h_terms) / norm2)
+    times.append(n_steps * dt)
+    max_chi = max(t.shape[0] for t in mps.tensors)
+
+    return TEBDResult(
+        mps_final=mps,
+        times=times,
+        energies=energies,
+        max_bonds=[max_chi] * len(energies),
+        total_discarded=0.0,
+        dt=dt,
+        n_steps=n_steps,
+        trotter_order=0,
+    )
