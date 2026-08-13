@@ -12,13 +12,15 @@ Provides two complementary workflows:
 
 Honest scope
 ------------
-* Optimisation is by L-BFGS-B with finite-difference gradients (SciPy).
-  Analytical gradients (Hellmann–Feynman) are `[研究]`.
+* Optimisation is by L-BFGS-B.  When JAX is installed, ``energy_gradient``
+  uses exact autodiff (``jax.grad`` through ``jnp.linalg.eigvalsh``) for the
+  built-in ``ising`` and ``xx`` models; otherwise it falls back to centred
+  finite differences.  ``[工程]``
 * Identifiability (uniqueness of the recovered parameters) depends on the
   observable set and is not guaranteed — use ``n_restarts`` to mitigate
   local minima.
-* All energies are float-mode; certifying the inversion result is `[研究]`.
-* Continuum-limit guarantees are `[OUT]`.
+* All energies are float-mode; certifying the inversion result is ``[研究]``.
+* Continuum-limit guarantees are ``[OUT]``.
 """
 from __future__ import annotations
 
@@ -298,31 +300,92 @@ def hamiltonian_learning(
 
 # ────────────────────── energy gradient ──────────────────────────────────
 
+def _ham_component_matrices(phys: "ParametricHam") -> list[np.ndarray] | None:
+    """Return the fixed component matrices for a linear parametric Hamiltonian.
+
+    H(params) = Σ_i params[i] * components[i]
+
+    Returns None when the model is unknown (caller falls back to FD).
+    """
+    n = phys.n_sites
+    I2 = np.eye(2, dtype=float)
+    Z  = np.array([[1.0, 0.0], [0.0, -1.0]])
+    X  = np.array([[0.0, 1.0], [1.0, 0.0]])
+    Y  = np.array([[0.0, -1.0j], [1.0j, 0.0]])
+
+    dim = 2 ** n
+
+    def _kron_op(ops: list[np.ndarray]) -> np.ndarray:
+        r = ops[0]
+        for op in ops[1:]:
+            r = np.kron(r, op)
+        return r
+
+    if phys.model == "ising":
+        H_ZZ = np.zeros((dim, dim))
+        for i in range(n - 1):
+            ops = [Z if j == i or j == i + 1 else I2 for j in range(n)]
+            H_ZZ -= _kron_op(ops)
+        H_X = np.zeros((dim, dim))
+        for i in range(n):
+            ops = [X if j == i else I2 for j in range(n)]
+            H_X -= _kron_op(ops)
+        return [H_ZZ, H_X]   # H = J*H_ZZ + h*H_X
+
+    if phys.model == "xx":
+        Y_real = np.array([[0.0, -1.0], [1.0, 0.0]])  # same as xx_model_ham
+        H_XX = np.zeros((dim, dim))
+        for i in range(n - 1):
+            ops_x = [X if j == i or j == i + 1 else I2 for j in range(n)]
+            ops_y = [Y_real if j == i or j == i + 1 else I2 for j in range(n)]
+            H_XX -= 0.5 * (_kron_op(ops_x) + _kron_op(ops_y))
+        return [H_XX]   # H = J*H_XX
+
+    return None
+
+
 def energy_gradient(
     params: Sequence[float],
-    phys: ParametricHam,
+    phys: "ParametricHam",
     eps: float = 1e-5,
 ) -> np.ndarray:
-    """Numerical gradient of the ground-state energy w.r.t. ``params``.
+    """Gradient of the ground-state energy w.r.t. ``params``.
 
-    Uses centred finite differences with step size ``eps``.
+    When JAX is installed and the model is ``"ising"`` or ``"xx"``,
+    uses exact autodiff (``jax.grad`` through ``jnp.linalg.eigvalsh``).
+    Otherwise falls back to centred finite differences with step ``eps``.
 
     Parameters
     ----------
     params : current parameter vector.
     phys   : :class:`ParametricHam` instance.
-    eps    : finite-difference step size.
+    eps    : finite-difference step size (ignored when JAX path is used).
 
     Returns
     -------
     Gradient vector of the same length as ``params``.
-
-    Notes
-    -----
-    Analytical (Hellmann–Feynman) gradients are ``[研究]`` and not yet
-    implemented.
     """
-    p    = np.asarray(params, dtype=float)
+    p = np.asarray(params, dtype=float)
+
+    # JAX exact-autodiff path
+    components = _ham_component_matrices(phys)
+    if components is not None:
+        try:
+            import jax
+            import jax.numpy as jnp
+
+            comps_jax = [jnp.asarray(c.real, dtype=jnp.float64) for c in components]
+
+            def _energy(p_jax: "jax.Array") -> "jax.Array":
+                H = sum(p_jax[i] * comps_jax[i] for i in range(len(comps_jax)))
+                return jnp.linalg.eigvalsh(H)[0]
+
+            grad_fn = jax.grad(_energy)
+            return np.asarray(grad_fn(jnp.asarray(p, dtype=jnp.float64)), dtype=float)
+        except ImportError:
+            pass   # JAX not installed; fall through to FD
+
+    # Centred finite-difference fallback
     grad = np.zeros_like(p)
     for i in range(len(p)):
         pp = p.copy(); pp[i] += eps

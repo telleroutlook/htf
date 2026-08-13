@@ -6,6 +6,7 @@ from htf.inverse import (
     InverseDesignResult,
     LearningResult,
     ParametricHam,
+    _ham_component_matrices,
     energy_gradient,
     hamiltonian_learning,
     inverse_design,
@@ -209,3 +210,89 @@ class TestEnergyGradient:
         ph = ParametricHam("ising", 4)
         g  = energy_gradient([0.01, 1.0], ph)
         assert np.all(np.isfinite(g))
+
+
+# ─────────────────────── TestHamComponentMatrices ────────────────────────
+
+
+class TestHamComponentMatrices:
+
+    def test_ising_returns_two_components(self):
+        ph = ParametricHam("ising", 4)
+        comps = _ham_component_matrices(ph)
+        assert comps is not None
+        assert len(comps) == 2
+
+    def test_ising_components_reconstruct_hamiltonian(self):
+        n, J, h = 4, 1.5, 0.7
+        ph    = ParametricHam("ising", n)
+        comps = _ham_component_matrices(ph)
+        H_ref = transverse_ising_ham(n, J=J, h=h)
+        H_rec = J * comps[0] + h * comps[1]
+        np.testing.assert_allclose(H_rec, H_ref, atol=1e-12)
+
+    def test_xx_returns_one_component(self):
+        ph = ParametricHam("xx", 4)
+        comps = _ham_component_matrices(ph)
+        assert comps is not None
+        assert len(comps) == 1
+
+    def test_xx_component_reconstructs_hamiltonian(self):
+        n, J = 4, 0.8
+        ph    = ParametricHam("xx", n)
+        comps = _ham_component_matrices(ph)
+        H_ref = xx_model_ham(n, J=J)
+        H_rec = J * comps[0]
+        np.testing.assert_allclose(H_rec, H_ref, atol=1e-12)
+
+    def test_unknown_model_returns_none(self):
+        ph = ParametricHam.__new__(ParametricHam)
+        ph.model = "unknown"
+        ph.n_sites = 4
+        assert _ham_component_matrices(ph) is None
+
+    def test_component_shapes(self):
+        for n in [3, 4, 5]:
+            ph = ParametricHam("ising", n)
+            comps = _ham_component_matrices(ph)
+            for c in comps:
+                assert c.shape == (2**n, 2**n)
+
+    def test_components_symmetric(self):
+        ph = ParametricHam("ising", 4)
+        for c in _ham_component_matrices(ph):
+            np.testing.assert_allclose(c, c.T, atol=1e-12)
+
+
+# ────── JAX gradient agrees with FD when JAX is installed ─────────────────
+
+try:
+    import jax  # noqa: F401
+    _JAX_AVAILABLE = True
+except ImportError:
+    _JAX_AVAILABLE = False
+
+
+@pytest.mark.skipif(not _JAX_AVAILABLE, reason="JAX not installed")
+class TestEnergyGradientJax:
+
+    def test_jax_agrees_with_fd_ising(self):
+        ph  = ParametricHam("ising", 4)
+        p   = np.array([1.0, 0.5])
+        eps = 1e-5
+        g_jax = energy_gradient(p, ph, eps=eps)
+        # Manual FD reference
+        g_fd  = np.array([
+            (ph.ground_energy(p + eps * np.eye(2)[i]) -
+             ph.ground_energy(p - eps * np.eye(2)[i])) / (2 * eps)
+            for i in range(2)
+        ])
+        np.testing.assert_allclose(g_jax, g_fd, atol=1e-6)
+
+    def test_jax_agrees_with_fd_xx(self):
+        ph  = ParametricHam("xx", 4)
+        p   = np.array([1.0])
+        eps = 1e-5
+        g_jax = energy_gradient(p, ph, eps=eps)
+        g_fd  = np.array([(ph.ground_energy(p + eps) - ph.ground_energy(p - eps)) / (2 * eps)])
+        np.testing.assert_allclose(g_jax, g_fd, atol=1e-6)
