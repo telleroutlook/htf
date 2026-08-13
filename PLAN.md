@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.11.0）
+## 1. 当前状态（v0.12.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -53,11 +53,15 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - [x] 可微逆向设计 / 哈密顿量学习（`htf/inverse.py`，§4-J）：`ParametricHam`（TFIM/XX
       参数族）、`inverse_design`（找到使 E_0 等于目标值的参数）、`hamiltonian_learning`
       （从观测能级恢复参数）、`energy_gradient`（中心有限差分梯度）。`[工程]`/`[研究]`
-- [x] U(1) 对称 / 块稀疏张量（`htf/symmetric.py`，§4-G）：`ChargedBasis`（扇区列表）、
-      `spin_half_basis`/`number_basis`；`check_u1_invariance`（稠密扫描报告违例/扇区）；
-      `project_to_u1`（清零不守恒元素）；`u1_blocks`（分解为 `BlockSparseTensor` 扇区块）；
-      `block_sparse_matmul`（块-wise A@B，保持 U(1)）。`[研究]`
-- [x] 当前版本：`v0.11.0`
+- [x] 测试（`tests/`）：`python -m pytest -q` **934 个全绿**；总覆盖率 ≥ 98%。
+- [x] U(1) 对称 / 块稀疏张量（`htf/symmetric.py`，§4-G）：`ChargedBasis`、
+      `check_u1_invariance`、`project_to_u1`、`u1_blocks`、`BlockSparseTensor`、
+      `block_sparse_matmul`。`[研究]`
+- [x] Lean 4 证明助手导出（`htf/lean_export.py`，§4-L）：`certificate_to_lean`、
+      `gap_report_to_lean`、`structure_report_to_lean`、`diagram_to_lean_type`、
+      `LeanExporter`、`export_lean`；生成合法 Lean 4 语法骨架文件，每个 `sorry` 均为
+      标注的证明义务；`[研究]` 部分（实际形式化证明）留给 Lean 专家完成。
+- [x] 当前版本：`v0.12.0`
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -115,7 +119,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 ~~E 语义保持图重写（ZX）`[研究]`~~ ✅ · ~~F 量子线路互操作（QASM / PyZX / NISQ）`[工程]`/`[研究]`~~ ✅ ·
 ~~G 对称/规范不变张量作为类型（`U(1)`/`SU(N)` block-sparse）`[研究]`~~ ✅ · H 开放系统 / CPTP `[工程]` ✅ ·
 ~~I 严格双侧界（Lanczos/Anderson 型下界）`[研究]`~~ ✅ · ~~J 可微逆向设计 / 哈密顿量学习 `[工程]`/`[研究]`~~ ✅ ·
-K 认证复现基准套件 `[工程]` ✅ · L（远期/投机）导出到证明助手 Lean/Coq `[研究,投机]`。
+K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证明助手 Lean/Coq `[研究,投机]`~~ ✅。
 
 ## 5. 展现形态
 
