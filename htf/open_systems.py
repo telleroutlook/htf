@@ -46,8 +46,8 @@ def density_matrix_from_pure(state_vec: np.ndarray) -> np.ndarray:
     norm = float(np.linalg.norm(psi))
     if norm < 1e-15:
         raise ValueError("state vector has zero norm")
-    psi = psi / norm
-    return np.outer(psi, psi.conj())
+    psi_n: np.ndarray = psi / norm
+    return np.outer(psi_n, psi_n.conj())
 
 
 def partial_trace(

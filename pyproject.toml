@@ -24,7 +24,7 @@ dependencies = ["numpy>=1.23"]
 accel = ["jax", "opt_einsum"]          # optional GPU / contraction-path acceleration
 certified = ["python-flint>=0.5"]      # certified mode: Arb interval arithmetic
 mcp = ["mcp>=1.0"]                     # MCP server wrapper (§7 TODO)
-dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy"]
+dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy", "scipy"]
 
 [project.scripts]
 htf = "htf.cli:main"
