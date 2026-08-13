@@ -59,11 +59,13 @@ def _apply_unitary_adjoint(
 ) -> np.ndarray:
     """Apply ``U†`` to axes ``(site1, site2)`` of *state*.
 
-    ``U`` has shape ``(chi, chi, chi, chi)`` = ``(out1, out2, in1, in2)``.
-    For real orthogonal U: ``U† = U.T``.
+    ``U`` has shape ``(d1, d2, d1, d2)`` = ``(out1, out2, in1, in2)``.
+    For real orthogonal U: ``U† = U.T``.  Dimensions are derived from
+    ``U.shape`` so this works for any local dimension (not just ``chi``).
     """
-    U_mat = U.reshape(chi * chi, chi * chi)
-    Ut_4d = U_mat.T.reshape(chi, chi, chi, chi)   # (in1, in2, out1, out2)
+    d1, d2 = U.shape[0], U.shape[1]
+    U_mat = U.reshape(d1 * d2, d1 * d2)
+    Ut_4d = U_mat.T.reshape(d1, d2, d1, d2)   # (in1, in2, out1, out2)
     result = np.tensordot(Ut_4d, state, axes=([2, 3], [site1, site2]))
     # result shape: (chi, chi, *all_other_state_axes)  = (in1, in2, ...)
     n_axes = state.ndim

@@ -63,6 +63,16 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - **Phase 4 — 认证有限格点物理（核心目标）。** `[研究]`+`[OUT]` 对格点哈密顿量（含小格点规范
   理论）给谱隙**认证有限格点上/下界**，严格误差控制下做 `χ→∞` 外推，机器核验 OS-正性/规范不变；
   产出**认证有限格点定理** + 难度地图。**明确不声称（`[OUT]`）：不是连续 Yang–Mills 质量隙的证明。**
+  进行中（v0.3.0）：
+  - `htf/gap.py`：`spectral_gap_exact`、`h2_expectation`、`temple_lower_bound`（刚性有限格点下界）、
+    `first_excited_upper`（变分激发态上界）、`certified_gap_upper`（Arb 认证版）、`gap_report`。
+  - `htf/scaling.py`：`chi_convergence_study`（通用 `ham_factory` 接口）、`ScalingReport`、
+    幂律外推（`[启发]`，非认证）。
+  - `htf/difficulty.py`：`entanglement_entropy`、`entanglement_spectrum`、
+    `bipartite_entanglement_profile`、`DifficultyReport`、`difficulty_report`（难度分级）。
+  - `examples/phase4_certified_physics.py`：全流程 demo，所有断言通过。
+  - 499 个测试全绿；总覆盖率 98%，每模块 ≥ 93%。
+  - **门（部分）：** 认证上界成立 ✅；Temple 下界逻辑正确（需 E_var < E_1 条件）✅；难度图产出 ✅。
 
 ## 4. 扩展能力（选做子集，非全做）
 
