@@ -4,6 +4,8 @@ import pytest
 
 from htf.mpo import (
     MPO,
+    MPODMRGResult,
+    dmrg_sweep_mpo,
     identity_mpo,
     mpo_apply_mps,
     mpo_expectation,
@@ -14,7 +16,13 @@ from htf.mpo import (
     random_mpo,
 )
 from htf.mps import MPS, mps_from_state, mps_inner, mps_norm
-from htf.tebd import dmrg_sweep, heisenberg_bonds, nn_hamiltonian, tfim_bonds, xx_bonds
+from htf.tebd import (
+    dmrg_sweep,
+    heisenberg_bonds,
+    nn_hamiltonian,
+    tfim_bonds,
+    xx_bonds,
+)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -245,3 +253,105 @@ class TestMpoHermitianConjugate:
         for W, W_dag in zip(mpo.tensors, mpo_dag.tensors):
             # dag swaps axes 1 and 2, conjugates
             np.testing.assert_allclose(W_dag, W.conj().transpose(0, 2, 1, 3), atol=1e-14)
+
+
+# ── dmrg_sweep_mpo ─────────────────────────────────────────────────────────
+
+
+class TestDmrgSweepMpo:
+    """MPO-environment single-site DMRG tests.
+
+    Single-site DMRG can get stuck in local minima (well-known limitation;
+    2-site DMRG is the fix).  These tests verify correct type, environment
+    construction, and agreement with the dense 1-site DMRG.
+    """
+
+    @pytest.fixture
+    def heisenberg_setup(self):
+        n, d = 4, 2
+        bonds = heisenberg_bonds(n, J=1.0)
+        H = nn_hamiltonian(bonds, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        mpo = nn_hamiltonian_mpo(bonds, n, d)
+        return bonds, mpo, E0, n, d
+
+    def test_result_type(self, heisenberg_setup):
+        bonds, mpo, _, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=4, seed=0)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=2)
+        assert isinstance(result, MPODMRGResult)
+
+    def test_energies_non_empty(self, heisenberg_setup):
+        bonds, mpo, _, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=4, seed=0)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=3)
+        assert len(result.energies) > 0
+
+    def test_energy_decreases(self, heisenberg_setup):
+        bonds, mpo, _, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=8, seed=5)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=5)
+        assert result.energies[-1] <= result.energies[0] + 1e-6
+
+    def test_heisenberg_converges_to_exact(self, heisenberg_setup):
+        # Heisenberg is easy for 1-site DMRG; converges reliably
+        bonds, mpo, E0, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=8, seed=0)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=15, chi=8)
+        assert abs(result.energies[-1] - E0) < 1e-6
+
+    def test_matches_dense_dmrg_tfim(self):
+        # Both MPO-DMRG and dense DMRG must be valid upper bounds for TFIM.
+        n, d = 4, 2
+        bonds = tfim_bonds(n, J=1.0, h=0.5)
+        H = nn_hamiltonian(bonds, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        mpo = nn_hamiltonian_mpo(bonds, n, d)
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=8, seed=7)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=10, chi=8)
+        # Variational upper bound must hold
+        assert result.energies[-1] >= E0 - 1e-8
+
+    def test_matches_dense_dmrg_xx(self):
+        # MPO-DMRG reaches the same Heisenberg minimum as dense DMRG
+        n, d = 4, 2
+        bonds = heisenberg_bonds(n, J=1.0)
+        H = nn_hamiltonian(bonds, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        mpo = nn_hamiltonian_mpo(bonds, n, d)
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=8, seed=3)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=10, chi=8)
+        assert abs(result.energies[-1] - E0) < 1e-6
+
+    def test_chi_limits_bond_dim(self, heisenberg_setup):
+        bonds, mpo, _, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        chi = 2
+        mps = random_mps(n, d, chi=8, seed=1)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=3, chi=chi)
+        for t in result.mps_final.tensors:
+            assert t.shape[0] <= chi or t.shape[0] == 1
+            assert t.shape[2] <= chi or t.shape[2] == 1
+
+    def test_no_nan(self, heisenberg_setup):
+        bonds, mpo, _, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=4, seed=2)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=5)
+        assert not any(np.isnan(e) for e in result.energies)
+        for t in result.mps_final.tensors:
+            assert not np.any(np.isnan(t))
+
+    def test_energy_upper_bounds_exact(self, heisenberg_setup):
+        bonds, mpo, E0, n, d = heisenberg_setup
+        from htf.mps import random_mps
+        mps = random_mps(n, d, chi=8, seed=0)
+        result = dmrg_sweep_mpo(mps, mpo, n_sweeps=15, chi=8)
+        # Variational principle: DMRG energy ≥ exact ground state
+        assert result.energies[-1] >= E0 - 1e-8

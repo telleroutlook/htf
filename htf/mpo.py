@@ -21,12 +21,13 @@ Honest scope [工程]
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
+import scipy.linalg
 
-from .mps import MPS, mps_inner
+from .mps import MPS, _left_canonicalise, mps_inner
 
 
 @dataclass
@@ -259,3 +260,229 @@ def mpo_expectation(mpo: MPO, mps: MPS) -> complex:
     """
     O_psi = mpo_apply_mps(mpo, mps)
     return mps_inner(mps, O_psi)
+
+
+# ─────────────────────────── MPO-based DMRG ───────────────────────────────
+
+
+@dataclass
+class MPODMRGResult:
+    """Result of MPO-environment DMRG variational optimisation.
+
+    Attributes
+    ----------
+    mps_final:  Optimised MPS at ground-state energy minimum.
+    energies:   Energy per local site update (one per half-sweep site).
+    n_sweeps:   Number of full L↔R sweeps completed.
+    converged:  True if energy change per sweep fell below ``tol``.
+    """
+    mps_final: MPS
+    energies: list[float] = field(default_factory=list)
+    n_sweeps: int = 0
+    converged: bool = False
+
+
+def _update_left_env(
+    L_old: np.ndarray,
+    W: np.ndarray,
+    A: np.ndarray,
+) -> np.ndarray:
+    """Grow the left environment by one site.
+
+    Parameters
+    ----------
+    L_old : (chi_bra_l, W_bond_l, chi_ket_l)
+    W     : (W_bond_l, d_bra, d_ket, W_bond_r)
+    A     : (chi_ket_l, d, chi_ket_r)  — left-canonicalised site tensor
+
+    Returns
+    -------
+    L_new : (chi_bra_r, W_bond_r, chi_ket_r)
+
+    Index legend: i=chi_l_bra, p=W_l, j=chi_l_ket,
+                  s=d_bra, t=d_ket, q=W_r, c=chi_r_bra, e=chi_r_ket
+    """
+    # conj(A)[i,s,c], L_old[i,p,j], W[p,s,t,q], A[j,t,e] -> L_new[c,q,e]
+    return np.einsum("isc,ipj,pstq,jte->cqe", A.conj(), L_old, W, A,
+                     optimize=True)
+
+
+def _update_right_env(
+    R_old: np.ndarray,
+    W: np.ndarray,
+    A: np.ndarray,
+) -> np.ndarray:
+    """Grow the right environment by one site.
+
+    Parameters
+    ----------
+    R_old : (chi_bra_r, W_bond_r, chi_ket_r)
+    W     : (W_bond_l, d_bra, d_ket, W_bond_r)
+    A     : (chi_ket_l, d, chi_ket_r)  — right-canonicalised site tensor
+
+    Returns
+    -------
+    R_new : (chi_bra_l, W_bond_l, chi_ket_l)
+
+    Index legend: a=chi_r_bra, p=W_r, b=chi_r_ket,
+                  c=chi_l_bra, r=W_l, e=chi_l_ket, s=d_bra, t=d_ket
+    """
+    # conj(A)[c,s,a], W[r,s,t,p], R_old[a,p,b], A[e,t,b] -> R_new[c,r,e]
+    return np.einsum("csa,rstp,apb,etb->cre", A.conj(), W, R_old, A,
+                     optimize=True)
+
+
+def _heff_mpo_local(
+    L: np.ndarray,
+    W: np.ndarray,
+    R: np.ndarray,
+) -> np.ndarray:
+    """Local effective Hamiltonian from MPO environments.
+
+    H_eff[(i,s,k),(j,t,l)] = Σ_{p,q} L[i,p,j] · W[p,s,t,q] · R[k,q,l]
+
+    Parameters
+    ----------
+    L : (chi_l, W_l, chi_l)
+    W : (W_l, d_bra, d_ket, W_r)
+    R : (chi_r, W_r, chi_r)
+
+    Returns
+    -------
+    H_eff : (chi_l*d*chi_r, chi_l*d*chi_r)  Hermitian matrix
+    """
+    chi_l = L.shape[0]
+    d     = W.shape[1]
+    chi_r = R.shape[0]
+    H = np.einsum("ipj,pstq,kql->iskjtl", L, W, R, optimize=True)
+    H_eff = H.reshape(chi_l * d * chi_r, chi_l * d * chi_r)
+    return (H_eff + H_eff.conj().T) * 0.5   # enforce Hermitian symmetry
+
+
+def dmrg_sweep_mpo(
+    mps: MPS,
+    mpo: MPO,
+    n_sweeps: int = 10,
+    chi: Optional[int] = None,
+    tol: float = 1e-8,
+) -> MPODMRGResult:
+    """MPO-environment single-site DMRG variational ground-state search.
+
+    Uses incremental left/right environment tensors built from MPO
+    contractions.  Each site update costs O(χ²·W·d) instead of O(d^{2n}),
+    making this approach practical for n up to hundreds of sites.
+
+    Parameters
+    ----------
+    mps      : initial guess MPS (left-canonicalised internally).
+    mpo      : Hamiltonian as MPO (from ``nn_hamiltonian_mpo`` or
+               ``mpo_from_matrix``).
+    n_sweeps : maximum number of full sweeps (L→R + R→L).
+    chi      : bond-dimension cap applied after SVD; None = no compression.
+    tol      : convergence threshold on |ΔE| per sweep.
+
+    Returns
+    -------
+    :class:`MPODMRGResult`
+    """
+    mps = _left_canonicalise(mps.copy())
+    n   = mps.n_sites
+
+    # Right-canonicalise the initial MPS to put the orthogonality centre at
+    # site 0 and simultaneously build all right environments.  This ensures
+    # H_eff eigenvalues are valid energy estimates from the first update.
+    R_envs: list[np.ndarray] = [np.ones((1, 1, 1))] * (n + 1)
+    for i in range(n - 1, 0, -1):
+        A = mps.tensors[i]
+        chi_l, d_i, chi_r = A.shape
+        Q_T, R_T = scipy.linalg.qr(A.reshape(chi_l, d_i * chi_r).T, mode="economic")
+        k = Q_T.shape[1]
+        mps.tensors[i] = Q_T.T.reshape(k, d_i, chi_r)
+        mps.tensors[i - 1] = np.einsum("asc,cb->asb", mps.tensors[i - 1], R_T.T)
+        R_envs[i] = _update_right_env(R_envs[i + 1], mpo.tensors[i], mps.tensors[i])
+    R_envs[0] = _update_right_env(R_envs[1], mpo.tensors[0], mps.tensors[0])
+
+    # L_envs[i]: left environment that covers sites 0, 1, …, i-1.
+    L_envs: list[np.ndarray] = [np.ones((1, 1, 1))] * (n + 1)
+
+    energies: list[float] = []
+    converged = False
+    sweep_idx = 0
+
+    for sweep_idx in range(n_sweeps):
+        E_start = energies[-1] if energies else None
+
+        # ── L→R half-sweep: sites 0 … n-2 ────────────────────────────────
+        for i in range(n - 1):
+            H_eff = _heff_mpo_local(L_envs[i], mpo.tensors[i], R_envs[i + 1])
+            chi_l, d_i, chi_r = mps.tensors[i].shape
+            evals, evecs = scipy.linalg.eigh(H_eff)
+            energies.append(float(evals[0]))
+            theta = evecs[:, 0].reshape(chi_l, d_i, chi_r)
+            # QR → left-canonical A[i], pass R factor to next site
+            Q, R_mat = scipy.linalg.qr(
+                theta.reshape(chi_l * d_i, chi_r), mode="economic"
+            )
+            if chi is not None:
+                k = min(chi, Q.shape[1])
+                Q, R_mat = Q[:, :k], R_mat[:k, :]
+            k = Q.shape[1]
+            mps.tensors[i]     = Q.reshape(chi_l, d_i, k)
+            mps.tensors[i + 1] = np.einsum("ab,bsc->asc", R_mat,
+                                           mps.tensors[i + 1])
+            L_envs[i + 1] = _update_left_env(
+                L_envs[i], mpo.tensors[i], mps.tensors[i]
+            )
+
+        # Pivot: optimise site n-1 (full step)
+        i = n - 1
+        H_eff = _heff_mpo_local(L_envs[i], mpo.tensors[i], R_envs[i + 1])
+        chi_l, d_i, chi_r = mps.tensors[i].shape
+        evals, evecs = scipy.linalg.eigh(H_eff)
+        energies.append(float(evals[0]))
+        mps.tensors[i] = evecs[:, 0].reshape(chi_l, d_i, chi_r)
+
+        # Seed R envs for R→L sweep using updated pivot tensor.
+        R_envs[n]     = np.ones((1, 1, 1))
+        R_envs[n - 1] = _update_right_env(
+            R_envs[n], mpo.tensors[n - 1], mps.tensors[n - 1]
+        )
+
+        # ── R→L half-sweep: sites n-2 … 0 ────────────────────────────────
+        for i in range(n - 2, -1, -1):
+            H_eff = _heff_mpo_local(L_envs[i], mpo.tensors[i], R_envs[i + 1])
+            chi_l, d_i, chi_r = mps.tensors[i].shape
+            evals, evecs = scipy.linalg.eigh(H_eff)
+            energies.append(float(evals[0]))
+            theta = evecs[:, 0].reshape(chi_l, d_i, chi_r)
+            # LQ → right-canonical A[i], pass L factor to previous site
+            Q_T, R_T = scipy.linalg.qr(
+                theta.reshape(chi_l, d_i * chi_r).T, mode="economic"
+            )
+            if chi is not None:
+                k = min(chi, Q_T.shape[1])
+                Q_T, R_T = Q_T[:, :k], R_T[:k, :]
+            k = Q_T.shape[1]
+            mps.tensors[i] = Q_T.T.reshape(k, d_i, chi_r)
+            if i > 0:
+                mps.tensors[i - 1] = np.einsum(
+                    "asc,cb->asb", mps.tensors[i - 1], R_T.T
+                )
+            # Update R env using newly right-canonical A[i]
+            R_envs[i] = _update_right_env(
+                R_envs[i + 1], mpo.tensors[i], mps.tensors[i]
+            )
+
+        # Reset L boundary for next L→R sweep
+        L_envs[0] = np.ones((1, 1, 1))
+
+        if E_start is not None and abs(energies[-1] - E_start) < tol:
+            converged = True
+            break
+
+    return MPODMRGResult(
+        mps_final=mps,
+        energies=energies,
+        n_sweeps=sweep_idx + 1,
+        converged=converged,
+    )

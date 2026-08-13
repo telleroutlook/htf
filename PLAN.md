@@ -220,6 +220,15 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 - 关闭 ITensor/TeNPy 在 MPO 数据结构方向的差距。
 - [x] 已完成（1155 测试通过，0 失败）
 
+### §9-F MPO-环境 DMRG `[工程]`
+- `htf/mpo.py` 扩展：`MPODMRGResult` dataclass；`_update_left_env` /
+  `_update_right_env`（增量环境张量更新）；`_heff_mpo_local`（从 L/W/R
+  构建局域有效哈密顿量，O(χ²·W·d)，无需构建 d^{2n} 全矩阵）；
+  `dmrg_sweep_mpo`（单-site MPO-DMRG：先右正则化建立 R 环境，再交替
+  L→R/R→L 扫描，增量更新 L/R 环境张量）。
+- 关闭 ITensor/TeNPy 在工业级 MPO-DMRG 环境方向的核心差距。
+- [x] 已完成（1164 测试通过，0 失败）
+
 ---
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
