@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.7.0）
+## 1. 当前状态（v0.9.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -38,13 +38,19 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `partial_trace`、`check_density_matrix`（Hermitian+PSD+单位迹三重核验）、
       `choi_matrix`、`check_kraus_completeness`、`lindblad_superoperator`、
       `lindblad_step`（矩阵指数精确积分）、`steady_state`（约束线性系统求解）。`[工程]`
-- [x] 测试（`tests/`）：`python -m pytest -q` **769 个全绿**；总覆盖率 ≥ 98%。
+- [x] 测试（`tests/`）：`python -m pytest -q` **828 个全绿**；总覆盖率 ≥ 98%。
 - [x] Lanczos 严格双侧界（`htf/lanczos.py`，§4-I）：`lanczos`（k 步三对角化）、
       `lanczos_eigs`（Ritz 值/向量）、`lanczos_ground_state`、`temple_lanczos`/
       `two_sided_bounds`（Temple 下界 + flint-Arb 认证上界，`TwoSidedBounds` dataclass）。`[研究]`
 - [x] QASM 2.0 互操作（`htf/qasm.py`，§4-F）：标准门矩阵库（H/X/Y/Z/S/T/Rx/Ry/Rz/CX/CZ/SWAP）、
       `circuit_to_qasm`（导出）、`qasm_to_circuit`（解析）、`circuit_unitary`（稠密矩阵模拟）、
       `circuit_to_diagram`（HTF 拓扑桥接）。`[工程]`
+- [x] 可微逆向设计 / 哈密顿量学习（`htf/inverse.py`，§4-J）：`ParametricHam`（TFIM/XX
+      参数族）、`inverse_design`（找到使 E_0 等于目标值的参数）、`hamiltonian_learning`
+      （从观测能级恢复参数）、`energy_gradient`（中心有限差分梯度）。`[工程]`/`[研究]`
+- [x] 节点图可视化前端原型（`htf/viz.py`，§7）：`diagram_to_dict`（Cytoscape.js 兼容 JSON 图）、
+      `diagram_to_html`（自包含 HTML，CDN 嵌入 Cytoscape.js）、`save_diagram_html`（写入文件）；
+      支持 Box/Id/Then/Tensor 节点，深度优先左→右 / 上→下布局。`[工程]`
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -122,7 +128,7 @@ K 认证复现基准套件 `[工程]` ✅ · L（远期/投机）导出到证明
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
   - 8 节：定位、边界、架构、核心能力（全部子功能）、CLI/MCP、证据语法、依赖、诚实限制。
-- [ ] 节点图可视化前端原型（React Flow 类）。`[工程]`
+- [x] 节点图可视化前端原型（React Flow 类）。`[工程]` ✅ `htf/viz.py`
 - [x] MCP server 包装，供 agent 直接连接。`[工程]`
   - `htf/mcp_server.py`：`MCPServer`（mcp 2.0 API）+ `@server.tool` 装饰器；
     5 个工具：`htf_version`、`htf_variational`、`htf_gap`、`htf_os_check`、`htf_benchmark`；
