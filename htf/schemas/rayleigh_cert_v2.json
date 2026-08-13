@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "htf://schemas/rayleigh-cert/v2",
+  "title": "HTF Rayleigh Certificate v2",
+  "description": "A replayable certificate that E0 <= interval.upper, produced by the Rayleigh-Ritz theorem. Schema v2 uses exact preconditions (exact Hermitian check, exact non-zero, NaN-closed) and a domain-separated, shape-tagged digest.",
+  "type": "object",
+  "required": [
+    "schema_version", "claim", "theorem", "assumptions",
+    "input_digest", "interval", "backend", "htf_version", "verified"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "rayleigh-cert/v2",
+      "description": "Schema identifier; must be exactly 'rayleigh-cert/v2'."
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable statement of what is certified. Must be exactly 'E0 <= {upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]'."
+    },
+    "theorem": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The mathematical theorem invoked."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "description": "Machine-checked preconditions; each entry must have passed before the certificate was issued."
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex digest of domain-separated, shape-tagged, big-endian canonical (H, psi) bytes (v2 format). Prevents input substitution and real/complex structural collisions."
+    },
+    "interval": {
+      "type": "object",
+      "required": ["lower", "upper", "midpoint", "radius"],
+      "additionalProperties": false,
+      "description": "Arb/Acb interval for the Rayleigh quotient; the certified claim is E0 <= upper. All endpoints are outward-rounded binary64 via math.nextafter.",
+      "properties": {
+        "lower":    {"type": "number", "description": "Lower endpoint of the interval (outward-rounded)."},
+        "upper":    {"type": "number", "description": "Upper endpoint; the certified bound (outward-rounded by math.nextafter)."},
+        "midpoint": {"type": "number", "description": "Midpoint of [lower, upper], for display only."},
+        "radius":   {"type": "number", "minimum": 0, "description": "Half-width (rounding radius); 0 when backend is numpy-float."}
+      }
+    },
+    "backend": {
+      "type": "string",
+      "description": "Arithmetic backend. 'flint-arb/prec=128' and 'flint-acb/prec=128' mean a rigorous Arb/Acb ball was computed at 128-bit precision. 'numpy-float' means no certified rounding — discovery tier only."
+    },
+    "htf_version": {
+      "type": "string",
+      "description": "Version of HTF that produced this certificate."
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "True if verify_rayleigh_certificate() independently confirmed this certificate (strict comparison, no tolerance)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional context string."
+    }
+  }
+}

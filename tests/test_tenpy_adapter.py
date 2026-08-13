@@ -323,7 +323,7 @@ class TestRayleighFromTeNPyMPS:
 
     def test_schema_version_correct(self, H4):
         cert = rayleigh_from_tenpy_mps(_MockTeNPyMPS([1.0, 0.0, 0.0, 0.0]), H4)
-        assert cert.schema_version == "rayleigh-cert/v1"
+        assert cert.schema_version == "rayleigh-cert/v2"
 
     def test_basis_permutation_changes_rayleigh(self, H4):
         """Dimension match alone cannot detect H vs ψ basis mismatch."""
