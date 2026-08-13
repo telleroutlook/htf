@@ -268,6 +268,58 @@ def mpo_expectation(mpo: MPO, mps: MPS) -> complex:
 
 
 @dataclass
+class MPOChiPoint:
+    """One χ data point from a parallel MPO-DMRG convergence study.
+
+    Attributes
+    ----------
+    chi:          Bond dimension used for this run.
+    energy:       Lowest energy found across all seeds.
+    n_seeds_used: Number of independent DMRG starts tried.
+    best_seed:    Seed that produced the lowest energy.
+    """
+    chi:          int
+    energy:       float
+    n_seeds_used: int
+    best_seed:    int
+
+
+@dataclass
+class MPOScalingReport:
+    """Full MPO χ-convergence study result.
+
+    Attributes
+    ----------
+    chi_points:      One :class:`MPOChiPoint` per χ value.
+    E_extrapolated:  Power-law χ→∞ extrapolation (heuristic, ``[OUT]``).
+    E_extrap_stderr: Standard error of the extrapolated value.
+    fit_exponent:    Exponent ``b`` in ``E(χ) ≈ E_∞ + a/χ^b``.
+    notes:           Diagnostic messages (fit warnings etc.).
+    """
+    chi_points:      list = field(default_factory=list)
+    E_extrapolated:  float = float("nan")
+    E_extrap_stderr: float = float("nan")
+    fit_exponent:    float = float("nan")
+    notes:           str = ""
+
+    def summary(self) -> str:
+        lines = [
+            "MPO χ-convergence study:",
+            f"{'chi':>6}  {'E(chi)':>14}  {'seeds':>6}",
+        ]
+        for p in self.chi_points:
+            lines.append(f"{p.chi:>6}  {p.energy:>14.8f}  {p.n_seeds_used:>6}")
+        if not np.isnan(self.E_extrapolated):
+            lines.append(
+                f"\nPower-law (χ→∞): E_∞ ≈ {self.E_extrapolated:.8f}"
+                f" ± {self.E_extrap_stderr:.2e}  [heuristic, NOT certified]"
+            )
+        if self.notes:
+            lines.append(f"Note: {self.notes}")
+        return "\n".join(lines)
+
+
+@dataclass
 class MPODMRGResult:
     """Result of MPO-environment DMRG variational optimisation.
 
@@ -735,3 +787,100 @@ def dmrg_multistart(
         best_seed=seeds[best_idx],
         n_workers=effective_workers,
     )
+
+
+# ── §9-I: parallel MPO χ-convergence study ───────────────────────────────────
+
+
+def mpo_chi_convergence(
+    mpo: MPO,
+    chi_list: list,
+    n_seeds: int = 4,
+    chi_init: int = 2,
+    n_sweeps: int = 10,
+    tol: float = 1e-8,
+    n_workers: Optional[int] = None,
+    seed_offset: int = 0,
+) -> MPOScalingReport:
+    """Parallel MPO χ-convergence study.
+
+    Runs two-site MPO-DMRG at every χ in *chi_list*, trying *n_seeds*
+    independent random starting states at each χ.  All ``len(chi_list) *
+    n_seeds`` runs are submitted to a single ``ProcessPoolExecutor`` so the
+    total wall time is roughly the cost of the *slowest single run* (i.e. the
+    largest χ with the longest sweep) rather than the sum of all runs.
+
+    The best energy found at each χ is collected into an
+    :class:`MPOScalingReport`.  When ≥ 3 χ values are provided, a power-law
+    extrapolation ``E(χ) ≈ E_∞ + a/χ^b`` is fitted as a heuristic estimate
+    of the χ→∞ limit — this extrapolation is **not certified** (``[OUT]``).
+
+    Parameters
+    ----------
+    mpo         : Hamiltonian as MPO.
+    chi_list    : Bond dimensions to sweep over (increasing order recommended).
+    n_seeds     : Independent starting states per χ value.
+    chi_init    : Initial MPS bond dimension for each run (small so the
+                  2-site SVD can grow bonds freely).
+    n_sweeps    : Maximum sweeps per run.
+    tol         : Energy convergence threshold per run.
+    n_workers   : Worker processes.  ``None`` uses ``os.cpu_count()``.
+                  Pass ``1`` to run sequentially.
+    seed_offset : First seed index; seeds used are
+                  ``seed_offset, …, seed_offset + n_seeds - 1``.
+
+    Returns
+    -------
+    :class:`MPOScalingReport`
+    """
+    seeds = list(range(seed_offset, seed_offset + n_seeds))
+
+    # Flat (chi × seed) job list — maximises pool utilisation
+    job_chi: list = []
+    packed_list: list = []
+    for chi in chi_list:
+        for seed in seeds:
+            job_chi.append(chi)
+            packed_list.append((mpo.tensors, seed, chi_init, chi, n_sweeps, tol))
+
+    effective_workers = n_workers if n_workers is not None else (os.cpu_count() or 1)
+
+    if effective_workers == 1 or len(packed_list) == 1:
+        all_results = [_dmrg_worker(p) for p in packed_list]
+    else:
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            all_results = list(pool.map(_dmrg_worker, packed_list))
+
+    # Group results by chi and select the best seed at each χ
+    chi_points: list = []
+    for chi in chi_list:
+        idx_for_chi = [k for k, c in enumerate(job_chi) if c == chi]
+        chi_energies = [all_results[k].energies[-1] for k in idx_for_chi]
+        best_local = int(np.argmin(chi_energies))
+        chi_points.append(MPOChiPoint(
+            chi=chi,
+            energy=chi_energies[best_local],
+            n_seeds_used=n_seeds,
+            best_seed=seeds[best_local],
+        ))
+
+    report = MPOScalingReport(chi_points=chi_points)
+
+    if len(chi_points) >= 3:
+        try:
+            from .scaling import _power_law_fit
+            E_inf, stderr, b = _power_law_fit(
+                [p.chi for p in chi_points],
+                [p.energy for p in chi_points],
+            )
+            report.E_extrapolated = E_inf
+            report.E_extrap_stderr = stderr
+            report.fit_exponent = b
+            report.notes = (
+                "power-law extrapolation is heuristic (discovery-tier); "
+                "residual χ-truncation bias is [OUT] of certified scope"
+            )
+        except Exception as exc:
+            report.notes = f"power-law fit failed: {exc}"
+
+    return report

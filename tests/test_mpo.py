@@ -4,7 +4,9 @@ import pytest
 
 from htf.mpo import (
     MPO,
+    MPOChiPoint,
     MPODMRGResult,
+    MPOScalingReport,
     MultiStartDMRGResult,
     dmrg_multistart,
     dmrg_sweep_mpo,
@@ -15,6 +17,7 @@ from htf.mpo import (
     mpo_from_matrix,
     mpo_hermitian_conjugate,
     mpo_to_matrix,
+    mpo_chi_convergence,
     nn_hamiltonian_mpo,
     random_mpo,
 )
@@ -543,3 +546,109 @@ class TestDmrgMultistart:
         result = dmrg_multistart(mpo, n_seeds=2, chi=8, n_sweeps=10, n_workers=2)
         assert isinstance(result, MultiStartDMRGResult)
         assert result.best.energies[-1] >= E0 - 1e-8
+
+
+# ── mpo_chi_convergence ────────────────────────────────────────────────────
+
+
+class TestMpoChiConvergence:
+    """Parallel MPO χ-convergence study tests.
+
+    Sequential mode (n_workers=1) used throughout to avoid subprocess
+    overhead.  One test exercises the parallel path.
+    """
+
+    @pytest.fixture
+    def heisenberg_mpo(self):
+        n, d = 4, 2
+        bonds = heisenberg_bonds(n, J=1.0)
+        H = nn_hamiltonian(bonds, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        mpo = nn_hamiltonian_mpo(bonds, n, d)
+        return mpo, E0
+
+    def test_result_type(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [2, 4], n_seeds=1, n_sweeps=3, n_workers=1)
+        assert isinstance(result, MPOScalingReport)
+
+    def test_chi_points_count(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        chi_list = [2, 4, 6]
+        result = mpo_chi_convergence(mpo, chi_list, n_seeds=1, n_sweeps=3, n_workers=1)
+        assert len(result.chi_points) == len(chi_list)
+
+    def test_chi_points_type(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [2, 4], n_seeds=1, n_sweeps=3, n_workers=1)
+        for p in result.chi_points:
+            assert isinstance(p, MPOChiPoint)
+
+    def test_chi_values_recorded(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        chi_list = [2, 4, 8]
+        result = mpo_chi_convergence(mpo, chi_list, n_seeds=1, n_sweeps=3, n_workers=1)
+        assert [p.chi for p in result.chi_points] == chi_list
+
+    def test_energy_improves_with_chi(self, heisenberg_mpo):
+        # Higher χ → larger variational space → lower or equal energy
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(
+            mpo, [2, 4, 8], n_seeds=2, n_sweeps=10, n_workers=1
+        )
+        energies = [p.energy for p in result.chi_points]
+        assert energies[-1] <= energies[0] + 1e-6
+
+    def test_variational_upper_bound(self, heisenberg_mpo):
+        mpo, E0 = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [4, 8], n_seeds=2, n_sweeps=10, n_workers=1)
+        for p in result.chi_points:
+            assert p.energy >= E0 - 1e-8
+
+    def test_large_chi_converges_exact(self, heisenberg_mpo):
+        mpo, E0 = heisenberg_mpo
+        result = mpo_chi_convergence(
+            mpo, [8], n_seeds=3, n_sweeps=20, n_workers=1
+        )
+        assert abs(result.chi_points[0].energy - E0) < 1e-5
+
+    def test_extrapolation_with_3_points(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(
+            mpo, [2, 4, 8], n_seeds=2, n_sweeps=10, n_workers=1
+        )
+        # Power-law fit attempted when >= 3 chi values; may fail gracefully
+        assert isinstance(result.E_extrapolated, float)
+        assert isinstance(result.notes, str)
+
+    def test_no_extrapolation_with_2_points(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [2, 4], n_seeds=1, n_sweeps=3, n_workers=1)
+        assert np.isnan(result.E_extrapolated)
+
+    def test_n_seeds_recorded(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [4], n_seeds=3, n_sweeps=5, n_workers=1)
+        assert result.chi_points[0].n_seeds_used == 3
+
+    def test_no_nan_energies(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [2, 4], n_seeds=2, n_sweeps=5, n_workers=1)
+        for p in result.chi_points:
+            assert not np.isnan(p.energy)
+
+    def test_summary_is_string(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = mpo_chi_convergence(mpo, [2, 4], n_seeds=1, n_sweeps=3, n_workers=1)
+        s = result.summary()
+        assert isinstance(s, str) and len(s) > 0
+
+    def test_parallel_path(self, heisenberg_mpo):
+        mpo, E0 = heisenberg_mpo
+        result = mpo_chi_convergence(
+            mpo, [4, 8], n_seeds=2, n_sweeps=8, n_workers=2
+        )
+        assert isinstance(result, MPOScalingReport)
+        assert len(result.chi_points) == 2
+        for p in result.chi_points:
+            assert p.energy >= E0 - 1e-8
