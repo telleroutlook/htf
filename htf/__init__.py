@@ -6,8 +6,8 @@ provenance :class:`~htf.certificate.Certificate` and an agent-drivable CLI.
 
 Honest scope: this is a *certified model engine*, not a "world engine". It
 certifies numerical/truncation error, not modeling error; the continuum limit
-(``chi -> inf``) is a conserved wall, not something the framework crosses. See
-``PLAN.md`` and ``docs/``.
+(``chi -> inf``) is a wall the framework does not cross. See ``PLAN.md`` and
+``docs/``.
 """
 from __future__ import annotations
 

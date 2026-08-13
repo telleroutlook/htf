@@ -23,7 +23,7 @@ lacks:
 
 HTF is a **certified *model* engine, not a "world engine".** It certifies
 *numerical / truncation* error, **not** *modeling* error, and the continuum
-limit (`χ → ∞`) is a **conserved wall**, not something the framework crosses.
+limit (`χ → ∞`) is **a wall the framework does not cross**.
 Concretely:
 
 - It **does** give: a type-safe, composable, reproducible DSL; a tensor engine
@@ -87,9 +87,8 @@ htf hello        # runs the diagram above, prints a JSON provenance certificate
 
 ## Roadmap & scope
 
-See `PLAN.md` (roadmap, value tracks, honest boundaries). The design rationale,
-including the "conservation of difficulty" principle inherited from prior work,
-is in `docs/project-canvas.zh.md`.
+See `PLAN.md` (roadmap, value tracks, honest boundaries) and
+`docs/project-canvas.zh.md` (full design rationale).
 
 ## License
 

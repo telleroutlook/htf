@@ -12,7 +12,7 @@ checks) — not "another tensor library".
 
 **One-line honest scope:** HTF is a *certified model engine, not a world engine*.
 It certifies numerical/truncation error, not modeling error; the continuum limit
-(`χ → ∞`) is a conserved wall, not something HTF crosses.
+(`χ → ∞`) is a wall HTF does not cross.
 
 ## 2. Evidence grammar (do not violate)
 
@@ -45,14 +45,14 @@ Prior drafts were corrected to remove exactly these. Do **not** put them back:
 
 When in doubt, state the error bar and the boundary; never drop them.
 
-## 4. Difficulty is conserved (the guiding principle)
+## 4. Honest scope & limitations
 
-Finite / variational / tensor methods excel at *certifying finite-local
-structure, mapping difficulty, and gating* — they do not, by themselves, cross
-continuum/global walls. Regularization (`χ` truncation) ≠ solving the continuum;
-"reading off" a gap ≠ proving it. HTF's value rests on honestly admitting this:
-put effort into the certified finite/local layer and the tooling, not into
-claiming the wall is crossed.
+State the tool's limits concretely; do not dress them up as a research
+philosophy. HTF certifies finite/local structure and maps how estimates degrade,
+but it does not by itself cross continuum/global walls. Regularization (`χ`
+truncation) ≠ solving the continuum; "reading off" a gap ≠ proving it. Put effort
+into the certified finite/local layer and the tooling, and label continuum claims
+`[OUT]`.
 
 ## 5. Architecture (keep the layers separate)
 
