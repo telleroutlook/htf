@@ -110,36 +110,30 @@ def check_u1_invariance(
       ``charge_sectors``  — list of charge sectors (total Q) that are non-zero.
     """
     T = np.asarray(tensor)
-    dom_charges_list = [b.charge_array for b in dom_bases]
-    cod_charges_list = [b.charge_array for b in cod_bases]
-
-    # Iterate over all multi-indices
     shape_cod = tuple(b.dim for b in cod_bases)
     shape_dom = tuple(b.dim for b in dom_bases)
-    n_cod = len(cod_bases)
-    n_dom = len(dom_bases)
+    d_cod = 1
+    for s in shape_cod:
+        d_cod *= s
+    d_dom = 1
+    for s in shape_dom:
+        d_dom *= s
 
-    T_flat = T.reshape(shape_cod + shape_dom)
+    T_2d = np.abs(T.reshape(d_cod, d_dom))
 
-    n_violations = 0
-    max_violation = 0.0
-    seen_sectors: set[int] = set()
+    cod_charges = _flat_charges(cod_bases)  # (d_cod,)
+    dom_charges = _flat_charges(dom_bases)  # (d_dom,)
 
-    it = np.nditer(T_flat, flags=["multi_index"])
-    while not it.finished:
-        idx = it.multi_index
-        val = float(abs(it[0]))
-        cod_idx = idx[:n_cod]
-        dom_idx = idx[n_cod:]
-        Q_cod = sum(cod_charges_list[k][cod_idx[k]] for k in range(n_cod))
-        Q_dom = sum(dom_charges_list[k][dom_idx[k]] for k in range(n_dom))
-        if val > tol:
-            if Q_cod != Q_dom:
-                n_violations += 1
-                max_violation = max(max_violation, val)
-            else:
-                seen_sectors.add(int(Q_cod))
-        it.iternext()
+    # Broadcasting: shape (d_cod, d_dom)
+    violates = cod_charges[:, None] != dom_charges[None, :]
+    significant = T_2d > tol
+    violation_mask = significant & violates
+
+    n_violations = int(np.count_nonzero(violation_mask))
+    max_violation = float(np.max(T_2d[violation_mask])) if n_violations > 0 else 0.0
+
+    conserved_rows = np.where(significant & ~violates)[0]
+    seen_sectors: set[int] = set(int(q) for q in cod_charges[conserved_rows])
 
     return {
         "is_invariant":   n_violations == 0,
@@ -167,26 +161,22 @@ def project_to_u1(
     New ndarray with charge-violating elements set to zero.
     """
     T = np.array(tensor, copy=True)
-    dom_charges_list = [b.charge_array for b in dom_bases]
-    cod_charges_list = [b.charge_array for b in cod_bases]
-
     shape_cod = tuple(b.dim for b in cod_bases)
     shape_dom = tuple(b.dim for b in dom_bases)
-    n_cod = len(cod_bases)
-    n_dom = len(dom_bases)
-    T_flat = T.reshape(shape_cod + shape_dom)
+    d_cod = 1
+    for s in shape_cod:
+        d_cod *= s
+    d_dom = 1
+    for s in shape_dom:
+        d_dom *= s
 
-    it = np.nditer(T_flat, flags=["multi_index"], op_flags=["readwrite"])
-    while not it.finished:
-        idx = it.multi_index
-        cod_idx = idx[:n_cod]
-        dom_idx = idx[n_cod:]
-        Q_cod = sum(cod_charges_list[k][cod_idx[k]] for k in range(n_cod))
-        Q_dom = sum(dom_charges_list[k][dom_idx[k]] for k in range(n_dom))
-        if Q_cod != Q_dom:
-            it[0][...] = 0.0
-        it.iternext()
-    return T_flat.reshape(tensor.shape)
+    T_2d = T.reshape(d_cod, d_dom)
+    cod_charges = _flat_charges(cod_bases)
+    dom_charges = _flat_charges(dom_bases)
+
+    violates = cod_charges[:, None] != dom_charges[None, :]
+    T_2d[violates] = 0.0
+    return T_2d.reshape(tensor.shape)
 
 
 # ────────────────────── block decomposition ──────────────────────────────

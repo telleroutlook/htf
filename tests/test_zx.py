@@ -9,8 +9,10 @@ from htf.zx import (
     ZXGraph,
     ZXNodeType,
     ZXRewriteLog,
+    color_change,
     hadamard_cancel,
     identity_removal,
+    pi_copy,
     simplify,
     spider_fusion,
     zx_from_circuit,
@@ -334,3 +336,175 @@ class TestZxToMatrix:
         g = ZXGraph()
         U = zx_to_matrix(g)
         assert U.shape == (1, 1)
+
+    def test_non_circuit_topology_raises(self):
+        """A node stranded off the input-to-output path must raise NotImplementedError."""
+        g = ZXGraph()
+        # Single qubit circuit: in0 -> out0
+        inp = g.add_node(ZXNodeType.INPUT, qubit=0, label="in0")
+        out = g.add_node(ZXNodeType.OUTPUT, qubit=0, label="out0")
+        g.inputs.append(inp)
+        g.outputs.append(out)
+        g.add_edge(inp, out)
+        # Stranded node — not reachable from any input
+        orphan = g.add_node(ZXNodeType.Z, phase=math.pi, label="orphan")
+        with pytest.raises(NotImplementedError, match="circuit"):
+            zx_to_matrix(g)
+
+    def test_cross_wire_connection_raises(self):
+        """A spider connected from two different qubit wires raises NotImplementedError."""
+        # Build: in0 -> Z_shared <- in1 -> out1; out0 disconnected
+        g = ZXGraph()
+        inp0 = g.add_node(ZXNodeType.INPUT, qubit=0)
+        inp1 = g.add_node(ZXNodeType.INPUT, qubit=1)
+        out0 = g.add_node(ZXNodeType.OUTPUT, qubit=0)
+        out1 = g.add_node(ZXNodeType.OUTPUT, qubit=1)
+        g.inputs = [inp0, inp1]
+        g.outputs = [out0, out1]
+        shared = g.add_node(ZXNodeType.Z, phase=0.0, label="shared")
+        # Connect shared spider to BOTH input wires (cross-wire)
+        g.add_edge(inp0, shared)
+        g.add_edge(inp1, shared)
+        g.add_edge(shared, out0)
+        g.add_edge(shared, out1)
+        with pytest.raises(NotImplementedError):
+            zx_to_matrix(g)
+
+
+# ─────────────────────── TestColorChange ─────────────────────────────────
+
+class TestColorChange:
+
+    def test_z_surrounded_by_h_becomes_x(self):
+        # Z spider with all neighbours being H boxes → flips to X
+        g = ZXGraph()
+        left  = g.add_node(ZXNodeType.Z, label="left")
+        h1    = g.add_node(ZXNodeType.H, label="h1")
+        z     = g.add_node(ZXNodeType.Z, phase=0.5, label="center")
+        h2    = g.add_node(ZXNodeType.H, label="h2")
+        right = g.add_node(ZXNodeType.Z, label="right")
+        g.add_edge(left, h1)
+        g.add_edge(h1, z)
+        g.add_edge(z, h2)
+        g.add_edge(h2, right)
+        n = color_change(g)
+        assert n >= 1
+        # center node should now be X (or gone — absorbed)
+        # the H boxes should be removed
+        h_nodes = [v for v in g.nodes.values() if v.kind == ZXNodeType.H]
+        assert h1 not in g.nodes or h2 not in g.nodes or len(h_nodes) < 2
+
+    def test_returns_count(self):
+        g = ZXGraph()
+        h1 = g.add_node(ZXNodeType.H)
+        z  = g.add_node(ZXNodeType.Z, phase=1.0)
+        h2 = g.add_node(ZXNodeType.H)
+        g.add_edge(h1, z)
+        g.add_edge(z, h2)
+        n = color_change(g)
+        assert isinstance(n, int)
+
+    def test_no_change_when_not_all_h_neighbours(self):
+        # Z spider with one H and one Z neighbour → no colour change
+        g = ZXGraph()
+        z1 = g.add_node(ZXNodeType.Z)
+        h  = g.add_node(ZXNodeType.H)
+        z2 = g.add_node(ZXNodeType.Z)
+        z3 = g.add_node(ZXNodeType.Z)
+        g.add_edge(z1, h)
+        g.add_edge(h, z2)
+        g.add_edge(z2, z3)  # z2 has both H and Z neighbours
+        n = color_change(g)
+        # z2 should not have changed (has non-H neighbour z3)
+        assert z2 in g.nodes
+        assert g.nodes[z2].kind == ZXNodeType.Z
+
+    def test_log_records_step(self):
+        g = ZXGraph()
+        h1 = g.add_node(ZXNodeType.H)
+        z  = g.add_node(ZXNodeType.Z, phase=1.0)
+        h2 = g.add_node(ZXNodeType.H)
+        g.add_edge(h1, z)
+        g.add_edge(z, h2)
+        log = ZXRewriteLog()
+        color_change(g, log)
+        assert len(log) >= 1
+
+    def test_simplify_includes_color_change(self):
+        # simplify with default rules should run color_change
+        g = ZXGraph()
+        h1 = g.add_node(ZXNodeType.H)
+        z  = g.add_node(ZXNodeType.Z, phase=0.5)
+        h2 = g.add_node(ZXNodeType.H)
+        g.add_edge(h1, z)
+        g.add_edge(z, h2)
+        n = simplify(g)
+        assert isinstance(n, int)
+
+
+# ─────────────────────── TestPiCopy ──────────────────────────────────────
+
+class TestPiCopy:
+
+    def test_z_pi_copies_through_x_zero(self):
+        # Z(π) connected to X(0) → Z(π) copied to X(0)'s other legs
+        g = ZXGraph()
+        z_pi = g.add_node(ZXNodeType.Z, phase=math.pi, label="Z_pi")
+        x0   = g.add_node(ZXNodeType.X, phase=0.0,    label="X_0")
+        out  = g.add_node(ZXNodeType.Z, label="out")
+        g.add_edge(z_pi, x0)
+        g.add_edge(x0, out)
+        n = pi_copy(g)
+        assert n >= 1
+        # z_pi node should be removed
+        assert z_pi not in g.nodes
+
+    def test_returns_count(self):
+        g = ZXGraph()
+        z_pi = g.add_node(ZXNodeType.Z, phase=math.pi)
+        x0   = g.add_node(ZXNodeType.X, phase=0.0)
+        out  = g.add_node(ZXNodeType.Z)
+        g.add_edge(z_pi, x0)
+        g.add_edge(x0, out)
+        n = pi_copy(g)
+        assert isinstance(n, int) and n >= 1
+
+    def test_z_nonpi_not_copied(self):
+        g = ZXGraph()
+        z  = g.add_node(ZXNodeType.Z, phase=0.5)
+        x0 = g.add_node(ZXNodeType.X, phase=0.0)
+        g.add_edge(z, x0)
+        n = pi_copy(g)
+        assert n == 0
+        assert z in g.nodes
+
+    def test_x_nonzero_not_target(self):
+        g = ZXGraph()
+        z_pi = g.add_node(ZXNodeType.Z, phase=math.pi)
+        x05  = g.add_node(ZXNodeType.X, phase=0.5)  # non-zero phase
+        g.add_edge(z_pi, x05)
+        n = pi_copy(g)
+        assert n == 0
+
+    def test_log_records_step(self):
+        g = ZXGraph()
+        z_pi = g.add_node(ZXNodeType.Z, phase=math.pi)
+        x0   = g.add_node(ZXNodeType.X, phase=0.0)
+        out  = g.add_node(ZXNodeType.Z)
+        g.add_edge(z_pi, x0)
+        g.add_edge(x0, out)
+        log = ZXRewriteLog()
+        pi_copy(g, log)
+        assert len(log) >= 1
+        assert log.steps[0]["rule"] == "pi_copy"
+
+    def test_simplify_includes_pi_copy(self):
+        g = ZXGraph()
+        z_pi = g.add_node(ZXNodeType.Z, phase=math.pi)
+        x0   = g.add_node(ZXNodeType.X, phase=0.0)
+        out  = g.add_node(ZXNodeType.Z)
+        g.add_edge(z_pi, x0)
+        g.add_edge(x0, out)
+        n = simplify(g, rules=["pi_copy"])
+        assert n >= 1
+

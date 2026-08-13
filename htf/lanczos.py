@@ -30,6 +30,7 @@ def lanczos(
     A: np.ndarray,
     v0: np.ndarray,
     k: int,
+    reorthogonalize: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """k-step Lanczos iteration starting from unit vector v0.
 
@@ -39,9 +40,14 @@ def lanczos(
 
     Parameters
     ----------
-    A  : real symmetric (n × n) matrix.
-    v0 : starting vector of length n (normalised internally).
-    k  : number of Lanczos steps (capped at n).
+    A               : real symmetric (n × n) matrix.
+    v0              : starting vector of length n (normalised internally).
+    k               : number of Lanczos steps (capped at n).
+    reorthogonalize : if True (default), apply full Gram-Schmidt
+                      re-orthogonalization at every step to prevent
+                      accumulation of floating-point ghost eigenvalues.
+                      Costs O(k) extra matrix-vector products per step
+                      but makes V^T V ≈ I to machine precision for large k.
 
     Returns
     -------
@@ -66,6 +72,11 @@ def lanczos(
     k_actual = k
 
     for j in range(1, k):
+        # Full Gram-Schmidt re-orthogonalization against all previous vectors
+        if reorthogonalize:
+            r = r - V[:, :j] @ (V[:, :j].T @ r)
+            r = r - V[:, :j] @ (V[:, :j].T @ r)   # twice for numerical safety
+
         b = float(np.linalg.norm(r))
         if b < 1e-14:       # invariant subspace — stop early
             k_actual = j

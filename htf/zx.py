@@ -452,6 +452,112 @@ def hadamard_cancel(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
     return applied
 
 
+def color_change(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+    """Convert a spider flanked by H boxes to the opposite colour.
+
+    **Rule**: an X spider with all its neighbours being H boxes can be
+    converted to a Z spider by absorbing all H boxes (and vice versa).
+    Equivalently: Z(α) surrounded by H wires = X(α) without H wires.
+
+    This rule enables colour propagation through the graph and is required
+    for non-trivial simplification beyond the Clifford fragment.
+
+    Returns the number of colour changes applied.
+    """
+    applied = 0
+    changed = True
+    while changed:
+        changed = False
+        for nid, node in list(g.nodes.items()):
+            if node.kind not in (ZXNodeType.Z, ZXNodeType.X):
+                continue
+            nbs = g.neighbours(nid)
+            if not nbs:
+                continue
+            # Check if all neighbours are H boxes
+            if not all(g.nodes.get(nb, ZXNode(-1, ZXNodeType.INPUT)).kind == ZXNodeType.H
+                       for nb in nbs):
+                continue
+            # Flip colour, remove all H boxes, connect their outer legs
+            new_kind = ZXNodeType.X if node.kind == ZXNodeType.Z else ZXNodeType.Z
+            node.kind = new_kind
+            removed_h = []
+            for h_id in list(nbs):
+                outer = [x for x in g.neighbours(h_id) if x != nid]
+                g.remove_edge(nid, h_id)
+                for o in outer:
+                    g.remove_edge(h_id, o)
+                    g.add_edge(nid, o)
+                removed_h.append(h_id)
+                g.remove_node(h_id)
+            if log is not None:
+                log.record(
+                    "color_change", removed_h, [],
+                    f"flipped {ZXNodeType.Z.name if new_kind == ZXNodeType.X else ZXNodeType.X.name}"
+                    f"({nid}) → {new_kind.name}({nid}), removed {len(removed_h)} H boxes",
+                )
+            applied += 1
+            changed = True
+            break
+    return applied
+
+
+def pi_copy(g: ZXGraph, log: Optional[ZXRewriteLog] = None) -> int:
+    """Apply the π-copy rule: Z(π) copies through X(0) spiders.
+
+    **Rule**: if a Z(π) spider is connected to an X(0) spider, the Z(π)
+    can be pushed through: the X(0) spider remains, and a new Z(π) appears
+    on each of its other legs.
+
+    This rule is sound for the ZX-calculus and enables simplification of
+    NOT-propagation patterns.
+
+    Returns the number of π-copy steps applied.
+    """
+    applied = 0
+    changed = True
+    while changed:
+        changed = False
+        for z_id, z_node in list(g.nodes.items()):
+            if z_node.kind != ZXNodeType.Z:
+                continue
+            if abs(z_node.phase % (2 * math.pi) - math.pi) > 1e-10:
+                continue
+            for x_id in list(g.neighbours(z_id)):
+                if x_id not in g.nodes:
+                    continue
+                x_node = g.nodes[x_id]
+                if x_node.kind != ZXNodeType.X:
+                    continue
+                if abs(x_node.phase % (2 * math.pi)) > 1e-10:
+                    continue
+                # Push Z(π) through X(0): remove Z(π)–X edge,
+                # add new Z(π) nodes on all other legs of X
+                g.remove_edge(z_id, x_id)
+                g.remove_node(z_id)
+                other_nbs = [nb for nb in g.neighbours(x_id)]
+                new_z_ids = []
+                for nb in other_nbs:
+                    g.remove_edge(x_id, nb)
+                    new_z = g.add_node(ZXNodeType.Z, phase=math.pi,
+                                       label=f"Z(π)_copy_{nb}")
+                    g.add_edge(x_id, new_z)
+                    g.add_edge(new_z, nb)
+                    new_z_ids.append(new_z)
+                if log is not None:
+                    log.record(
+                        "pi_copy", [z_id], new_z_ids,
+                        f"Z(π)({z_id}) copied through X(0)({x_id}) → "
+                        f"{len(new_z_ids)} new Z(π) nodes",
+                    )
+                applied += 1
+                changed = True
+                break
+            if changed:
+                break
+    return applied
+
+
 def simplify(
     g: ZXGraph,
     rules: Optional[list[str]] = None,
@@ -463,9 +569,9 @@ def simplify(
     Parameters
     ----------
     g        : ZX graph (mutated in-place).
-    rules    : list of rule names to apply; defaults to all three.
+    rules    : list of rule names to apply; defaults to all five.
                Allowed: ``"spider_fusion"``, ``"identity_removal"``,
-               ``"hadamard_cancel"``.
+               ``"hadamard_cancel"``, ``"color_change"``, ``"pi_copy"``.
     log      : if provided, rewrites are recorded here.
     max_iter : safety cap on total iterations.
 
@@ -474,13 +580,18 @@ def simplify(
     Total number of rewrites applied.
     """
     if rules is None:
-        rules = ["spider_fusion", "identity_removal", "hadamard_cancel"]
+        rules = [
+            "spider_fusion", "identity_removal", "hadamard_cancel",
+            "color_change", "pi_copy",
+        ]
     rule_fns = {
         "spider_fusion":    spider_fusion,
         "identity_removal": identity_removal,
         "hadamard_cancel":  hadamard_cancel,
+        "color_change":     color_change,
+        "pi_copy":          pi_copy,
     }
-    total   = 0
+    total = 0
     for _ in range(max_iter):
         round_total = 0
         for name in rules:
@@ -563,6 +674,15 @@ def zx_to_matrix(g: ZXGraph) -> np.ndarray:
                 nb_node = g.nodes.get(nb)
                 if nb_node is None:
                     continue
+                # A-2: detect cross-wire connections (non-circuit topology)
+                if nb in qubit_of and qubit_of[nb] != q:
+                    raise NotImplementedError(
+                        f"zx_to_matrix: node {nb} is reachable from both qubit "
+                        f"{qubit_of[nb]} and qubit {q}. The ZX graph is not "
+                        "circuit-topology after simplification. Evaluate the "
+                        "unitary *before* simplifying, or use a ZX simulator "
+                        "that supports arbitrary graph topology."
+                    )
                 qubit_of[nb] = q
                 visited.add(nb)
                 if nb_node.kind in (ZXNodeType.OUTPUT, ):
@@ -574,5 +694,16 @@ def zx_to_matrix(g: ZXGraph) -> np.ndarray:
         if not next_front:
             break
         front = next_front
+
+    # A-2: all nodes must be reachable from inputs
+    unreachable = set(g.nodes.keys()) - visited
+    if unreachable:
+        raise NotImplementedError(
+            f"zx_to_matrix: {len(unreachable)} node(s) unreachable from inputs "
+            f"(IDs: {sorted(unreachable)[:5]}). The ZX graph has non-circuit "
+            "topology (cycles or disconnected components) after simplification. "
+            "Evaluate the unitary *before* simplifying, or use a ZX simulator "
+            "that supports arbitrary graph topology."
+        )
 
     return circuit_unitary(gates, n)
