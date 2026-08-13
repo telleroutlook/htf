@@ -374,6 +374,7 @@ def energy_gradient(
             import jax
             import jax.numpy as jnp
 
+            jax.config.update("jax_enable_x64", True)
             comps_jax = [jnp.asarray(c.real, dtype=jnp.float64) for c in components]
 
             def _energy(p_jax: "jax.Array") -> "jax.Array":
