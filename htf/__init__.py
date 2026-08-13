@@ -7,6 +7,8 @@ Phase 3 (v0.2.0): structure verification (proof-carrying); MERA tensor
 Phase 4 (v0.4.0): spectral gap bounds (Temple's inequality); χ-convergence
   study; entanglement entropy / difficulty map; OS-positivity machine check;
   expanded agent-drivable CLI (gap, variational, difficulty, os-check).
+Phase 5 (v0.5.0): certified reproducibility benchmark suite (§4-K); MCP
+  server wrapper (§7); open systems / CPTP maps (§4-H).
 
 Honest scope: HTF is a *certified model engine*, not a "world engine". It
 certifies numerical/truncation error, not modeling error; the continuum
@@ -35,6 +37,16 @@ from .gap import (
 )
 from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
 from .mera import MERA, MERALayer, random_mera
+from .open_systems import (
+    check_density_matrix,
+    check_kraus_completeness,
+    choi_matrix,
+    density_matrix_from_pure,
+    lindblad_step,
+    lindblad_superoperator,
+    partial_trace,
+    steady_state,
+)
 from .os_axioms import (
     check_reflection_symmetry,
     check_transfer_positivity,
@@ -65,7 +77,7 @@ from .variational import (
     xx_model_ham,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -93,6 +105,11 @@ __all__ = [
     "spectral_gap_exact", "h2_expectation",
     "temple_lower_bound", "first_excited_upper",
     "certified_gap_upper", "gap_report",
+    # open_systems (§4-H)
+    "density_matrix_from_pure", "partial_trace",
+    "check_density_matrix",
+    "choi_matrix", "check_kraus_completeness",
+    "lindblad_superoperator", "lindblad_step", "steady_state",
     # os_axioms (Phase 4 completion)
     "transfer_matrix", "reflection_operator",
     "check_transfer_positivity", "check_reflection_symmetry",

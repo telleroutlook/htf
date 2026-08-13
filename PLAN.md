@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.5.0）
+## 1. 当前状态（v0.6.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -34,7 +34,11 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `BenchmarkResult`；可重放 JSON 证书；`ising`/`ising_critical`/`xx` 三模型。`[工程]`
 - [x] MCP server 包装（`htf/mcp_server.py`，§7）：`MCPServer`（mcp 2.0）+ 5 工具；
       入口点 `htf-mcp`；可选依赖 `mcp[cli]`。`[工程]`
-- [x] 测试（`tests/`）：`python -m pytest -q` **637 个全绿**；总覆盖率 ≥ 98%。
+- [x] 开放系统 / CPTP（`htf/open_systems.py`，§4-H）：`density_matrix_from_pure`、
+      `partial_trace`、`check_density_matrix`（Hermitian+PSD+单位迹三重核验）、
+      `choi_matrix`、`check_kraus_completeness`、`lindblad_superoperator`、
+      `lindblad_step`（矩阵指数精确积分）、`steady_state`（约束线性系统求解）。`[工程]`
+- [x] 测试（`tests/`）：`python -m pytest -q` **688 个全绿**；总覆盖率 ≥ 98%。
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -110,7 +114,8 @@ K 认证复现基准套件 `[工程]` · L（远期/投机）导出到证明助�
 
 ## 7. TODO（文档/国际化）
 
-- [ ] 英文版设计白皮书（当前 `docs/project-canvas.zh.md` 为中文；英文白皮书待补）。`[工程]`
+- [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
+  - 8 节：定位、边界、架构、核心能力（全部子功能）、CLI/MCP、证据语法、依赖、诚实限制。
 - [ ] 节点图可视化前端原型（React Flow 类）。`[工程]`
 - [x] MCP server 包装，供 agent 直接连接。`[工程]`
   - `htf/mcp_server.py`：`MCPServer`（mcp 2.0 API）+ `@server.tool` 装饰器；
