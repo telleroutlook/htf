@@ -102,8 +102,9 @@ from .variational import (
     variational_bound,
     xx_model_ham,
 )
+from .viz import diagram_to_dict, diagram_to_html, save_diagram_html
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -134,6 +135,8 @@ __all__ = [
     # inverse (§4-J)
     "ParametricHam", "InverseDesignResult", "LearningResult",
     "inverse_design", "hamiltonian_learning", "energy_gradient",
+    # viz (§7)
+    "diagram_to_dict", "diagram_to_html", "save_diagram_html",
     # lanczos (§4-I)
     "lanczos", "lanczos_eigs", "lanczos_ground_state",
     "temple_lanczos", "two_sided_bounds", "TwoSidedBounds",
