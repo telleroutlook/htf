@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.10.0）
+## 1. 当前状态（v0.11.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -38,7 +38,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `partial_trace`、`check_density_matrix`（Hermitian+PSD+单位迹三重核验）、
       `choi_matrix`、`check_kraus_completeness`、`lindblad_superoperator`、
       `lindblad_step`（矩阵指数精确积分）、`steady_state`（约束线性系统求解）。`[工程]`
-- [x] 测试（`tests/`）：`python -m pytest -q` **863 个全绿**；总覆盖率 ≥ 98%。
+- [x] 测试（`tests/`）：`python -m pytest -q` **893 个全绿**；总覆盖率 ≥ 98%。
 - [x] ZX-演算图重写（`htf/zx.py`，§4-E）：`ZXNodeType`/`ZXNode`/`ZXGraph`（多重图）；
       `zx_from_circuit`（标准门→ZX节点）；`spider_fusion`（同色蜘蛛融合）；
       `identity_removal`（零相位双腿蜘蛛消除）；`hadamard_cancel`（相邻 H 盒对消）；
@@ -53,9 +53,11 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - [x] 可微逆向设计 / 哈密顿量学习（`htf/inverse.py`，§4-J）：`ParametricHam`（TFIM/XX
       参数族）、`inverse_design`（找到使 E_0 等于目标值的参数）、`hamiltonian_learning`
       （从观测能级恢复参数）、`energy_gradient`（中心有限差分梯度）。`[工程]`/`[研究]`
-- [x] 节点图可视化前端原型（`htf/viz.py`，§7）：`diagram_to_dict`（Cytoscape.js 兼容 JSON 图）、
-      `diagram_to_html`（自包含 HTML，CDN 嵌入 Cytoscape.js）、`save_diagram_html`（写入文件）；
-      支持 Box/Id/Then/Tensor 节点，深度优先左→右 / 上→下布局。`[工程]`
+- [x] U(1) 对称 / 块稀疏张量（`htf/symmetric.py`，§4-G）：`ChargedBasis`（扇区列表）、
+      `spin_half_basis`/`number_basis`；`check_u1_invariance`（稠密扫描报告违例/扇区）；
+      `project_to_u1`（清零不守恒元素）；`u1_blocks`（分解为 `BlockSparseTensor` 扇区块）；
+      `block_sparse_matmul`（块-wise A@B，保持 U(1)）。`[研究]`
+- [x] 当前版本：`v0.11.0`
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -111,7 +113,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 ## 4. 扩展能力（选做子集，非全做）
 
 ~~E 语义保持图重写（ZX）`[研究]`~~ ✅ · ~~F 量子线路互操作（QASM / PyZX / NISQ）`[工程]`/`[研究]`~~ ✅ ·
-G 对称/规范不变张量作为类型（`U(1)`/`SU(N)` block-sparse）`[研究]` · H 开放系统 / CPTP `[工程]` ✅ ·
+~~G 对称/规范不变张量作为类型（`U(1)`/`SU(N)` block-sparse）`[研究]`~~ ✅ · H 开放系统 / CPTP `[工程]` ✅ ·
 ~~I 严格双侧界（Lanczos/Anderson 型下界）`[研究]`~~ ✅ · ~~J 可微逆向设计 / 哈密顿量学习 `[工程]`/`[研究]`~~ ✅ ·
 K 认证复现基准套件 `[工程]` ✅ · L（远期/投机）导出到证明助手 Lean/Coq `[研究,投机]`。
 
