@@ -21,13 +21,15 @@ Honest scope [工程]
 """
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
 import scipy.linalg
 
-from .mps import MPS, _left_canonicalise, mps_inner
+from .mps import MPS, _left_canonicalise, mps_inner, random_mps
 
 
 @dataclass
@@ -280,6 +282,25 @@ class MPODMRGResult:
     energies: list[float] = field(default_factory=list)
     n_sweeps: int = 0
     converged: bool = False
+
+
+@dataclass
+class MultiStartDMRGResult:
+    """Result from a parallel multi-start DMRG calculation.
+
+    Attributes
+    ----------
+    best:         :class:`MPODMRGResult` with the lowest final energy.
+    all_energies: Final energy from each seed (length = n_seeds).
+    seeds_used:   Seeds passed to each run.
+    best_seed:    Which seed produced the lowest energy.
+    n_workers:    Number of parallel worker processes used.
+    """
+    best:         MPODMRGResult
+    all_energies: list
+    seeds_used:   list
+    best_seed:    int
+    n_workers:    int
 
 
 def _update_left_env(
@@ -635,4 +656,82 @@ def dmrg_sweep_mpo_2site(
         energies=energies,
         n_sweeps=sweep_idx + 1,
         converged=converged,
+    )
+
+
+# ── §9-H: parallel multi-start DMRG ─────────────────────────────────────────
+
+
+def _dmrg_worker(packed):
+    """Top-level worker for ProcessPoolExecutor — must stay at module level."""
+    tensors, seed, chi_init, chi, n_sweeps, tol = packed
+    mpo = MPO(list(tensors))
+    n, d = mpo.n_sites, mpo.phys_dim
+    mps = random_mps(n, d, chi=chi_init, seed=seed)
+    return dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=n_sweeps, chi=chi, tol=tol)
+
+
+def dmrg_multistart(
+    mpo: MPO,
+    n_seeds: int = 8,
+    chi: int = 16,
+    chi_init: int = 2,
+    n_sweeps: int = 10,
+    tol: float = 1e-8,
+    n_workers: Optional[int] = None,
+    seeds: Optional[list] = None,
+) -> MultiStartDMRGResult:
+    """Parallel multi-start two-site MPO-DMRG.
+
+    Runs :func:`dmrg_sweep_mpo_2site` from *n_seeds* independent random
+    initial states in parallel via ``ProcessPoolExecutor``, then returns the
+    run with the lowest final energy.
+
+    Because two-site DMRG can converge to different local minima depending
+    on the starting state, multiple seeds substantially improve the chance of
+    finding the true ground state — at zero extra hardware cost on any
+    multi-core CPU.
+
+    Parameters
+    ----------
+    mpo      : Hamiltonian as MPO.
+    n_seeds  : Number of independent random starting states to try.
+    chi      : Bond-dimension cap for each individual DMRG run.
+    chi_init : Initial random MPS bond dimension (small so the 2-site SVD
+               can freely grow bonds during optimisation).
+    n_sweeps : Maximum sweeps per run.
+    tol      : Energy convergence threshold per run.
+    n_workers: Worker processes.  ``None`` uses ``os.cpu_count()``.  Pass
+               ``1`` to run sequentially (no subprocess overhead).
+    seeds    : Explicit seed list; overrides ``n_seeds`` when provided.
+
+    Returns
+    -------
+    :class:`MultiStartDMRGResult`
+    """
+    if seeds is None:
+        seeds = list(range(n_seeds))
+
+    packed = [
+        (mpo.tensors, seed, chi_init, chi, n_sweeps, tol)
+        for seed in seeds
+    ]
+
+    effective_workers = n_workers if n_workers is not None else (os.cpu_count() or 1)
+
+    if effective_workers == 1 or len(seeds) == 1:
+        results = [_dmrg_worker(p) for p in packed]
+    else:
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            results = list(pool.map(_dmrg_worker, packed))
+
+    final_energies = [r.energies[-1] for r in results]
+    best_idx = int(np.argmin(final_energies))
+
+    return MultiStartDMRGResult(
+        best=results[best_idx],
+        all_energies=final_energies,
+        seeds_used=list(seeds),
+        best_seed=seeds[best_idx],
+        n_workers=effective_workers,
     )

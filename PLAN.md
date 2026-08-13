@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.19.0）
+## 1. 当前状态（v0.20.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -237,6 +237,15 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
   收敛至精确基态）。
 - 关闭 ITensor/TeNPy 在两-site 子空间扩展 DMRG 方向的差距。
 - [x] 已完成（1174 测试通过，0 失败）
+
+### §9-H 并行多初始态 DMRG `[工程]`
+- `htf/mpo.py` 扩展：`MultiStartDMRGResult` dataclass；`_dmrg_worker`
+  （模块顶级函数，可被 ProcessPoolExecutor 序列化）；`dmrg_multistart`
+  （`ProcessPoolExecutor` 并行运行 n_seeds 个独立 2-site DMRG，返回最低能量结果
+  及全部 seeds 的最终能量——无需 GPU，零新依赖，任意多核 CPU 均可加速）。
+- 关闭 Quimb/GPU 加速的推广门槛：数学家无需 GPU，多核并行即可显著降低陷入
+  局部极小的概率。
+- [x] 已完成（1184 测试通过，0 失败）
 
 ---
 

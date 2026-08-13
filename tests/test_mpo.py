@@ -5,6 +5,8 @@ import pytest
 from htf.mpo import (
     MPO,
     MPODMRGResult,
+    MultiStartDMRGResult,
+    dmrg_multistart,
     dmrg_sweep_mpo,
     dmrg_sweep_mpo_2site,
     identity_mpo,
@@ -467,3 +469,77 @@ class TestDmrgSweepMpo2Site:
         mps = random_mps(n, d, chi=2, seed=0)
         result = dmrg_sweep_mpo_2site(mps, mpo, n_sweeps=3)
         assert 1 <= result.n_sweeps <= 3
+
+
+# ── dmrg_multistart ────────────────────────────────────────────────────────
+
+
+class TestDmrgMultistart:
+    """Parallel multi-start DMRG tests.
+
+    All tests use n_workers=1 (sequential) to avoid subprocess overhead in
+    the test suite.  One test explicitly exercises the parallel path.
+    """
+
+    @pytest.fixture
+    def heisenberg_mpo(self):
+        n, d = 4, 2
+        bonds = heisenberg_bonds(n, J=1.0)
+        H = nn_hamiltonian(bonds, n, d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        mpo = nn_hamiltonian_mpo(bonds, n, d)
+        return mpo, E0
+
+    def test_result_type(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=2, chi=4, n_sweeps=5, n_workers=1)
+        assert isinstance(result, MultiStartDMRGResult)
+
+    def test_best_is_mpo_dmrg_result(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=2, chi=4, n_sweeps=5, n_workers=1)
+        assert isinstance(result.best, MPODMRGResult)
+
+    def test_best_is_minimum(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=3, chi=4, n_sweeps=5, n_workers=1)
+        assert result.best.energies[-1] == min(result.all_energies)
+
+    def test_all_energies_count(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=4, chi=4, n_sweeps=3, n_workers=1)
+        assert len(result.all_energies) == 4
+
+    def test_seeds_used_recorded(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        seeds = [10, 20, 30]
+        result = dmrg_multistart(mpo, chi=4, n_sweeps=3, n_workers=1, seeds=seeds)
+        assert result.seeds_used == seeds
+
+    def test_best_seed_in_seeds(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=3, chi=4, n_sweeps=5, n_workers=1)
+        assert result.best_seed in result.seeds_used
+
+    def test_heisenberg_converges_exact(self, heisenberg_mpo):
+        mpo, E0 = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=4, chi=8, n_sweeps=20, n_workers=1)
+        assert abs(result.best.energies[-1] - E0) < 1e-5
+
+    def test_variational_upper_bound(self, heisenberg_mpo):
+        mpo, E0 = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=2, chi=8, n_sweeps=10, n_workers=1)
+        assert result.best.energies[-1] >= E0 - 1e-8
+
+    def test_no_nan(self, heisenberg_mpo):
+        mpo, _ = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=2, chi=4, n_sweeps=5, n_workers=1)
+        assert not any(np.isnan(e) for e in result.all_energies)
+        for t in result.best.mps_final.tensors:
+            assert not np.any(np.isnan(t))
+
+    def test_parallel_path(self, heisenberg_mpo):
+        mpo, E0 = heisenberg_mpo
+        result = dmrg_multistart(mpo, n_seeds=2, chi=8, n_sweeps=10, n_workers=2)
+        assert isinstance(result, MultiStartDMRGResult)
+        assert result.best.energies[-1] >= E0 - 1e-8

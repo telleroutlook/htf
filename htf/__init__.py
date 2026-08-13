@@ -143,6 +143,7 @@ from .tebd import (
 from .mpo import (
     MPO,
     MPODMRGResult,
+    MultiStartDMRGResult,
     identity_mpo,
     mpo_apply_mps,
     mpo_expectation,
@@ -153,6 +154,7 @@ from .mpo import (
     random_mpo,
     dmrg_sweep_mpo,
     dmrg_sweep_mpo_2site,
+    dmrg_multistart,
 )
 from .thermal import (
     ThermalResult,
@@ -187,7 +189,7 @@ from .zx import (
     zx_to_matrix,
 )
 
-__version__ = "0.19.0"
+__version__ = "0.20.0"
 __all__ = [
     # topology
     "Wire", "Box", "Id", "Diagram",
@@ -270,10 +272,10 @@ __all__ = [
     "ThermalResult",
     "purified_initial_mps", "purification_bonds",
     "thermal_state", "thermal_expectation",
-    # mpo (§9-E / §9-F / §9-G)
-    "MPO", "MPODMRGResult",
+    # mpo (§9-E / §9-F / §9-G / §9-H)
+    "MPO", "MPODMRGResult", "MultiStartDMRGResult",
     "identity_mpo", "random_mpo", "mpo_from_matrix",
     "mpo_to_matrix", "nn_hamiltonian_mpo",
     "mpo_apply_mps", "mpo_expectation", "mpo_hermitian_conjugate",
-    "dmrg_sweep_mpo", "dmrg_sweep_mpo_2site",
+    "dmrg_sweep_mpo", "dmrg_sweep_mpo_2site", "dmrg_multistart",
 ]
