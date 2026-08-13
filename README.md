@@ -5,20 +5,26 @@
 [![CI](https://github.com/telleroutlook/htf/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/telleroutlook/htf/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.23.0-blue)](#)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
-[![Tests](https://img.shields.io/badge/tests-1212%20passing-brightgreen)](#)
-[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A598%25-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-1472%20passing-brightgreen)](#)
+[![Coverage](https://img.shields.io/badge/coverage-93%25-yellowgreen)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 HTF is a Python DSL in which physics models are built as **string diagrams**
 (applied category theory), compiled by a **functor** to concrete tensors, and
-executed by a **tensor engine** — with two features most tensor-network tooling lacks:
+executed by a **tensor engine**. Its current distinctive feature:
 
-- **Certification** — results carry machine-checkable rigorous error bounds
-  (bond-dimension truncation + finite precision), turning a variational estimate
-  into a *certified upper/lower bound*.
-- **Proof-carrying structure** — physical properties (reflection positivity,
-  gauge invariance, unitarity) are enforced by the type system and machine-checked,
-  so *a structurally illegal network does not compile*.
+- **Interval arithmetic** — contraction results carry flint-Arb interval bounds
+  (finite-precision rounding certified; bond-dimension truncation bias is a
+  separate, unresolved research gate).
+- **Runtime shape-checked DSL** — wiring errors (mismatched dimensions) raise
+  `TypeError` at composition time; physical-property checks (isometry, unitarity,
+  reflection symmetry) run as explicit validators, not compile-time constraints.
+
+> **Status (2026-08-14):** An independent audit identified P0 issues in the
+> spectral-bound and ZX modules — see [PLAN.md](PLAN.md) §0.5 for the remediation
+> roadmap. Certified spectral-gap claims are suspended pending the fix gate.
+> Rayleigh Certificate (schema v2) and adapter semantics fixes (HTF-01/02) are
+> complete; G0–G5 release gates are now closed.
 
 ---
 
@@ -43,11 +49,11 @@ limit (`χ → ∞`) is a wall the framework does not cross.
 
 | HTF **does** | HTF **does not** |
 |---|---|
-| Type-safe, composable, reproducible DSL | Claim immunity to UV divergence (bond dimension is a *regulator*, not a cure) |
-| Tensor engine with certified Arb interval bounds | Prove the continuum Yang–Mills mass gap (`[OUT]`) |
-| Certified *finite-lattice* spectral bounds | Assert that a MERA *is* an AdS geometry (that link is `[heuristic]`) |
-| Machine-checked structural properties | Predict physical reality (modeling error is outside scope) |
-| Honest "difficulty maps" showing how estimates degrade toward the continuum | Handle volume-law entanglement, real-time dynamics, or the sign problem |
+| Type-safe, composable DSL (dimension-checked at composition) | Claim immunity to UV divergence (bond dimension is a *regulator*, not a cure) |
+| Tensor engine with flint-Arb rounding-error bounds | Prove the continuum Yang–Mills mass gap (`[OUT]`) |
+| Variational finite-lattice energy estimates | Provide rigorous certified spectral-gap bounds (Temple/Lanczos P0 issue open) |
+| Runtime structural-property validators | Enforce physical constraints at the type level (wire semantics, not just dimensions) |
+| "Difficulty maps" showing how estimates degrade toward the continuum | Handle volume-law entanglement, real-time dynamics, or the sign problem |
 
 ---
 
@@ -63,7 +69,7 @@ pip install -e ".[accel]"     # + jax, opt_einsum (optional GPU / path accelerat
 pip install -e ".[mcp]"       # + MCP server for LLM agent integration
 ```
 
-**Requirements:** Python ≥ 3.10, NumPy ≥ 1.23.
+**Requirements:** Python ≥ 3.10, NumPy ≥ 1.23, SciPy (required at import time; listed under core in `pyproject.toml`).
 
 ---
 
@@ -98,8 +104,10 @@ htf version          # print version info as JSON
 htf hello            # run the example diagram, emit a provenance certificate
 ```
 
-The CLI speaks JSON throughout — every result includes a replayable provenance
-certificate so no PASS is ever trusted without a verifiable record.
+The CLI speaks JSON throughout — every result includes a provenance record.
+The `Certificate` dataclass is result metadata; for a fully replayable proof
+artifact use `RayleighCertificate` (schema v2) from `htf.rayleigh_cert` with
+`verify_rayleigh_certificate()` or the `htf-verify` CLI.
 
 ---
 
@@ -115,8 +123,8 @@ certificate so no PASS is ever trusted without a verifiable record.
 | · Finite temperature | `htf/thermal.py` | MPS purification, imaginary-time TEBD, parallel β-scan |
 | · Structure checks | `htf/structure.py` | isometry, unitarity, reflection positivity |
 | · Variational / MERA | `htf/mera.py`, `htf/variational.py` | binary MERA, L-BFGS-B optimisation, certified upper bound |
-| · Spectral gap | `htf/gap.py`, `htf/lanczos.py` | Temple bounds, Lanczos two-sided certified bounds |
-| · ZX-calculus | `htf/zx.py` | 8-rule Clifford simplification, proof-carrying rewrite log |
+| · Spectral gap | `htf/gap.py`, `htf/lanczos.py` | Variational energy estimates; Temple/Lanczos bounds (**P0-1/P0-2 open**: rigorous labels suspended) |
+| · ZX-calculus | `htf/zx.py` | 8-rule Clifford simplification; rewrite log (**P0-6 open**: 2-qubit gate semantics) |
 | · QASM interop | `htf/qasm.py` | import / export QASM 2.0, circuit unitary, HTF diagram bridge |
 | · Open systems | `htf/open_systems.py` | CPTP maps, Lindblad, steady state |
 | · Inverse design | `htf/inverse.py` | Hamiltonian learning, JAX autograd (optional) |
@@ -126,6 +134,8 @@ certificate so no PASS is ever trusted without a verifiable record.
 
 **Layer invariant:** topology has no numerics; certified mode raises until real
 interval bounds exist — it never fakes a certificate.
+**Known open P0 issues:** see [PLAN.md §0.5](PLAN.md) for Temple bounds, gap upper
+bound, ZX gate semantics, and Certificate schema.
 
 ---
 

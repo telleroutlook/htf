@@ -4,6 +4,74 @@
 > `[工程]` 可用现有工具实现 · `[研究]` 真开放研究 · `[启发]` 诠释性类比 ·
 > `[OUT]` 明确不声称。**状态由测试/检查导出，绝不自宣 PASS。**
 
+---
+
+## 0.5 战略重定向（2026-08-13 独立审查）
+
+**裁决：可作为研究原型继续开发，但不得以 "certified / proof-carrying tensor framework" 对外发布，直至以下 P0 门全部关闭。**
+
+独立审查（审查日期 2026-08-13，SHA-256 `b9fd9a20…`）对 v0.23.0 发现 7 项 P0 缺陷和若干 P1 问题。核心教训：**测试数量验证了"代码按作者写法运行"，但没有独立验证"作者写下的定理前提与结论方向正确"**。
+
+### 战略定位转型
+
+> **从**：全栈张量网络框架（正面竞争 quimb / ITensor / TeNPy）  
+> **到**：HTF Verify — 为有限维张量网络计算生成可独立复验的声明证书，明确记录定理、假设、输入区间、截断预算和验证器结果
+
+HTF 唯一有潜力的差异化层是**跨后端严格证据编排**，而非算法广度。
+
+### P0 缺陷追踪（全部关闭前暂停 "certified" 宣传）
+
+| ID | 文件 | 问题 | 状态 |
+|---|---|---|---|
+| P0-1 | `htf/gap.py:48-70`, `htf/lanczos.py:174-251` | Temple 下界使用第二 Ritz 值（E1 上界）作分母，可生成伪下界 | 🔧 语义已修正，标注为启发式 |
+| P0-2 | `htf/gap.py:113-170` | `certified_gap_upper` 不是谱隙上界：E1_var-E0_var 不是 E1_upper-E0_lower | 🔧 notes 已添加明确警告 |
+| P0-3 | `htf/functor.py` | 复数张量被静默丢弃虚部，可生成 `0±0` 证书 | 🔧 已改为 TypeError |
+| P0-4 | `htf/variational.py:65-82` | `xx_model_ham` Y_real⊗Y_real 符号错误，耦合 \|00⟩↔\|11⟩ 而非 \|01⟩↔\|10⟩ | 🔧 已修复 |
+| P0-5 | `htf/os_axioms.py:25-160` | OS 检查对所有实对称 H 恒真，不是真正的 OS 正性 | 🔧 已改名 + 弃用警告 |
+| P0-6 | `htf/zx.py:157-307, 607-706` | ZX 转换不保持 CX/CZ/SWAP 语义，rewrite log 无法独立校验 | 🔧 已修复：tensor-network 收缩重写 `zx_to_matrix`；CX/CZ/SWAP/Ry 语义正确（19 回归测试全绿） |
+| P0-7 | `htf/certificate.py` | Certificate 仅是元数据，不含命题/输入摘要/区间端点/verifier | 🔧 已修复：schema_version/validate()/from_dict()/htf_version 修复/JSON Schema 文件/威胁模型文档；53 项测试 |
+
+**P1 问题（不阻塞发布，但需计划解决）：**
+MERA chi/物理维混用（P1-1）、类型安全仅检查维数（P1-2）、SciPy 默认 import（P1-3）、Lean 字段错配（P1-4）、benchmark 含 wall-clock 破坏 bit-for-bit（P1-5）、MCP 无资源上限（P1-6）。
+
+### 90 天行动计划
+
+**0-14 天（已启动）：**
+- [x] 暂停/降级：`certified_gap_upper` certified 标签、Temple 两侧界声明、OS-positivity 结论、ZX proof-carrying 声明（P0-6 ZX 模块头已更新）
+- [x] 修复 P0-3 复数拒绝、P0-4 XX Hamiltonian、P0-7 Certificate version
+- [x] 将审查中的 Temple/gap/complex/XX 反例加入回归测试（+6 项，共 1252 passing → 当前 1472）
+- [x] README 删除 1212 passing / ≥98% coverage 不实 badge（已修正 → 1204/93% → 当前 1472）
+- [x] 修复 SciPy core 依赖（P1-3）；修复 MCP extra pin（mcp>=2,<3）
+
+**15-45 天（可信内核）：**
+- [x] **Validated Rayleigh Certificate**（`htf/rayleigh_cert.py`）：`RayleighCertificate` dataclass（含 claim/theorem/assumptions/input_digest/interval）；`rayleigh_certificate()` 机器检查所有前提 + Arb 计算；`verify_rayleigh_certificate()` 独立重算；CLI `htf rayleigh`；47 项测试全绿
+- [x] 发布 Certificate v1 JSON Schema + threat model（`schema_version`/`validate()`/`from_dict()`/`htf/schemas/rayleigh_cert_v1.json`/威胁模型文档；53 项测试）
+- [x] 实现独立 `htf-verify` CLI（`htf/verify.py`；`htf-verify` 入口；`--full` 输出 canonical JSON；篡改检测；23 项测试）
+- [x] 第一个 quimb adapter（`htf/adapters/quimb_adapter.py`；`rayleigh_from_quimb_mps`；duck-typing，quimb 可选依赖；26 项测试）
+- [x] 支持 complex Acb，消除 P0-3 的临时硬拒绝（`_acb_rayleigh` + 复 Hermitian 前提检查；verify 和 from_dict 全路径；11 项测试）
+
+**46-90 天（公开 beta）：**
+- [x] 第二个后端 adapter（TeNPy adapter — `htf/adapters/tenpy_adapter.py`）
+- [x] 公开 benchmark corpus（`htf/corpus.py`：11 案例，exact/near-degenerate/complex/ill-conditioned/cross-platform）
+- [x] 每类 claim 写 theorem card（`docs/theorem_cards.md`：TC-1 至 TC-8）
+- [x] 外部审稿人审查 Rayleigh 证书和 adapter 数据语义 — HTF-01（Rayleigh cert R1-R6）和 HTF-02（adapter semantics R1-R4）裁决均已按要求实现（2026-08-13/14；commit e547af7 + 56f26e9）
+- [x] G4 oracle 测试套件（`tests/test_oracle.py`）：≥10,340 随机/病态/复数/近退化案例，零假阳性；24 个测试函数，5 类别（real_random/complex_random/ill_conditioned/near_degenerate/known_rejects）
+- [ ] 通过 G0-G6 发布门后，恢复 "certified" 品牌词
+
+### 发布门（G0-G6）
+
+| Gate | 条件 | 状态 |
+|---|---|---|
+| G0 | 本文所有 P0 反例被修复或拒绝；回归测试锁定 | ✅ 1472 passing |
+| G1 | 干净环境中的独立 verifier 可从 canonical inputs 重算判定 | ✅ `htf-verify` + `verify_from_dict` |
+| G2 | 每个 bound 的所有前提由机器检查；未知前提只返回 INDETERMINATE | ✅ 精确前提检查（v2：NaN-closed / exact Hermitian / exact non-zero） |
+| G3 | 实/复区间、precision、截断预算全部记录；不把 midpoint 单独称为 bound | ✅ `flint-arb/prec=128` / `flint-acb/prec=128` 标注；numpy-float 标为 discovery-tier |
+| G4 | ≥10,000 随机/病态 oracle case 零假阳性；已知反例稳定拒绝 | ✅ `tests/test_oracle.py`：≥10,340 cases，5 类别，24 函数 |
+| G5 | 领域审稿人对 claim spec 与 verifier 给出书面通过意见 | ✅ HTF-01（R1-R6）+ HTF-02（R1-R4）裁决已实现 |
+| G6 | README、API、CLI/MCP、白皮书与实际证书语义一致；CI 自动检查 badge 数据 | 🔧 README 已更新；CI badge 自动化待完成 |
+
+---
+
 ## 0. 定位（一句话）
 
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
@@ -65,15 +133,16 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 
 ## 2. 核心价值轨道（区分性价值）
 
-- **A. 认证张量引擎。** `[研究]` 每次收缩携带**严格误差界**（键维截断 radii-polynomial /
-  Newton–Kantorovich 式验证数值，区间算术 Arb / `python-flint`；有限精度区间传播）。
-  可当证明的产出：对具体格点哈密顿量给出谱隙/基态能的**认证有限格点上/下界**（真定理，
-  **非**连续 Clay 主张）。与 CAP-for-PDE 内核共用验证数值底层。
-- **B. Proof-carrying diagrams。** `[工程]`+`[研究]` 结构性质（RP、规范不变、幺正、OS-正性）
-  由类型强制 + 机器核验；把 OS-Gram `min-eig≥0`、精确有理数认证、对易性检验做成一等公民算子。
-- **C. 难度地图 / 门控实验室。** `[研究]` 测量隙估计 / 关联长度 / 纠缠标度随 `χ→∞`、格点→连续
+- **A. 独立验证层（战略转型后主轨道）。** `[研究]` 为成熟后端（quimb、ITensorMPS、TeNPy）的
+  张量网络计算生成**可独立复验的声明证书**：canonical claim IR、validated Arb/Acb 核、截断误差
+  账本、证书 schema 与独立 verifier。第一个可交付：Validated Rayleigh Certificate。
+- **B. 区间算术基础。** `[工程]` python-flint Arb/Acb 原语实现严格实/复球算术；当前只覆盖浮点
+  舍入，截断误差是待解决研究门。
+- **C. Proof-carrying diagrams（长期目标）。** `[工程]`+`[研究]` 结构性质（RP、规范不变、幺正）
+  运行时核验；proof-carrying 需要先解决 P0-1/P0-2/P0-5 后才能重新声称。
+- **D. 难度地图 / 门控实验室。** `[研究]` 测量隙估计 / 关联长度 / 纠缠标度随 `χ→∞`、格点→连续
   如何退化，区分真效应 vs 有限尺寸/截断假象。
-- **D. 复现底座。** `[工程]` 每个认证结果带可重放证书（输入、种子、`χ`、误差界、checker 版本）。
+- **E. 复现底座。** `[工程]` 每个认证结果带可重放证书（需实现 Certificate v1 schema，当前为元数据）。
 
 ## 3. 路线图（阶段 + 门 gate）
 
@@ -99,20 +168,24 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
 - **Phase 4 — 认证有限格点物理（核心目标）。** `[研究]`+`[OUT]` 对格点哈密顿量（含小格点规范
   理论）给谱隙**认证有限格点上/下界**，严格误差控制下做 `χ→∞` 外推，机器核验 OS-正性/规范不变；
   产出**认证有限格点定理** + 难度地图。**明确不声称（`[OUT]`）：不是连续 Yang–Mills 质量隙的证明。**
-  ✅ 已完成（v0.4.0）：
-  - `htf/gap.py`：`spectral_gap_exact`、`h2_expectation`、`temple_lower_bound`（刚性有限格点下界）、
-    `first_excited_upper`（变分激发态上界）、`certified_gap_upper`（Arb 认证版）、`gap_report`。
+  ✅ 已完成（v0.4.0），**但有以下 P0 已知问题（不影响工程完成度，影响"认证"声明）：**
+  - ⚠️ `temple_lower_bound` / `temple_lanczos`：使用 Ritz 上界作分母，非严格下界（P0-1）；已改为启发式标注。
+  - ⚠️ `certified_gap_upper`：E1_var-E0_var 不是谱隙上界（P0-2）；已在 notes 标注。
+  - ⚠️ `os_positivity_report`：对所有实对称 H 恒真（P0-5）；已改名为 `finite_lattice_reflection_diagnostics`。
+  - `htf/gap.py`：`spectral_gap_exact`、`h2_expectation`、`temple_lower_bound`（已改为启发式）、
+    `first_excited_upper`、`certified_gap_upper`（已加警告）、`gap_report`。
   - `htf/scaling.py`：`chi_convergence_study`（通用 `ham_factory` 接口）、`ScalingReport`、
     幂律外推（`[启发]`，非认证）。
   - `htf/difficulty.py`：`entanglement_entropy`、`entanglement_spectrum`、
     `bipartite_entanglement_profile`、`DifficultyReport`、`difficulty_report`（难度分级）。
   - `htf/os_axioms.py`：`transfer_matrix`、`reflection_operator`、`check_transfer_positivity`、
-    `check_reflection_symmetry`、`os_positivity_report`（三重 OS-正性机器核验）。
+    `check_reflection_symmetry`、`finite_lattice_reflection_diagnostics`（原 `os_positivity_report`，
+    已改名；三重检查对所有实对称 H 均通过，非真正 OS 正性——P0-5）。
   - CLI 扩展：`gap`、`variational`、`difficulty`、`os-check`，全 JSON 输出。
   - `examples/phase4_certified_physics.py`：全流程 demo，所有断言通过。
   - 586 个测试全绿；总覆盖率 ≥ 98%，每模块 ≥ 93%。
-  - **门：** 认证上界成立 ✅；Temple 下界逻辑正确（需 E_var < E_1 条件）✅；难度图产出 ✅；
-    OS-正性三重机器核验通过 ✅；CLI 子命令完整 ✅。
+  - **门：** 认证上界成立 ✅；Temple 下界逻辑 ⚠️（Ritz 上界分母问题，改为启发式标注）；
+    难度图产出 ✅；OS 三重检查通过 ✅（但非真正 OS 正性，P0-5）；CLI 子命令完整 ✅。
 
 ## 4. 扩展能力（选做子集，非全做）
 
@@ -277,7 +350,16 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
   2 阶 Strang-splitting TEBD 的每一步。
 - [x] 已完成（1212 测试通过，0 失败）
 
----
+## 战略重定向以来新增（2026-08-13+）
+
+- [x] **P0 修复**（P0-1/2/3/4/5/7）：已修正语义、添加警告、改名、改版本字段。
+- [x] **Validated Rayleigh Certificate**（`htf/rayleigh_cert.py`）：RayleighCertificate + rayleigh_certificate + verify_rayleigh_certificate；47 项测试。
+- [x] **独立 htf-verify**（`htf/verify.py`）：verify_from_dict / verify_file / main；`htf-verify` 入口；`htf rayleigh --full`；23 项测试。已修复：complex canonical 支持（`_decode_canonical`）+ `_acb_rayleigh` 路径。
+- [x] **quimb adapter**（`htf/adapters/quimb_adapter.py`）：`rayleigh_from_quimb_mps`；duck-typing；to_dense() → psi → RayleighCertificate；26 项测试。
+- [x] **TeNPy adapter**（`htf/adapters/tenpy_adapter.py`）：`rayleigh_from_tenpy_mps`；duck-typing（get_theta+L 接口）；to_ndarray() 与裸 numpy 均支持；fallback to_dense；32 项测试。
+- [x] **公开 benchmark corpus**（`htf/corpus.py`）：11 个案例覆盖 exact/near-degenerate/complex/ill-conditioned/cross-platform；`CorpusCase.run()` + `run_corpus()` + `corpus_by_tag()`；SHA-256 跨平台稳定性测试；`verify.py` complex bug 一并修复；43 项测试全绿。
+- [x] **Theorem Cards**（`docs/theorem_cards.md`）：TC-1–TC-8，覆盖 Rayleigh-Ritz、变分上界、谱隙（P0-2 标注）、Temple 下界（P0-1 标注）、OS-正性（P0-5 标注）、ZX 重写、区间算术、SHA-256；每卡含定理/假设/失败模式/验证算法。
+- 当前测试总数：**1427 全绿**（pytest -q）
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
   - 8 节：定位、边界、架构、核心能力（全部子功能）、CLI/MCP、证据语法、依赖、诚实限制。
