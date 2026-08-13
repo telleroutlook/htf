@@ -29,12 +29,12 @@ E0 ≤ RQ ≤ E_{n-1}.
 
 *Reference:* Courant & Hilbert, *Methods of Mathematical Physics*, Vol. I, §VI.1.
 
-### The certificate schema (`rayleigh-cert/v1`)
+### The certificate schema (`rayleigh-cert/v2`)
 
 A `RayleighCertificate` is a dict with the following fields:
 
 ```
-schema_version : "rayleigh-cert/v1"
+schema_version : "rayleigh-cert/v2"
 claim          : "E0 ≤ {upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]"
 theorem        : "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, ..."
 assumptions    : list of strings (machine-checked preconditions)

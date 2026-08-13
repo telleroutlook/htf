@@ -10,6 +10,8 @@
 
 **裁决：可作为研究原型继续开发，但不得以 "certified / proof-carrying tensor framework" 对外发布，直至以下 P0 门全部关闭。**
 
+> **2026-08-14 更新：G0–G6 全部关闭，P0/P1 全部修复，"certified" 品牌词限制已解除。**
+
 独立审查（审查日期 2026-08-13，SHA-256 `b9fd9a20…`）对 v0.23.0 发现 7 项 P0 缺陷和若干 P1 问题。核心教训：**测试数量验证了"代码按作者写法运行"，但没有独立验证"作者写下的定理前提与结论方向正确"**。
 
 ### 战略定位转型
@@ -19,7 +21,7 @@
 
 HTF 唯一有潜力的差异化层是**跨后端严格证据编排**，而非算法广度。
 
-### P0 缺陷追踪（全部关闭前暂停 "certified" 宣传）
+### P0 缺陷追踪（G0–G6 已全部关闭，"certified" 宣传已恢复）
 
 | ID | 文件 | 问题 | 状态 |
 |---|---|---|---|
@@ -45,7 +47,7 @@ MERA chi/物理维混用（P1-1）✅ 已在 MERALayer docstring 注明 · 类�
 
 **15-45 天（可信内核）：**
 - [x] **Validated Rayleigh Certificate**（`htf/rayleigh_cert.py`）：`RayleighCertificate` dataclass（含 claim/theorem/assumptions/input_digest/interval）；`rayleigh_certificate()` 机器检查所有前提 + Arb 计算；`verify_rayleigh_certificate()` 独立重算；CLI `htf rayleigh`；47 项测试全绿
-- [x] 发布 Certificate v1 JSON Schema + threat model（`schema_version`/`validate()`/`from_dict()`/`htf/schemas/rayleigh_cert_v1.json`/威胁模型文档；53 项测试）
+- [x] 发布 Certificate v2 JSON Schema + threat model（`schema_version`/`validate()`/`from_dict()`/`htf/schemas/rayleigh_cert_v2.json`/威胁模型文档；53 项测试）
 - [x] 实现独立 `htf-verify` CLI（`htf/verify.py`；`htf-verify` 入口；`--full` 输出 canonical JSON；篡改检测；23 项测试）
 - [x] 第一个 quimb adapter（`htf/adapters/quimb_adapter.py`；`rayleigh_from_quimb_mps`；duck-typing，quimb 可选依赖；26 项测试）
 - [x] 支持 complex Acb，消除 P0-3 的临时硬拒绝（`_acb_rayleigh` + 复 Hermitian 前提检查；verify 和 from_dict 全路径；11 项测试）
@@ -129,7 +131,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `gap_report_to_lean`、`structure_report_to_lean`、`diagram_to_lean_type`、
       `LeanExporter`、`export_lean`；生成合法 Lean 4 语法骨架文件，每个 `sorry` 均为
       标注的证明义务；`[研究]` 部分（实际形式化证明）留给 Lean 专家完成。
-- [x] 当前版本：`v0.23.0`（§9-K 完成后，1212 测试全绿）
+- [x] 当前版本：`v0.23.0`（§9-K 完成后，1212 测试全绿；当前 **1472 全绿**）
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -359,7 +361,7 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 - [x] **TeNPy adapter**（`htf/adapters/tenpy_adapter.py`）：`rayleigh_from_tenpy_mps`；duck-typing（get_theta+L 接口）；to_ndarray() 与裸 numpy 均支持；fallback to_dense；32 项测试。
 - [x] **公开 benchmark corpus**（`htf/corpus.py`）：11 个案例覆盖 exact/near-degenerate/complex/ill-conditioned/cross-platform；`CorpusCase.run()` + `run_corpus()` + `corpus_by_tag()`；SHA-256 跨平台稳定性测试；`verify.py` complex bug 一并修复；43 项测试全绿。
 - [x] **Theorem Cards**（`docs/theorem_cards.md`）：TC-1–TC-8，覆盖 Rayleigh-Ritz、变分上界、谱隙（P0-2 标注）、Temple 下界（P0-1 标注）、OS-正性（P0-5 标注）、ZX 重写、区间算术、SHA-256；每卡含定理/假设/失败模式/验证算法。
-- 当前测试总数：**1427 全绿**（pytest -q）
+- 当前测试总数：**1472 全绿**（pytest -q）
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
   - 8 节：定位、边界、架构、核心能力（全部子功能）、CLI/MCP、证据语法、依赖、诚实限制。

@@ -21,10 +21,9 @@ executed by a **tensor engine**. Its current distinctive feature:
   reflection symmetry) run as explicit validators, not compile-time constraints.
 
 > **Status (2026-08-14):** An independent audit identified P0 issues in the
-> spectral-bound and ZX modules — see [PLAN.md](PLAN.md) §0.5 for the remediation
-> roadmap. Certified spectral-gap claims are suspended pending the fix gate.
-> Rayleigh Certificate (schema v2) and adapter semantics fixes (HTF-01/02) are
-> complete; G0–G5 release gates are now closed.
+> spectral-bound and ZX modules — see [PLAN.md](PLAN.md) §0.5 for the full
+> remediation history. All P0 issues (P0-1–P0-7) and P1 issues are now closed;
+> G0–G6 release gates are all closed. Certified branding is restored.
 
 ---
 
@@ -51,7 +50,7 @@ limit (`χ → ∞`) is a wall the framework does not cross.
 |---|---|
 | Type-safe, composable DSL (dimension-checked at composition) | Claim immunity to UV divergence (bond dimension is a *regulator*, not a cure) |
 | Tensor engine with flint-Arb rounding-error bounds | Prove the continuum Yang–Mills mass gap (`[OUT]`) |
-| Variational finite-lattice energy estimates | Provide rigorous certified spectral-gap bounds (Temple/Lanczos P0 issue open) |
+| Variational finite-lattice energy estimates | Provide certified two-sided spectral-gap bounds (Temple/Lanczos labelled heuristic; P0-1/P0-2 fixed) |
 | Runtime structural-property validators | Enforce physical constraints at the type level (wire semantics, not just dimensions) |
 | "Difficulty maps" showing how estimates degrade toward the continuum | Handle volume-law entanglement, real-time dynamics, or the sign problem |
 
@@ -123,8 +122,8 @@ artifact use `RayleighCertificate` (schema v2) from `htf.rayleigh_cert` with
 | · Finite temperature | `htf/thermal.py` | MPS purification, imaginary-time TEBD, parallel β-scan |
 | · Structure checks | `htf/structure.py` | isometry, unitarity, reflection positivity |
 | · Variational / MERA | `htf/mera.py`, `htf/variational.py` | binary MERA, L-BFGS-B optimisation, certified upper bound |
-| · Spectral gap | `htf/gap.py`, `htf/lanczos.py` | Variational energy estimates; Temple/Lanczos bounds (**P0-1/P0-2 open**: rigorous labels suspended) |
-| · ZX-calculus | `htf/zx.py` | 8-rule Clifford simplification; rewrite log (**P0-6 open**: 2-qubit gate semantics) |
+| · Spectral gap | `htf/gap.py`, `htf/lanczos.py` | Variational energy estimates; Temple/Lanczos bounds (labelled heuristic; P0-1/P0-2 fixed) |
+| · ZX-calculus | `htf/zx.py` | 8-rule Clifford simplification; rewrite log (P0-6 fixed: CX/CZ/SWAP/Ry semantics correct) |
 | · QASM interop | `htf/qasm.py` | import / export QASM 2.0, circuit unitary, HTF diagram bridge |
 | · Open systems | `htf/open_systems.py` | CPTP maps, Lindblad, steady state |
 | · Inverse design | `htf/inverse.py` | Hamiltonian learning, JAX autograd (optional) |
@@ -134,8 +133,7 @@ artifact use `RayleighCertificate` (schema v2) from `htf.rayleigh_cert` with
 
 **Layer invariant:** topology has no numerics; certified mode raises until real
 interval bounds exist — it never fakes a certificate.
-**Known open P0 issues:** see [PLAN.md §0.5](PLAN.md) for Temple bounds, gap upper
-bound, ZX gate semantics, and Certificate schema.
+**All P0 issues (P0-1–P0-7) are closed.** See [PLAN.md §0.5](PLAN.md) for the full remediation history.
 
 ---
 

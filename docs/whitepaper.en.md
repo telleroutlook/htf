@@ -187,7 +187,8 @@ from htf.benchmark import run_benchmark
 
 report = run_benchmark(n_sites=4, chi=2, n_iter=50, seed=0)
 print(report.summary())
-report.to_json()   # replayable JSON certificate
+report.to_json()              # full JSON including wall-clock elapsed_s
+report.to_reproducible_json() # bit-for-bit reproducible (excludes elapsed_s)
 ```
 
 Every `BenchmarkReport` records `htf_version`, `seed`, `n_iter`, and all certified
@@ -279,7 +280,10 @@ model-dependent and not guaranteed `[研究]`.
 ### 4.15 Lean 4 Proof-Skeleton Export (§4-L) `[研究]`
 
 ```python
-from htf.lean_export import LeanExporter, certificate_to_lean, gap_report_to_lean
+from htf.lean_export import (
+    LeanExporter, certificate_to_lean, gap_report_to_lean,
+    rayleigh_certificate_to_lean,  # for RayleighCertificate (schema v2)
+)
 
 exp = LeanExporter()
 exp.add_certificate(cert, "energy_bound")
@@ -395,6 +399,10 @@ Or add to an MCP client config:
 Available tools: `htf_version`, `htf_variational`, `htf_gap`, `htf_os_check`,
 `htf_benchmark`, `htf_lanczos`, `htf_qasm_simulate`, `htf_zx_simplify`, `htf_inverse`.
 
+Resource limits enforced by the server: `n_sites ≤ 16`, `chi ≤ 16`,
+`chi^n_sites ≤ 65536`, Lanczos `k ≤ 200`, `n_qubits ≤ 12`.
+Requests exceeding these limits return a `ValueError` immediately.
+
 ---
 
 ## 6. Evidence Grammar
@@ -420,7 +428,7 @@ without a replayable certificate.
 | `numpy>=1.23` | Core array operations | Yes |
 | `scipy` | Matrix expm, SVD (open systems, TEBD, DMRG) | Yes |
 | `python-flint>=0.5` | Arb interval arithmetic (certified mode) | Optional (`pip install htf[certified]`) |
-| `mcp>=1.0` | MCP server transport | Optional (`pip install htf[mcp]`) |
+| `mcp>=2,<3` | MCP server transport | Optional (`pip install htf[mcp]`) |
 | `opt_einsum` | Optimised contraction-path selection (float mode) | Optional (auto-detected) |
 | `jax` | Exact autograd for `energy_gradient` in inverse design | Optional (auto-detected; falls back to finite-difference) |
 | `concurrent.futures` | ProcessPoolExecutor / ThreadPoolExecutor parallelism (DMRG, TEBD, β-scan) | Stdlib — zero new dependencies |

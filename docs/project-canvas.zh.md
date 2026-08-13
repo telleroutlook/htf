@@ -119,7 +119,7 @@ CAP-for-PDE 内核**共用同一套验证数值底层**。
 - **J. 可微逆向设计 / 哈密顿量学习。** `[工程]` / `[研究]` JAX autodiff → 逆问题：给定目标可观测量优化
   耦合。
 - **K. 认证复现基准套件。** `[工程]` 内置已发表结果的认证复现作为能力自证。
-- **L. 导出到证明助手（远期 / 雄心）。** `[研究，投机]` 结构性证书导出 Lean / Coq；目前是设想，非计划。
+- **L. 导出到证明助手。** `[研究]` 结构性证书导出 Lean / Coq；**已实现**（`htf/lean_export.py`：`certificate_to_lean`、`rayleigh_certificate_to_lean`、`RayleighInterval`、`LeanExporter`；每个 `sorry` 为标注的证明义务，实际形式化留给 Lean 专家）。
 
 ## 六、价值主张与受众
 

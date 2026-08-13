@@ -216,7 +216,7 @@ cert = rayleigh_from_tenpy_mps(MockTeNPyMPS(), H)
 assert cert.upper <= 1e-9   # passes in test suite
 ```
 
-Both pass the HTF test suite (1427 tests green, including 26 quimb adapter tests and
+Both pass the HTF test suite (1472 tests green, including 26 quimb adapter tests and
 32 TeNPy adapter tests).
 
 ---

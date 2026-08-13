@@ -14,8 +14,8 @@ A reviewer needs **nothing else from this repo** to evaluate the problem.
 
 | # | File | Topic | Status |
 |---|---|---|---|
-| HTF-01 | `HTF-01-rayleigh-cert-audit.md` | Rayleigh certificate code+math correctness | OPEN |
-| HTF-02 | `HTF-02-adapter-semantics.md` | quimb/TeNPy adapter data semantics | OPEN |
+| HTF-01 | `HTF-01-rayleigh-cert-audit.md` | Rayleigh certificate code+math correctness | DONE (commit 56f26e9) |
+| HTF-02 | `HTF-02-adapter-semantics.md` | quimb/TeNPy adapter data semantics | DONE (commit e547af7) |
 
 ## What a returned review should contain
 
