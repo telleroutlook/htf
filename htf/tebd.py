@@ -26,53 +26,91 @@ from .mps import MPS, _left_canonicalise, mps_apply_gate, mps_inner, mps_normali
 
 # ── Hamiltonian helpers ────────────────────────────────────────────────────
 
-def nn_hamiltonian(h_terms: list[np.ndarray], n: int, d: int = 2) -> np.ndarray:
+def nn_hamiltonian(
+    h_terms: list[np.ndarray],
+    n: int,
+    d: int = 2,
+    periodic: bool = False,
+) -> np.ndarray:
     """Build full d^n × d^n Hamiltonian from nearest-neighbour bond matrices.
 
     Parameters
     ----------
-    h_terms: list of (d², d²) bond Hamiltonians for bonds 0-1, 1-2, …
-    n:       number of sites.
-    d:       physical dimension per site.
+    h_terms:  list of (d², d²) bond Hamiltonians for bonds 0-1, 1-2, …
+              When ``periodic=True`` the list must have length ``n`` — the
+              last entry is the wrap-around bond (n-1) → 0.
+    n:        number of sites.
+    d:        physical dimension per site.
+    periodic: add a periodic wrap-around coupling (site n-1 ↔ site 0)
+              using ``h_terms[-1]``.
 
     Returns
     -------
     Full Hamiltonian matrix of shape (d^n, d^n).
     """
-    H = np.zeros((d**n, d**n), dtype=complex if any(np.iscomplexobj(h) for h in h_terms) else float)
-    for bond, h in enumerate(h_terms):
-        left_id  = np.eye(d**bond)
-        right_id = np.eye(d**(n - bond - 2))
+    dtype = complex if any(np.iscomplexobj(h) for h in h_terms) else float
+    H = np.zeros((d**n, d**n), dtype=dtype)
+
+    obc_terms = h_terms[:-1] if periodic else h_terms
+    for bond, h in enumerate(obc_terms):
+        left_id  = np.eye(d**bond, dtype=dtype)
+        right_id = np.eye(d**(n - bond - 2), dtype=dtype)
         H += np.kron(np.kron(left_id, h), right_id)
+
+    if periodic:
+        # Wrap-around bond acts on (site n-1, site 0).
+        # h_pbc convention: h_pbc[sn1'*d+s0', sn1*d+s0]
+        # In big-endian state vectors site 0 is the most-significant index.
+        # H_pbc[s0',mid',sn1', s0,mid,sn1]
+        #   = h4_T[s0',s0, sn1',sn1] * I_mid[mid',mid]
+        h_pbc = np.asarray(h_terms[-1], dtype=dtype)
+        h4    = h_pbc.reshape(d, d, d, d)       # [sn1', s0', sn1, s0]
+        h4_T  = h4.transpose(1, 3, 0, 2)        # [s0', s0, sn1', sn1]
+        I_mid = np.eye(d**(n - 2), dtype=dtype)
+        H += np.einsum('abcd,ef->aecbfd', h4_T, I_mid, optimize=True).reshape(d**n, d**n)
+
     return H
 
 
-def tfim_bonds(n: int, J: float = 1.0, h: float = 0.5) -> list[np.ndarray]:
-    """Build nearest-neighbour bond Hamiltonians for the transverse-field Ising model.
+def tfim_bonds(
+    n: int,
+    J: float = 1.0,
+    h: float = 0.5,
+    periodic: bool = False,
+) -> list[np.ndarray]:
+    """Bond Hamiltonians for the transverse-field Ising model.
 
     H = -J Σ Z_i Z_{i+1} - h Σ X_i
 
-    The transverse-field terms are distributed across bonds with correct
-    boundary weights so that ``nn_hamiltonian(tfim_bonds(n, J, h), n)``
-    reproduces the full TFIM Hamiltonian.
-
-    Boundary sites appear in only one bond, so they receive the full h weight
-    from that bond; interior sites appear in two bonds and each bond contributes h/2.
+    Each site-i term (-h X_i) is split evenly across the bonds that touch it.
+    With ``periodic=False`` boundary sites (touching one bond) receive full
+    weight ``h``; interior sites (touching two bonds) receive ``h/2`` each.
+    With ``periodic=True`` all sites touch exactly two bonds, so every bond
+    contributes ``h/2`` per endpoint; an extra wrap-around bond is appended.
     """
     Z = np.array([[1, 0], [0, -1]], dtype=float)
     X = np.array([[0, 1], [1, 0]], dtype=float)
     I = np.eye(2, dtype=float)
     bonds = []
     for i in range(n - 1):
-        x_left  = h if i == 0     else h / 2
-        x_right = h if i == n - 2 else h / 2
-        b = -J * np.kron(Z, Z) - x_left * np.kron(X, I) - x_right * np.kron(I, X)
-        bonds.append(b)
+        if periodic:
+            x_left = x_right = h / 2
+        else:
+            x_left  = h if i == 0     else h / 2
+            x_right = h if i == n - 2 else h / 2
+        bonds.append(-J * np.kron(Z, Z) - x_left * np.kron(X, I) - x_right * np.kron(I, X))
+    if periodic:
+        bonds.append(-J * np.kron(Z, Z) - h / 2 * np.kron(X, I) - h / 2 * np.kron(I, X))
     return bonds
 
 
-def xx_bonds(n: int, J: float = 1.0, h: float = 0.5) -> list[np.ndarray]:
-    """Build bond Hamiltonians for the XX + transverse-field model.
+def xx_bonds(
+    n: int,
+    J: float = 1.0,
+    h: float = 0.5,
+    periodic: bool = False,
+) -> list[np.ndarray]:
+    """Bond Hamiltonians for the XX + transverse-field model.
 
     H = -J Σ (X_i X_{i+1} + Y_i Y_{i+1}) - h Σ Z_i
     """
@@ -82,12 +120,84 @@ def xx_bonds(n: int, J: float = 1.0, h: float = 0.5) -> list[np.ndarray]:
     I = np.eye(2, dtype=float)
     bonds = []
     for i in range(n - 1):
-        z_left  = h if i == 0     else h / 2
-        z_right = h if i == n - 2 else h / 2
+        if periodic:
+            z_left = z_right = h / 2
+        else:
+            z_left  = h if i == 0     else h / 2
+            z_right = h if i == n - 2 else h / 2
         b = (-J * (np.kron(X, X) + np.kron(Y, Y))
              - z_left  * np.kron(Z, I)
              - z_right * np.kron(I, Z))
         bonds.append(b)
+    if periodic:
+        b = (-J * (np.kron(X, X) + np.kron(Y, Y))
+             - h / 2 * np.kron(Z, I)
+             - h / 2 * np.kron(I, Z))
+        bonds.append(b)
+    return bonds
+
+
+def heisenberg_bonds(
+    n: int,
+    J: float = 1.0,
+    h: float = 0.0,
+    periodic: bool = False,
+) -> list[np.ndarray]:
+    """Bond Hamiltonians for the Heisenberg XXX model.
+
+    H = -J Σ (X_i X_{i+1} + Y_i Y_{i+1} + Z_i Z_{i+1}) - h Σ Z_i
+
+    The on-site longitudinal field (-h Z_i) is distributed identically to
+    ``tfim_bonds``/``xx_bonds``: boundary sites get full weight ``h``,
+    interior sites get ``h/2`` per touching bond; PBC makes all sites
+    interior (``h/2`` each, plus a wrap-around bond).
+    """
+    X = np.array([[0, 1], [1, 0]], dtype=float)
+    Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
+    Z = np.array([[1, 0], [0, -1]], dtype=float)
+    I = np.eye(2, dtype=float)
+    H_exch = -J * (np.kron(X, X) + np.kron(Y, Y) + np.kron(Z, Z))
+    bonds = []
+    for i in range(n - 1):
+        if periodic:
+            z_left = z_right = h / 2
+        else:
+            z_left  = h if i == 0     else h / 2
+            z_right = h if i == n - 2 else h / 2
+        bonds.append(H_exch - z_left * np.kron(Z, I) - z_right * np.kron(I, Z))
+    if periodic:
+        bonds.append(H_exch - h / 2 * np.kron(Z, I) - h / 2 * np.kron(I, Z))
+    return bonds
+
+
+def bose_hubbard_bonds(
+    n: int,
+    t: float = 1.0,
+    U: float = 4.0,
+    mu: float = 2.0,
+    max_occ: int = 3,
+) -> list[np.ndarray]:
+    """Bond Hamiltonians for the 1-D Bose-Hubbard model (open boundaries).
+
+    H = -t Σ (a†_i a_{i+1} + h.c.) + U/2 Σ n_i(n_i-1) - μ Σ n_i
+
+    Physical dimension: ``d = max_occ + 1`` (Fock states 0 … max_occ).
+    On-site terms are distributed across bonds identically to ``tfim_bonds``.
+    """
+    d = max_occ + 1
+    a   = np.diag([np.sqrt(k) for k in range(1, d)], 1).astype(float)
+    adag = a.T
+    num  = np.diag(np.arange(d, dtype=float))
+    I    = np.eye(d, dtype=float)
+
+    onsite = U / 2 * num @ (num - I) - mu * num
+    hop    = -t * (np.kron(adag, a) + np.kron(a, adag))
+
+    bonds = []
+    for i in range(n - 1):
+        w_left  = 1.0 if i == 0     else 0.5
+        w_right = 1.0 if i == n - 2 else 0.5
+        bonds.append(hop + w_left * np.kron(onsite, I) + w_right * np.kron(I, onsite))
     return bonds
 
 

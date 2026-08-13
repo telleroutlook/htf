@@ -9,7 +9,7 @@
 HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误差，不认证建模误差；连续极限
 `χ→∞` 是本框架**跨不过的墙**（超出工具能力范围）。价值在**有限/局部层的认证**与**工具**。
 
-## 1. 当前状态（v0.12.0）
+## 1. 当前状态（v0.13.0）
 
 - [x] Layer 1 拓扑（`htf/topology.py`）：`Wire`/`Box`/`Diagram`，`>>` 与 `@`，构造期类型检查
       （维度不匹配即 `TypeError`——违背结构的图无法编译）。`[工程]`
@@ -172,12 +172,28 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 - [x] 已完成（1078 测试通过，含 2 项 JAX 条件测试）
 
 ### §8-D 认证版本更新
-- 版本更新至 `v0.13.0`（OPTIMIZATION.md 所有项完成后）。
-- [ ] 已完成
+- 版本更新至 `v0.13.0`（§8-A/B/C 完成后）。
+- [x] 已完成
 
 ---
 
-## 7. TODO（文档/国际化）
+## 9. 下一步扩展（v0.14.0）
+
+### §9-A 更多物理模型 + 周期边界条件 `[工程]`
+- `htf/tebd.py` 新增：`heisenberg_bonds(n, J, h, periodic)`（Heisenberg XXX + 横场）、
+  `bose_hubbard_bonds(n, t, U, mu, max_occ)`（Bose-Hubbard，d > 2）。
+- `nn_hamiltonian` 新增 `periodic=True` 参数（einsum 向量化 wrap-around 键）。
+- `tfim_bonds`/`xx_bonds`/`heisenberg_bonds` 均支持 `periodic=True`。
+- 关闭 TeNPy/ITensor 在物理模型多样性方向的差距。
+- [x] 已完成（commit 待写，1100 测试通过）
+
+### §9-B 两-site DMRG `[工程]`
+- `htf/tebd.py`：`dmrg_sweep_2site`（两-site 变分扫描，子空间扩展，比单-site DMRG
+  更鲁棒、不易陷入局部极小）。
+- 关闭 ITensor 在 DMRG 鲁棒性方向的差距。
+- [ ] 待实现
+
+---
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
   - 8 节：定位、边界、架构、核心能力（全部子功能）、CLI/MCP、证据语法、依赖、诚实限制。

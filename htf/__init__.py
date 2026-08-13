@@ -129,7 +129,9 @@ from .mps import (
 from .tebd import (
     DMRGResult,
     TEBDResult,
+    bose_hubbard_bonds,
     dmrg_sweep,
+    heisenberg_bonds,
     nn_hamiltonian,
     tebd_evolve,
     tebd_step,
@@ -235,8 +237,9 @@ __all__ = [
     "MPS", "mps_from_state", "mps_to_state", "mps_inner", "mps_norm",
     "mps_normalise", "mps_add", "mps_truncate", "mps_apply_gate",
     "mps_expectation", "random_mps",
-    # tebd (§8-A)
+    # tebd (§8-A / §9-A)
     "TEBDResult", "DMRGResult",
     "tebd_step", "tebd_evolve", "dmrg_sweep",
     "nn_hamiltonian", "tfim_bonds", "xx_bonds",
+    "heisenberg_bonds", "bose_hubbard_bonds",
 ]

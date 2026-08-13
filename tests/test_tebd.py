@@ -18,7 +18,9 @@ from htf.tebd import (
     TEBDResult,
     _bond_gate,
     _nn_energy,
+    bose_hubbard_bonds,
     dmrg_sweep,
+    heisenberg_bonds,
     nn_hamiltonian,
     tebd_evolve,
     tebd_step,
@@ -274,3 +276,162 @@ class TestNnEnergy:
         E1 = _nn_energy(mps,   bonds)
         E2 = _nn_energy(mps_n, bonds)
         assert abs(E1 - E2) < 1e-10
+
+
+# ── Heisenberg bonds ──────────────────────────────────────────────────────
+
+
+class TestHeisenbergBonds:
+
+    def test_number_of_obc_bonds(self):
+        for n in [2, 4, 6]:
+            bonds = heisenberg_bonds(n)
+            assert len(bonds) == n - 1
+
+    def test_number_of_pbc_bonds(self):
+        for n in [3, 4, 5]:
+            bonds = heisenberg_bonds(n, periodic=True)
+            assert len(bonds) == n
+
+    def test_bond_shape(self):
+        for b in heisenberg_bonds(5):
+            assert b.shape == (4, 4)
+
+    def test_hermitian(self):
+        for b in heisenberg_bonds(4, J=1.2, h=0.3):
+            np.testing.assert_allclose(b, b.conj().T, atol=1e-12)
+
+    def test_full_ham_hermitian(self):
+        n = 4
+        H = nn_hamiltonian(heisenberg_bonds(n, J=1.0, h=0.0), n)
+        np.testing.assert_allclose(H, H.conj().T, atol=1e-12)
+
+    def test_ground_energy_below_zero(self):
+        # For antiferromagnetic J>0, Heisenberg ground energy is negative
+        n = 4
+        bonds = heisenberg_bonds(n, J=1.0, h=0.0)
+        H = nn_hamiltonian(bonds, n)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        assert E0 < 0.0
+
+    def test_pbc_ham_hermitian(self):
+        n = 4
+        bonds = heisenberg_bonds(n, J=1.0, h=0.0, periodic=True)
+        H = nn_hamiltonian(bonds, n, periodic=True)
+        np.testing.assert_allclose(H, H.conj().T, atol=1e-12)
+
+    def test_pbc_lower_than_obc(self):
+        # PBC adds frustration / more bonds, so ground energy ≤ OBC
+        n = 4
+        bonds_obc = heisenberg_bonds(n, J=1.0, h=0.0, periodic=False)
+        bonds_pbc = heisenberg_bonds(n, J=1.0, h=0.0, periodic=True)
+        E_obc = float(np.linalg.eigvalsh(nn_hamiltonian(bonds_obc, n))[0])
+        E_pbc = float(np.linalg.eigvalsh(nn_hamiltonian(bonds_pbc, n, periodic=True))[0])
+        assert E_pbc <= E_obc + 1e-10
+
+
+# ── nn_hamiltonian with periodic=True ─────────────────────────────────────
+
+
+class TestNnHamiltonianPBC:
+
+    def test_tfim_pbc_hermitian(self):
+        n = 4
+        bonds = tfim_bonds(n, J=1.0, h=0.5, periodic=True)
+        H = nn_hamiltonian(bonds, n, periodic=True)
+        np.testing.assert_allclose(H, H.T, atol=1e-12)
+
+    def test_tfim_pbc_shape(self):
+        n, d = 4, 2
+        bonds = tfim_bonds(n, periodic=True)
+        H = nn_hamiltonian(bonds, n, d, periodic=True)
+        assert H.shape == (d**n, d**n)
+
+    def test_tfim_pbc_translation_symmetry(self):
+        # PBC TFIM is translation-invariant: all bonds identical
+        n = 4
+        bonds = tfim_bonds(n, J=1.0, h=0.5, periodic=True)
+        assert len(bonds) == n
+        for b in bonds:
+            np.testing.assert_allclose(b, bonds[0], atol=1e-12)
+
+    def test_pbc_adds_n_bonds(self):
+        for n in [3, 4, 5]:
+            assert len(tfim_bonds(n, periodic=True)) == n
+            assert len(xx_bonds(n, periodic=True)) == n
+            assert len(heisenberg_bonds(n, periodic=True)) == n
+
+    def test_tfim_pbc_reconstruction(self):
+        # Manually build TFIM PBC and compare with nn_hamiltonian
+        from htf.variational import transverse_ising_ham
+        n, J, h = 4, 1.0, 0.5
+        bonds = tfim_bonds(n, J=J, h=h, periodic=True)
+        H_pbc = nn_hamiltonian(bonds, n, periodic=True)
+        # Reference: OBC Hamiltonian + periodic ZZ bond + periodic X terms
+        H_obc = transverse_ising_ham(n, J=J, h=h)
+        Z = np.array([[1, 0], [0, -1]], dtype=float)
+        I = np.eye(2, dtype=float)
+        # Add ZZ for (n-1, 0): site n-1 is least-significant, site 0 is most-significant
+        # Using kron: |site0> ⊗ |mid> ⊗ |site_{n-1}>
+        I_mid = np.eye(2**(n - 2))
+        E_Z0 = np.kron(Z, np.kron(I_mid, I))   # Z on site 0
+        E_Zn1 = np.kron(I, np.kron(I_mid, Z))  # Z on site n-1
+        H_ref = H_obc - J * E_Z0 @ E_Zn1
+        np.testing.assert_allclose(H_pbc.real, H_ref, atol=1e-10)
+
+
+# ── Bose-Hubbard bonds ────────────────────────────────────────────────────
+
+
+class TestBoseHubbardBonds:
+
+    def test_number_of_bonds(self):
+        for n in [2, 3, 4]:
+            bonds = bose_hubbard_bonds(n)
+            assert len(bonds) == n - 1
+
+    def test_bond_shape(self):
+        max_occ = 3
+        d = max_occ + 1
+        for b in bose_hubbard_bonds(4, max_occ=max_occ):
+            assert b.shape == (d**2, d**2)
+
+    def test_hermitian(self):
+        for b in bose_hubbard_bonds(4, t=1.0, U=4.0, mu=2.0, max_occ=3):
+            np.testing.assert_allclose(b, b.T, atol=1e-12)
+
+    def test_full_ham_hermitian(self):
+        n, max_occ = 3, 2
+        d = max_occ + 1
+        bonds = bose_hubbard_bonds(n, max_occ=max_occ)
+        H = nn_hamiltonian(bonds, n, d=d)
+        np.testing.assert_allclose(H, H.T, atol=1e-12)
+
+    def test_ground_energy_finite(self):
+        n, max_occ = 3, 2
+        d = max_occ + 1
+        bonds = bose_hubbard_bonds(n, t=1.0, U=4.0, mu=2.0, max_occ=max_occ)
+        H = nn_hamiltonian(bonds, n, d=d)
+        E0 = float(np.linalg.eigvalsh(H)[0])
+        assert np.isfinite(E0)
+
+    def test_hopping_lowers_energy(self):
+        # Hopping t>0 lowers ground energy vs t=0
+        n, max_occ = 3, 3
+        d = max_occ + 1
+        bonds_hop  = bose_hubbard_bonds(n, t=1.0, U=4.0, mu=2.0, max_occ=max_occ)
+        bonds_nohop = bose_hubbard_bonds(n, t=0.0, U=4.0, mu=2.0, max_occ=max_occ)
+        E_hop   = float(np.linalg.eigvalsh(nn_hamiltonian(bonds_hop,   n, d=d))[0])
+        E_nohop = float(np.linalg.eigvalsh(nn_hamiltonian(bonds_nohop, n, d=d))[0])
+        assert E_hop <= E_nohop + 1e-10
+
+    def test_tebd_bose_hubbard_no_nan(self):
+        n, max_occ = 3, 2
+        d = max_occ + 1
+        bonds = bose_hubbard_bonds(n, t=1.0, U=4.0, mu=2.0, max_occ=max_occ)
+        mps0 = random_mps(n, d=d, chi=4, seed=7)
+        mps0 = mps_normalise(mps0)
+        result = tebd_evolve(mps0, bonds, dt=0.05, n_steps=10,
+                             chi=8, imaginary=True, measure_every=5)
+        for t in result.mps_final.tensors:
+            assert not np.any(np.isnan(t))
