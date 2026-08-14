@@ -297,6 +297,7 @@ class TestVerifyRejectsNonRigorous:
         # Old-format cert (no assurance field) must be rejected.
         # After HTF-05 M3 fix: "assurance" is required; missing field raises ValueError.
         import pytest
+
         from htf.verify import verify_from_dict
         d = self._heuristic_full_dict()
         d.pop("assurance", None)

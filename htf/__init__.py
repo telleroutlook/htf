@@ -33,9 +33,6 @@ See ``PLAN.md`` and ``docs/theorem_cards.md``.
 """
 from __future__ import annotations
 
-# ── htf-spec: symbolic topology ───────────────────────────────────────────────
-from .topology import Box, Diagram, Id, Wire
-
 # ── htf-spec: functor + engine + certificate ──────────────────────────────────
 from .certificate import Certificate
 from .engine import contract
@@ -48,6 +45,9 @@ from .rayleigh_cert import (
     rayleigh_estimate,
     verify_rayleigh_certificate,
 )
+
+# ── htf-spec: symbolic topology ───────────────────────────────────────────────
+from .topology import Box, Diagram, Id, Wire
 from .verify import verify_from_dict
 
 __version__ = "0.23.0"

@@ -97,6 +97,7 @@ jobs:
             "numpy==1.23" \
             "scipy==1.9" \
             "pytest==7.0" \
+            "hypothesis>=6" \
             "python-flint>=0.5" \
             "ruff" \
             "mypy" \

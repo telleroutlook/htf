@@ -258,7 +258,6 @@ class TestTwoSidedBoundsRegressions:
 
     def test_heuristic_width_inf_when_condition_not_met(self):
         # Construct a bounds object where the condition is False.
-        import math as _math
         b = TwoSidedBounds(
             E0_upper=1.0,
             E0_upper_error=0.0,

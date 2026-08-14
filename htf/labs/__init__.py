@@ -163,6 +163,18 @@ from ..structure import (
     unitary_defect,
 )
 
+# ── symmetric tensors ─────────────────────────────────────────────────────────
+from ..symmetric import (
+    BlockSparseTensor,
+    ChargedBasis,
+    block_sparse_matmul,
+    check_u1_invariance,
+    number_basis,
+    project_to_u1,
+    spin_half_basis,
+    u1_blocks,
+)
+
 # ── TEBD / DMRG ───────────────────────────────────────────────────────────────
 from ..tebd import (
     DMRGResult,
@@ -220,16 +232,4 @@ from ..zx import (
     spider_fusion,
     zx_from_circuit,
     zx_to_matrix,
-)
-
-# ── symmetric tensors ─────────────────────────────────────────────────────────
-from ..symmetric import (
-    BlockSparseTensor,
-    ChargedBasis,
-    block_sparse_matmul,
-    check_u1_invariance,
-    number_basis,
-    project_to_u1,
-    spin_half_basis,
-    u1_blocks,
 )
