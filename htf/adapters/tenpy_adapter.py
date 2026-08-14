@@ -162,6 +162,16 @@ def rayleigh_from_tenpy_mps(
     is the pre-charge-sort basis of each ``Site``.  In duck-type mode the
     adapter uses sites ``0..L-1`` with C-order flattening of the theta axes
     ``(vL, p0, …, p_{L-1}, vR)``; the caller must ensure this matches ``H``.
+
+    **Charge-sorting warning (duck-type mode only):** when TeNPy is *not*
+    installed and you pass a raw MPS object whose ``get_theta(0, L)`` was
+    produced by a Site with non-trivial charge sorting (``Site.sort_charge``),
+    the extracted state vector may be in a permuted basis that does NOT match
+    a conventionally built ``H``.  Always use the real TeNPy path (which calls
+    ``get_full_wavefunction(..., undo_sort_charge=True)``) for U(1)- or
+    SU(2)-symmetric MPS.  Duck-type mode is intended for testing with plain
+    numpy arrays only.
+
     Matching total dimension ``H.shape[0] == len(psi)`` is a necessary but not
     sufficient condition; site permutations and local-basis permutations
     (``Site.perm``) are invisible to the adapter.

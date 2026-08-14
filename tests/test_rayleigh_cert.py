@@ -751,3 +751,89 @@ class TestGitCommitProvenance:
         d["git_commit"] = 12345  # not a string
         with pytest.raises(ValueError, match="git_commit"):
             validate_certificate_dict(d)
+
+
+# ─────────────────── HTF-05 regressions (dtype, NaN, assurance) ──────────────
+
+class TestHTF05Regressions:
+    """Regressions for HTF-05 Gate-A blockers: M1–M3."""
+
+    def test_rejects_int64_dtype(self):
+        # M1: int64 H must be rejected before float64 conversion silently changes it.
+        H = np.array([[1, 0], [0, 2]], dtype=np.int64)
+        psi = np.array([1, 0], dtype=np.int64)
+        with pytest.raises(TypeError, match="float64"):
+            rayleigh_certificate(H, psi)
+
+    def test_rejects_float32_dtype(self):
+        # M1: float32 also not canonical.
+        H = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=np.float32)
+        psi = np.array([1.0, 0.0], dtype=np.float32)
+        with pytest.raises(TypeError, match="float64"):
+            rayleigh_certificate(H, psi)
+
+    def test_verifier_nan_upper_rejected(self):
+        # M2: NaN upper must be rejected, not silently pass.
+        from htf.verify import verify_from_dict
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        full = cert.to_full_dict()
+        # Tamper upper to NaN; also update claim to match so the claim check
+        # doesn't fire first — we want to exercise the isfinite path.
+        full["interval"]["upper"] = float("nan")
+        full["claim"] = "E0 ≤ nan  [Rayleigh-Ritz upper bound on ground-state energy]"
+        result = verify_from_dict(full)
+        assert result["verified"] is False
+
+    def test_verifier_nan_lower_rejected(self):
+        # M2: NaN lower must be rejected (original upper/claim untouched).
+        from htf.verify import verify_from_dict
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        full = cert.to_full_dict()
+        full["interval"]["lower"] = float("nan")
+        result = verify_from_dict(full)
+        assert result["verified"] is False
+
+    def test_verifier_nan_radius_rejected(self):
+        # M2: NaN radius must also be rejected.
+        from htf.verify import verify_from_dict
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        full = cert.to_full_dict()
+        full["interval"]["radius"] = float("nan")
+        result = verify_from_dict(full)
+        assert result["verified"] is False
+
+    def test_verifier_missing_assurance_rejected(self):
+        # M3: cert without assurance field must be rejected, not default to rigorous.
+        from htf.verify import verify_from_dict
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        full = cert.to_full_dict()
+        del full["assurance"]
+        with pytest.raises(ValueError, match="assurance"):
+            verify_from_dict(full)
+
+    def test_anchor_zero_exact_nextafter(self):
+        # M6: H=diag(0,1), psi=[1,0] — Rayleigh quotient is exactly 0.
+        # lower = nextafter(0, -inf), upper = nextafter(0, +inf).
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        assert cert.lower == math.nextafter(0.0, -math.inf)
+        assert cert.upper == math.nextafter(0.0, math.inf)
+
+    def test_anchor_minus_five_uses_ulp(self):
+        # M6: H=diag(-5,1), psi=[1,0] — Rayleigh quotient is exactly -5.
+        # upper = nextafter(-5, +inf); upper + 5.0 == math.ulp(-5.0).
+        H = np.diag([-5.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        assert cert.upper == math.nextafter(-5.0, math.inf)
+        assert cert.upper + 5.0 == math.ulp(-5.0)
+        assert cert.lower == math.nextafter(-5.0, -math.inf)

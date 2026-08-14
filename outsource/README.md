@@ -14,8 +14,11 @@ A reviewer needs **nothing else from this repo** to evaluate the problem.
 
 | # | File | Topic | Status |
 |---|---|---|---|
-| HTF-01 | `HTF-01-rayleigh-cert-audit.md` | Rayleigh certificate code+math correctness | DONE (commit 56f26e9) |
-| HTF-02 | `HTF-02-adapter-semantics.md` | quimb/TeNPy adapter data semantics | DONE (commit e547af7) |
+| HTF-01 | `HTF-01-rayleigh-cert-audit.md` | Rayleigh certificate code+math correctness | CONDITIONAL (internal review; see `solutions/HTF-01-verdict.md`) |
+| HTF-02 | `HTF-02-adapter-semantics.md` | quimb/TeNPy adapter data semantics | CONDITIONAL (internal review; see `solutions/HTF-02-verdict.md`) |
+| HTF-03 | `HTF-03-spectral-gap-math.md` | Temple lower bound + `first_excited_upper` mathematical correctness | OPEN — awaiting external reviewer |
+| HTF-04 | `HTF-04-acb-imaginary-check.md` | Acb imaginary-part containment: soundness of `q.imag.contains(0)` | OPEN — awaiting external reviewer |
+| HTF-05 | `HTF-05-rayleigh-external-review.md` | Full Rayleigh certificate pipeline: external independent re-audit | OPEN — awaiting external reviewer |
 
 ## What a returned review should contain
 

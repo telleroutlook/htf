@@ -294,13 +294,14 @@ class TestVerifyRejectsNonRigorous:
         assert "assurance" in result["message"] or "heuristic" in result["message"]
 
     def test_numpy_backend_without_assurance_field_rejected(self):
-        # Old-format cert (no assurance field) with numpy-float backend must also fail.
+        # Old-format cert (no assurance field) must be rejected.
+        # After HTF-05 M3 fix: "assurance" is required; missing field raises ValueError.
+        import pytest
         from htf.verify import verify_from_dict
         d = self._heuristic_full_dict()
         d.pop("assurance", None)
-        # backend still contains "numpy"
-        result = verify_from_dict(d)
-        assert result["verified"] is False
+        with pytest.raises(ValueError, match="assurance"):
+            verify_from_dict(d)
 
     def test_rigorous_cert_still_passes(self):
         import numpy as np

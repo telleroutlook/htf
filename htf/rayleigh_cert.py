@@ -397,6 +397,18 @@ def rayleigh_certificate(
     H_raw   = np.asarray(H)
     psi_raw = np.asarray(psi).ravel()
 
+    _CANONICAL_DTYPES = {np.dtype(np.float64), np.dtype(np.complex128)}
+    if H_raw.dtype not in _CANONICAL_DTYPES:
+        raise TypeError(
+            f"H dtype must be float64 or complex128; got {H_raw.dtype}. "
+            "Use H.astype(np.float64) explicitly."
+        )
+    if psi_raw.dtype not in _CANONICAL_DTYPES:
+        raise TypeError(
+            f"psi dtype must be float64 or complex128; got {psi_raw.dtype}. "
+            "Use psi.astype(np.float64) explicitly."
+        )
+
     is_complex = np.iscomplexobj(H_raw) or np.iscomplexobj(psi_raw)
 
     if is_complex:

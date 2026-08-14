@@ -565,3 +565,66 @@ class TestGapReport:
     def test_gap_var_nonnegative(self):
         report = gap_report(self.H, self.gs, self.es1)
         assert report["gap_var"] >= 0.0
+
+
+# ──────────── HTF-03 regressions (2D Ritz + Temple counterexample) ────────────
+
+class TestFirstExcitedUpperRegressions:
+    """Regressions for HTF-03: first_excited_upper must be a true upper bound."""
+
+    def test_2d_ritz_upper_bound_with_approximate_gs(self):
+        # HTF-03 regression: with approximate GS, old projection returned 0.5 < E1=1.
+        # The 2D Ritz result must satisfy result >= E1_exact.
+        H = np.diag([0.0, 1.0])
+        psi_gs_approx = np.array([1.0, 1.0]) / math.sqrt(2)  # approximate GS
+        psi_es = np.array([0.0, 1.0])
+        E1_exact = 1.0
+        result = first_excited_upper(H, psi_gs_approx, psi_es)
+        assert result >= E1_exact - 1e-12, (
+            f"2D Ritz must give upper bound on E1; got {result} < {E1_exact}"
+        )
+
+    def test_2d_ritz_approximate_gs_gives_exact_E1(self):
+        # For H=diag(0,1) with the exact GS approximated, the 2D Ritz larger
+        # eigenvalue equals exactly E1 when the 2D span contains both eigenvectors.
+        H = np.diag([0.0, 1.0])
+        psi_gs_approx = np.array([1.0, 1.0]) / math.sqrt(2)
+        psi_es = np.array([0.0, 1.0])
+        result = first_excited_upper(H, psi_gs_approx, psi_es)
+        np.testing.assert_allclose(result, 1.0, atol=1e-12)
+
+
+class TestTempleLowerBoundCounterexample:
+    """HTF-03 regression: Temple formula with Ritz upper bound can exceed E0."""
+
+    def test_diag012_ritz_gives_false_lower_bound(self):
+        # Exact HTF-03 counterexample: H=diag(0,1,2), subspace S=span{(e0+e1)/√2, e2}.
+        # Temple with Ritz upper bound gives 1/3 > 0 = E0 — a false lower bound.
+        H = np.diag([0.0, 1.0, 2.0])
+        psi = np.array([1.0, 1.0, 0.0]) / math.sqrt(2)
+        E_var = energy_expectation(H, psi)
+        h2 = h2_expectation(H, psi)
+        # E1_ritz = 2 (Ritz value, upper bound on E1)
+        E1_ritz = 2.0
+        t_lb = temple_lower_bound(E_var, h2, E1_ritz)
+        E0_exact = 0.0
+        assert t_lb > E0_exact, (
+            f"HTF-03: Temple with Ritz upper bound should exceed E0=0; got {t_lb}"
+        )
+        np.testing.assert_allclose(t_lb, 1.0 / 3.0, atol=1e-12)
+
+    def test_lanczos_two_step_false_lower_bound(self):
+        # HTF-03 Lanczos counterexample: H=diag(0,1,2), q0=(1,1,1)/√3.
+        # Two-step Lanczos: E0_lower ≈ 0.081 > 0 = E0.
+        H = np.diag([0.0, 1.0, 2.0])
+        psi = np.ones(3) / math.sqrt(3)
+        E_var = energy_expectation(H, psi)
+        h2 = h2_expectation(H, psi)
+        b = math.sqrt(2.0 / 3.0)
+        E1_ritz = 1.0 + b  # second Ritz value from two-step Lanczos
+        t_lb = temple_lower_bound(E_var, h2, E1_ritz)
+        E0_exact = 0.0
+        assert t_lb > E0_exact, (
+            f"HTF-03 Lanczos counterexample: Temple heuristic should exceed E0=0; "
+            f"got {t_lb}"
+        )

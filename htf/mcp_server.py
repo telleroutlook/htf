@@ -23,11 +23,15 @@ Or add to an MCP client config::
 
 Available tools
 ---------------
-htf_version      — HTF version string.
-htf_variational  — Certified variational E_0 upper bound.
-htf_gap          — Spectral gap bounds (exact + variational + Temple + certified).
-htf_os_check     — Osterwalder-Schrader positivity machine check.
-htf_benchmark    — Full certified reproducibility benchmark suite.
+htf_version         — HTF version string.
+htf_verify_bundle   — [CERTIFIED] Re-verify a Rayleigh Certificate bundle (primary tool).
+htf_variational     — [heuristic] Variational E_0 upper bound via MERA.
+htf_gap             — [heuristic] Spectral gap diagnostics (exact + variational + Temple).
+htf_os_check        — [heuristic] OS-positivity structural diagnostics.
+htf_benchmark       — [heuristic] Reproducibility benchmark suite.
+htf_lanczos         — [heuristic] Lanczos ground-state bounds.
+htf_qasm_simulate   — [float] QASM circuit unitary simulation.
+htf_zx_simplify     — [研究] ZX-diagram simplification.
 
 Honest scope
 ------------
@@ -38,6 +42,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import types
 
 try:
@@ -95,6 +100,34 @@ def _build_server() -> MCPServer:
     @server.tool(description="Return the HTF version.")
     def htf_version() -> str:
         return json.dumps({"htf_version": __version__})
+
+    # ── htf_verify_bundle ─────────────────────────────────────────────────
+    @server.tool(
+        description=(
+            "Independently re-verify a Rayleigh Certificate bundle. "
+            "Accepts the full JSON produced by 'htf rayleigh --full' or "
+            "RayleighCertificate.to_full_json() as a string. "
+            "Re-derives the upper bound from the canonical inputs via "
+            "python-flint Arb/Acb interval arithmetic and checks all "
+            "semantic fields (claim, theorem, backend, lower, radius, digest). "
+            "Returns {verified: bool, message: str}. "
+            "This is the PRIMARY certified tool; all others are [heuristic]."
+        )
+    )
+    def htf_verify_bundle(cert_json: str) -> str:
+        from .verify import verify_from_dict
+
+        try:
+            cert_dict = json.loads(cert_json)
+        except json.JSONDecodeError as exc:
+            return json.dumps({"verified": False, "message": f"JSON parse error: {exc}"})
+        try:
+            result = verify_from_dict(cert_dict)
+        except ImportError as exc:
+            return json.dumps({"verified": False, "message": f"ImportError: {exc}"})
+        except (ValueError, KeyError) as exc:
+            return json.dumps({"verified": False, "message": f"Certificate error: {exc}"})
+        return json.dumps(result, indent=2)
 
     # ── htf_variational ───────────────────────────────────────────────────
     @server.tool(
@@ -182,10 +215,12 @@ def _build_server() -> MCPServer:
     # ── htf_os_check ──────────────────────────────────────────────────────
     @server.tool(
         description=(
-            "Osterwalder-Schrader positivity machine check. "
-            "Three independent checks: transfer matrix T=exp(-βH) is PSD, "
+            "Osterwalder-Schrader positivity diagnostics (finite-lattice, [heuristic]). "
+            "Runs three structural checks: transfer matrix T=exp(-βH) is PSD, "
             "[H,R]=0 (reflection symmetry), OS-Gram G=T+RTR is PSD. "
-            "All checks are finite-lattice; continuum OS-positivity is [OUT]."
+            "NOTE: all three checks pass for ANY real symmetric H — they are "
+            "structural diagnostics, NOT a genuine test of OS-positivity (P0-5). "
+            "Continuum OS-positivity is [OUT]."
         )
     )
     def htf_os_check(
@@ -265,7 +300,7 @@ def _build_server() -> MCPServer:
             "E0_lower_heuristic": bounds.E0_lower,
             "E0_lower_assurance": "heuristic",
             "E1_ritz": bounds.E1_ritz,
-            "interval_width": bounds.width,
+            "interval_heuristic_width": bounds.heuristic_width if math.isfinite(bounds.heuristic_width) else None,
             "temple_condition_met": bounds.temple_condition_met,
             "notes": bounds.notes,
         }

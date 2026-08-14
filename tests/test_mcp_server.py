@@ -1,4 +1,7 @@
 """Tests for htf/mcp_server.py — MCP server construction and tool listing."""
+import json
+
+import numpy as np
 import pytest
 
 from htf.mcp_server import HAS_MCP, _build_server
@@ -55,3 +58,66 @@ class TestMcpServerNoMcp:
         monkeypatch.setattr(ms, "HAS_MCP", False)
         with pytest.raises(ImportError):
             ms._build_server()
+
+
+class TestVerifyBundleTool:
+    """Tests for the htf_verify_bundle MCP tool (callable directly)."""
+
+    def _make_full_cert_json(self) -> str:
+        """Produce a real full certificate JSON using rayleigh_certificate."""
+        pytest.importorskip("flint")
+        from htf.rayleigh_cert import rayleigh_certificate, verify_rayleigh_certificate
+        H = np.diag([-1.0, 0.0, 1.0])
+        psi = np.array([1.0, 0.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        cert = verify_rayleigh_certificate(cert)
+        return cert.to_full_json()
+
+    def test_verify_bundle_pass(self):
+        from htf.mcp_server import _build_server
+        pytest.importorskip("flint")
+        pytest.importorskip("mcp")
+        server = _build_server()
+        cert_json = self._make_full_cert_json()
+        # Call the tool function directly by looking it up
+        tool_fn = None
+        for tool in server._tool_manager._tools.values():
+            if tool.name == "htf_verify_bundle":
+                tool_fn = tool.fn
+                break
+        assert tool_fn is not None, "htf_verify_bundle tool not registered"
+        result_str = tool_fn(cert_json=cert_json)
+        result = json.loads(result_str)
+        assert result["verified"] is True
+        assert "PASS" in result["message"]
+
+    def test_verify_bundle_bad_json(self):
+        from htf.mcp_server import _build_server
+        pytest.importorskip("mcp")
+        server = _build_server()
+        tool_fn = None
+        for tool in server._tool_manager._tools.values():
+            if tool.name == "htf_verify_bundle":
+                tool_fn = tool.fn
+                break
+        assert tool_fn is not None
+        result = json.loads(tool_fn(cert_json="not-json"))
+        assert result["verified"] is False
+        assert "JSON parse error" in result["message"]
+
+    def test_verify_bundle_tampered_claim(self):
+        from htf.mcp_server import _build_server
+        pytest.importorskip("flint")
+        pytest.importorskip("mcp")
+        server = _build_server()
+        cert_json = self._make_full_cert_json()
+        cert_dict = json.loads(cert_json)
+        cert_dict["claim"] = "E0 ≤ -999.0  [tampered]"
+        tampered_json = json.dumps(cert_dict)
+        tool_fn = None
+        for tool in server._tool_manager._tools.values():
+            if tool.name == "htf_verify_bundle":
+                tool_fn = tool.fn
+                break
+        result = json.loads(tool_fn(cert_json=tampered_json))
+        assert result["verified"] is False

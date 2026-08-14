@@ -72,6 +72,16 @@
     "notes": {
       "type": "string",
       "description": "Optional context string."
+    },
+    "canonical": {
+      "type": "object",
+      "description": "Canonical inputs for independent replay (present in to_full_dict() output only). Contains 'H' and 'psi' encoded by _encode_canonical: real arrays as nested lists, complex arrays as {real, imag} dicts.",
+      "required": ["H", "psi"],
+      "additionalProperties": false,
+      "properties": {
+        "H":   {"description": "Canonical encoding of the Hamiltonian."},
+        "psi": {"description": "Canonical encoding of the trial state."}
+      }
     }
   }
 }

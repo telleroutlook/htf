@@ -147,26 +147,34 @@ class TwoSidedBounds:
     ----------
     E0_upper : certified variational upper bound on E_0.
     E0_upper_error : floating-point rounding bound on E0_upper.
-    E0_lower : Temple's inequality lower bound on E_0.
-    temple_condition_met : True if E_var < E_1_upper (Temple is valid).
+    E0_lower : Temple heuristic estimate (NOT a rigorous lower bound — P0-1).
+    temple_denominator_positive : True if E_var < E_1_ritz (denominator check only).
     E1_ritz  : Lanczos Ritz estimate of E_1 (variational upper bound on E_1).
     k_lanczos: number of Lanczos steps used.
     notes    : scope statement.
-
-    gap_lower_bound : max(0, E0_upper − E0_lower) if both bounds valid.
     """
     E0_upper: float
     E0_upper_error: float
     E0_lower: float
-    temple_condition_met: bool
+    temple_denominator_positive: bool
     E1_ritz: float
     k_lanczos: int
     notes: str = ""
 
     @property
+    def temple_condition_met(self) -> bool:
+        """Backward-compat alias for temple_denominator_positive."""
+        return self.temple_denominator_positive
+
+    @property
     def width(self) -> float:
-        """Upper − lower (width of the certified interval on E_0)."""
-        if not self.temple_condition_met:
+        """Always inf: no certified two-sided interval (use heuristic_width for diagnostic)."""
+        return float("inf")
+
+    @property
+    def heuristic_width(self) -> float:
+        """Heuristic E0_upper − E0_lower when denominator is positive. NOT certified (P0-1)."""
+        if not self.temple_denominator_positive:
             return float("inf")
         return self.E0_upper - self.E0_lower
 
@@ -244,7 +252,7 @@ def temple_lanczos(
         E0_upper=cert.result,
         E0_upper_error=err,
         E0_lower=t_lb,
-        temple_condition_met=cond,
+        temple_denominator_positive=cond,
         E1_ritz=E1_ritz,
         k_lanczos=len(evals),
         notes=(

@@ -227,7 +227,14 @@ def _acb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, 
     """Compute ⟨ψ|H|ψ⟩/⟨ψ|ψ⟩ for complex H and/or psi using Acb ball arithmetic.
 
     Uses a local ``ctx.prec = 128`` context.  Checks that the imaginary part
-    ball contains zero (exact criterion for Hermitian H).
+    ball contains zero (exact Arb containment criterion for Hermitian H).
+
+    The imaginary-part check is **scale-independent**: it uses Arb ball
+    containment (``q.imag.contains(0)``), not an absolute threshold.  For
+    exactly Hermitian H (verified by ``_check_preconditions`` before this
+    call), the true imaginary part is zero; the Arb ball at prec=128 encloses
+    zero for all input magnitudes.  If the check fails, H is not exactly
+    Hermitian in float64 (structural issue, not a scale issue).
 
     Returns (lower, upper, radius, backend_label) for the REAL part.
 
@@ -259,9 +266,9 @@ def _acb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, 
             q   = num / den
 
             if not q.imag.contains(0):
-                raise ValueError(
-                    "Rayleigh quotient imaginary part ball does not contain zero — "
-                    "check that H is exactly Hermitian"
+                raise ArithmeticError(
+                    "Acb result violates the exact-Hermitian invariant; "
+                    "check the call path, input finiteness, and backend"
                 )
 
             lower = math.nextafter(float(q.real.lower()), -math.inf)
@@ -273,8 +280,7 @@ def _acb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, 
                     f"lower={lower}, upper={upper}"
                 )
             radius    = (upper - lower) / 2
-            imag_rad  = float(q.imag.rad())
-            return lower, upper, radius, f"flint-acb/prec=128 (im_ball_rad={imag_rad:.2e})"
+            return lower, upper, radius, "flint-acb/prec=128"
 
         finally:
             ctx.prec = saved_prec

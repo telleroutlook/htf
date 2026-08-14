@@ -91,12 +91,13 @@ def rayleigh_from_quimb_mps(
 
     **Basis contract (caller's responsibility):**
     ``H`` MUST be expressed in exactly the tensor-product basis used by the
-    extracted state vector.  For quimb ``MatrixProductState`` this is the
-    order of the present ``mps.sites`` and each physical-index order used by
-    ``to_dense()``.  The current quimb default returns a ket of shape
-    ``(D, 1)``; the adapter ravels this to ``(D,)``.  Any lattice/site/local-
-    basis permutation must be applied consistently to both ``H`` and the MPS
-    before calling this function.  Matching total dimension
+    extracted state vector.  For quimb ``MatrixProductState``, ``to_dense()``
+    returns the state in **standard left-to-right computational basis ordering,
+    last site index varying fastest (row-major / C-order)**: the basis order is
+    ``|0…00⟩, |0…01⟩, …, |1…11⟩``.  ``H`` must be constructed with the same
+    site ordering and the same local-basis ordering at each site.  Any lattice,
+    site, or local-basis permutation must be applied consistently to both ``H``
+    and the MPS before calling this function.  Matching total dimension
     ``H.shape[0] == len(psi)`` is a necessary but not sufficient condition for
     semantic consistency; the adapter cannot verify basis agreement from a
     plain ndarray.

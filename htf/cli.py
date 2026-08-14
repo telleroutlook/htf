@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 
 import numpy as np
 
@@ -250,7 +251,7 @@ def cmd_lanczos(args) -> None:
         "E0_lower_heuristic": bounds.E0_lower,
         "E0_lower_assurance": "heuristic",
         "E1_ritz": bounds.E1_ritz,
-        "interval_width": bounds.width,
+        "interval_heuristic_width": bounds.heuristic_width if math.isfinite(bounds.heuristic_width) else None,
         "temple_condition_met": bounds.temple_condition_met,
         "notes": bounds.notes,
     }

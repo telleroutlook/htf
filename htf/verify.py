@@ -61,7 +61,7 @@ def verify_from_dict(full_cert: dict) -> dict:
         _decode_canonical,
     )
 
-    required = {"schema_version", "claim", "input_digest", "interval", "canonical"}
+    required = {"schema_version", "claim", "input_digest", "interval", "canonical", "assurance", "backend"}
     missing = required - set(full_cert)
     if missing:
         raise ValueError(f"Certificate dict missing required keys: {missing}")
@@ -76,7 +76,7 @@ def verify_from_dict(full_cert: dict) -> dict:
     # A numpy-float backend carries radius=0.0 and would trivially pass the
     # recomputed_upper <= stored_upper check — that is not independent verification.
     backend = full_cert.get("backend", "")
-    assurance = full_cert.get("assurance", "rigorous")
+    assurance = full_cert["assurance"]
     if assurance != "rigorous" or "numpy" in backend.lower():
         return {
             "verified": False,
@@ -184,7 +184,7 @@ def verify_from_dict(full_cert: dict) -> dict:
             "message": f"FAIL — stored upper is not finite: {stored_upper}",
         }
 
-    if recomputed_upper > stored_upper:
+    if not (recomputed_upper <= stored_upper):
         return {
             "verified": False,
             "stored_upper": stored_upper,
@@ -214,6 +214,14 @@ def verify_from_dict(full_cert: dict) -> dict:
         }
 
     stored_lower = float(full_cert["interval"]["lower"])
+    if not math.isfinite(stored_lower):
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": f"FAIL — interval.lower is not finite: {stored_lower}",
+        }
     lower_tol = _rtol * max(1.0, abs(recomputed_lower))
     if abs(stored_lower - recomputed_lower) > lower_tol:
         return {
@@ -228,6 +236,14 @@ def verify_from_dict(full_cert: dict) -> dict:
         }
 
     stored_radius = float(full_cert["interval"]["radius"])
+    if not math.isfinite(stored_radius):
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": f"FAIL — interval.radius is not finite: {stored_radius}",
+        }
     # radius is derived from lo/up as nextafter(max(mid-lo, up-mid), inf),
     # not the raw Arb ball radius — recompute from the verified endpoints.
     _mid = (recomputed_lower + recomputed_upper) / 2

@@ -104,3 +104,32 @@ jobs:
 
       - name: Test (pytest)
         run: python -m pytest -q --tb=short -x
+
+  # Adapter version matrix: real quimb + TeNPy installs
+  test-adapters:
+    name: Test adapters (quimb=${{ matrix.quimb }}, tenpy=${{ matrix.tenpy }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - quimb: "1.9.0"
+            tenpy: "1.0.4"
+          - quimb: "1.15.0"
+            tenpy: "1.1.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install HTF + adapter dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install "quimb==${{ matrix.quimb }}" "physics-tenpy==${{ matrix.tenpy }}"
+
+      - name: Run adapter tests
+        run: python -m pytest tests/test_quimb_adapter.py tests/test_tenpy_adapter.py -v --tb=short

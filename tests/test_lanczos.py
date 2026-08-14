@@ -1,4 +1,6 @@
 """Tests for htf/lanczos.py — Lanczos algorithm and two-sided spectral bounds."""
+import math
+
 import numpy as np
 
 from htf.lanczos import (
@@ -225,3 +227,44 @@ class TestTwoSidedBounds:
         H  = _diag_ham(n)
         b  = temple_lanczos(H, k=n, seed=0)
         assert abs(b.E0_upper - 0.0) < 1e-8   # E_0 = 0
+
+
+# ─────────────── HTF-03 regressions (field rename + heuristic_width) ──────────
+
+class TestTwoSidedBoundsRegressions:
+    """Regressions for HTF-03: temple_denominator_positive, width, heuristic_width."""
+
+    def setup_method(self):
+        H = _diag_ham(4)
+        self.bounds = temple_lanczos(H, k=4, seed=0)
+
+    def test_temple_denominator_positive_attribute_exists(self):
+        assert hasattr(self.bounds, "temple_denominator_positive")
+        assert isinstance(self.bounds.temple_denominator_positive, bool)
+
+    def test_temple_condition_met_backward_compat(self):
+        # Backward-compat property must mirror temple_denominator_positive.
+        assert self.bounds.temple_condition_met == self.bounds.temple_denominator_positive
+
+    def test_width_is_always_inf(self):
+        # After HTF-03 fix: width always returns inf (no certified two-sided bound).
+        assert self.bounds.width == float("inf")
+
+    def test_heuristic_width_finite_when_condition_met(self):
+        if self.bounds.temple_denominator_positive:
+            hw = self.bounds.heuristic_width
+            assert math.isfinite(hw)
+            assert hw == self.bounds.E0_upper - self.bounds.E0_lower
+
+    def test_heuristic_width_inf_when_condition_not_met(self):
+        # Construct a bounds object where the condition is False.
+        import math as _math
+        b = TwoSidedBounds(
+            E0_upper=1.0,
+            E0_upper_error=0.0,
+            E0_lower=0.0,
+            temple_denominator_positive=False,
+            E1_ritz=2.0,
+            k_lanczos=4,
+        )
+        assert b.heuristic_width == float("inf")

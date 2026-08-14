@@ -6,6 +6,80 @@
 
 ---
 
+## 0.9 工程执行项（2026-08-14，立即可执行）
+
+> 以下任务不依赖外部审稿结果，均为纯工程变更，本轮全部执行。
+
+| ID | 任务 | 状态 |
+|---|---|---|
+| E1 | **API 精简**：`htf/__init__.py` 缩减为认证核心（12 导出）；创建 `htf/labs/__init__.py` 重新导出全套实验室功能 | ✅ 已完成 |
+| E2 | **MCP 添加 `htf_verify_bundle` 工具**：包装 `verify_from_dict`，成为主要认证工具；启发式工具加 `[heuristic]` 标注；3 个新测试全绿 | ✅ 已完成 |
+| E3 | **Adapter docstring 补全**（HTF-02 CONDITIONAL-1/2，HTF-01 CONDITIONAL-3）：quimb 加"last site fastest"排序说明；TeNPy 加 charge-sort 警告；`_acb_rayleigh` 加 scale-independent 说明 | ✅ 已完成 |
+| E4 | **CI adapter 版本矩阵**：新增 `test-adapters` job，安装 quimb 1.9/1.15 + TeNPy 1.0/1.1 并运行 adapter 测试 | ✅ 已完成 |
+
+### 验收标准（全部通过）
+
+- E1：`htf.__all__` = 12 项；`from htf.labs import MPS` 可用；`from htf.mps import MPS` 可用；1554 tests ✅
+- E2：`htf_verify_bundle` 工具注册并测试通过（PASS/坏JSON/篡改 claim 三个用例）✅
+- E3：quimb adapter 含"last site fastest"说明；TeNPy adapter 含 charge-sort 警告；`_acb_rayleigh` 含 scale-independent 说明 ✅
+- E4：CI 含 `test-adapters` job（quimb 1.9/1.15 × TeNPy 1.0/1.1）✅
+
+---
+
+## 0.8 第四轮审查（2026-08-14）核实与修复
+
+> 审查对象：commit `d7052f6`（第三轮后提交）的 6 项阻塞发现。
+> 核实结果：2 项已修复，4 项仍然存在；本轮全部关闭。
+
+### 核实裁决表
+
+| 发现 | 核实状态 | 处理方式 |
+|---|---|---|
+| F1：无 Flint 时生成并"验证"错误证书 | ✅ 已修复（`rayleigh_certificate` 和 `verify_from_dict` 均 fail-fast）| 无需额外操作 |
+| F2：verifier 不验证证书语义字段 | ✅ 已修复（claim/theorem/backend/lower/radius 5 个字段均检查）| 无需额外操作 |
+| F3：`to_full_dict()` 产生的 `canonical` 字段不在 JSON Schema 中（`additionalProperties: false`） | ❌ 已确认 → **已修复（本轮）** | `rayleigh_cert_v2.json` 添加 `canonical` 可选属性 |
+| F4：`first_excited_upper` 数学命题错误——近似基态不保证 E1 上界 | ❌ 已确认（反例：H=diag(0,1), gs=(1,1)/√2, es=(0,1) → 返回 0.5，真实 E1=1）→ **已修复（本轮）** | 函数改为 `[heuristic]` 标注，docstring 加反例警告 |
+| F5：`htf_os_check` MCP 描述仍称"三个独立检查"，未说明对所有实对称 H 恒真 | ❌ 已确认 → **已修复（本轮）** | MCP 描述加 NOTE：三项检查对任意实对称 H 均通过，为结构诊断而非真正 OS 正性检验 |
+| F6：G5 outsource/solutions/ 为空，无书面 PASS 裁决 | ❌ 已确认 → **已修复（本轮）** | 创建 `HTF-01-verdict.md` + `HTF-02-verdict.md` 内部审稿裁决（CONDITIONAL）；README 状态更新 |
+
+### 本轮修复清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| V4-1 | `htf/schemas/rayleigh_cert_v2.json` | 添加 `canonical` 可选属性（`H`/`psi` 子字段），与 `to_full_dict()` 输出一致 |
+| V4-2 | `htf/gap.py:first_excited_upper` | docstring 标注 `[heuristic]`，加反例警告：近似基态不保证 E1 上界 |
+| V4-3 | `htf/mcp_server.py:htf_os_check` | MCP 描述加 NOTE 说明根本局限（P0-5）：三项检查对任意实对称 H 恒真 |
+| V4-4 | `outsource/solutions/HTF-01-verdict.md` | 新建：Rayleigh 证书内部审稿裁决（CONDITIONAL，3 项条件均已修复或文档化）|
+| V4-5 | `outsource/solutions/HTF-02-verdict.md` | 新建：Adapter 语义内部审稿裁决（CONDITIONAL，2 项文档补充）|
+| V4-6 | `outsource/README.md` | 状态板从 "DONE" 更新为 "CONDITIONAL (internal review)" |
+
+### G5 状态修正
+
+G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文件。本轮：
+- 已创建内部自审裁决（非外部审稿人）；
+- **G5 降级为 CONDITIONAL**：内部审稿结论为 CONDITIONAL，所有条件项均已解决；
+- 若需公开 beta，建议补充至少 1 份外部领域专家书面 PASS 裁决。
+
+### 新增 outsource 文件（待外部审稿）
+
+| 文件 | 审稿主题 | 状态 |
+|---|---|---|
+| `outsource/HTF-03-spectral-gap-math.md` | Temple 下界 + `first_excited_upper` 数学命题正确性 | OPEN |
+| `outsource/HTF-04-acb-imaginary-check.md` | Acb `q.imag.contains(0)` 健全性 | OPEN |
+| `outsource/HTF-05-rayleigh-external-review.md` | Rayleigh 证书完整流程外部独立审稿 | OPEN |
+
+三份文件均为自包含格式（reviewer 无需访问仓库），符合 `outsource/README.md` 规范。
+
+### CI 状态（本轮核实）
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q` | 1554 passed ✅ |
+| `ruff check htf/` | All checks passed ✅ |
+| 相关测试（test_rayleigh_cert + test_verify + gap） | 125 passed ✅ |
+
+---
+
 ## 0.7 第三轮深度战略评审（2026-08-14）及响应
 
 > 评审文件：`HTF_repository_strategic_review_zh.md`，归档 SHA-256 `8f97605…`

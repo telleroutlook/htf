@@ -17,6 +17,8 @@ Honest scope
 """
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from .certificate import Certificate
@@ -80,22 +82,18 @@ def first_excited_upper(
     state_gs: np.ndarray,
     state_es: np.ndarray,
 ) -> float:
-    """Variational upper bound on E_1 from a state orthogonalised to |ψ_0⟩.
+    """Variational upper bound on E_1 via two-state Ritz.
 
-    Projects ``|φ⟩`` onto the orthogonal complement of ``|ψ_0⟩``::
-
-        |φ_⊥⟩ = |φ⟩ − ⟨ψ_0|φ⟩|ψ_0⟩   (normalised)
-
-    Then ``E_1 ≤ ⟨φ_⊥|H|φ_⊥⟩ / ⟨φ_⊥|φ_⊥⟩``.
+    By the min-max theorem, the larger eigenvalue of the 2×2 compression of H
+    to span{state_gs, state_es} satisfies E_1 ≤ θ_1(S) for any 2D subspace S,
+    regardless of whether state_gs is the exact ground eigenvector.
 
     Parameters
     ----------
     ham      : dense Hamiltonian.
     state_gs : approximate ground state (normalisation applied internally).
-    state_es : trial excited state (must not be parallel to state_gs).
+    state_es : trial excited state (must be linearly independent of state_gs).
     """
-    from .variational import energy_expectation
-
     psi0 = np.asarray(state_gs, dtype=float).reshape(-1)
     phi  = np.asarray(state_es, dtype=float).reshape(-1)
 
@@ -112,7 +110,13 @@ def first_excited_upper(
             "choose a linearly independent vector"
         )
     phi_perp /= norm_perp
-    return energy_expectation(ham, phi_perp)
+
+    H11 = float(psi0 @ (ham @ psi0))
+    H12 = float(psi0 @ (ham @ phi_perp))
+    H22 = float(phi_perp @ (ham @ phi_perp))
+    trace = H11 + H22
+    disc = math.sqrt(max(0.0, ((H11 - H22) * 0.5) ** 2 + H12 ** 2))
+    return trace * 0.5 + disc
 
 
 def trial_energy_difference(
