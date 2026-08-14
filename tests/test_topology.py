@@ -121,7 +121,6 @@ def test_engine_certified_outward_rounded():
     cert = contract(psi, F, mode="certified")
     # The result is a scalar ≈ 0.1; the error_bound must be >= 0 and the
     # true value must lie within result ± error_bound.
-    import math
     assert cert.error_bound >= 0.0
     # 0.1 exactly as a fraction is 1/10; check containment using Fraction.
     from fractions import Fraction
