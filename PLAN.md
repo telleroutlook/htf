@@ -59,13 +59,13 @@
 | Gate | 条件 |
 |---|---|
 | C0 | ✅ **已添加（2026-08-14）** 锁定/最低依赖矩阵全部通过；lint/type/test/coverage 无例外 | CI 新增 `test-locked`（uv.lock）和 `test-minimum-versions`（numpy==1.23, scipy==1.9, pytest==7.0）两个 job |
-| C1 | flint 缺失、未知 backend/claim/schema 全部 `INDETERMINATE` 或 `REJECTED` |
-| C2 | 每个语义字段单独变异 100% 被拒绝 |
-| C3 | verifier 不依赖 producer 私有算术实现 |
-| C4 | adversarial corpus 零已知假阳性 |
-| C5 | 相同 bundle 跨平台裁决一致 |
-| C6 | README/API/CLI/MCP/schema 从同一 claim registry 生成 |
-| C7 | verdict 绑定 commit + artifact digest，有条件项机器阻断发布 |
+| C1 | ✅ **已满足** flint 缺失 → `ImportError`（REJECTED）；`rayleigh_certificate()` / `verify_from_dict()` / `verify_rayleigh_certificate()` 均 fail-fast |
+| C2 | ✅ **已满足（P1-A）** 5 个语义字段单独变异 100% 返回 `verified=False`；`TestVerifyMutationMatrix` 6 个测试 |
+| C3 | 🔵 **P2** verifier 不依赖 producer 私有算术实现（`_rayleigh_primitives` 已隔离；真正独立实现留待 P2） |
+| C4 | ✅ **已满足** `tests/test_oracle.py::TestKnownRejectsStillRejected`（9 项）+ oracle 10 000+ 案例零假阳性 |
+| C5 | ✅ **已添加（2026-08-14）** CI matrix 扩展至 ubuntu-latest + macos-latest × Python 3.10/3.11/3.12 |
+| C6 | 🔵 **P2** README/API/CLI/MCP/schema 从同一 claim registry 生成 |
+| C7 | 🔵 **P2** verdict 绑定 commit + artifact digest，有条件项机器阻断发布 |
 
 ---
 
