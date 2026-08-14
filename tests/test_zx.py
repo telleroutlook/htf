@@ -842,6 +842,129 @@ class TestCliffordSimplify:
         n = clifford_simplify(g)
         assert isinstance(n, int)  # just must not hang
 
+    # ── P1-B: post-simplification matrix equivalence ──────────────────────
+
+    @staticmethod
+    def _matrix_before_after(gates, n_qubits):
+        """Return (M_before, M_after) for a circuit through clifford_simplify."""
+        g_before = zx_from_circuit(gates, n_qubits=n_qubits)
+        M_before = zx_to_matrix(g_before)
+        g_after = zx_from_circuit(gates, n_qubits=n_qubits)
+        clifford_simplify(g_after)
+        M_after = zx_to_matrix(g_after)
+        return M_before, M_after
+
+    @staticmethod
+    def _proportional(A, B, atol=1e-8):
+        """True if A = c·B for some nonzero scalar."""
+        flat_a, flat_b = A.ravel(), B.ravel()
+        nz = np.abs(flat_b) > 1e-10
+        if not nz.any():
+            return np.allclose(A, 0, atol=atol)
+        c = flat_a[nz][0] / flat_b[nz][0]
+        return (np.allclose(flat_a[nz] / flat_b[nz], c, atol=atol) and
+                np.allclose(np.abs(flat_a[~nz]), 0, atol=atol))
+
+    def test_clifford_simplify_preserves_cx_z_cx(self):
+        """P1-B regression: [CX(1→0), Z(0), CX(1→0)] from strategic review.
+
+        This is the deterministic counterexample the third-party audit found
+        in the pre-fix implementation.  The simplified matrix must be
+        proportional to the original.
+        """
+        from htf.qasm import Gate
+        gates = [Gate("cx", [1, 0]), Gate("z", [0]), Gate("cx", [1, 0])]
+        M_before, M_after = self._matrix_before_after(gates, n_qubits=2)
+        assert self._proportional(M_after, M_before), (
+            f"clifford_simplify broke linear map for [CX(1→0), Z(0), CX(1→0)].\n"
+            f"before:\n{M_before}\nafter:\n{M_after}"
+        )
+
+    def test_clifford_simplify_preserves_map_small_circuits(self):
+        """P1-B: clifford_simplify preserves the linear map for a fixed set of
+        small Clifford circuits (fixed-structure, no RNG)."""
+        from htf.qasm import Gate
+        circuits_1q = [
+            [Gate("h", [0])],
+            [Gate("x", [0])],
+            [Gate("z", [0])],
+            [Gate("s", [0])],
+            [Gate("h", [0]), Gate("z", [0]), Gate("h", [0])],
+            [Gate("z", [0]), Gate("z", [0])],
+            [Gate("h", [0]), Gate("h", [0])],
+            [Gate("x", [0]), Gate("z", [0])],
+        ]
+        circuits_2q = [
+            [Gate("cx", [0, 1])],
+            [Gate("cx", [1, 0])],
+            [Gate("cz", [0, 1])],
+            [Gate("h", [0]), Gate("cx", [0, 1])],
+            [Gate("cx", [0, 1]), Gate("cx", [0, 1])],
+            [Gate("cx", [0, 1]), Gate("z", [0]), Gate("cx", [0, 1])],
+            [Gate("cx", [0, 1]), Gate("x", [1]), Gate("cx", [0, 1])],
+            [Gate("z", [0]), Gate("cx", [0, 1]), Gate("z", [0])],
+        ]
+        failures = []
+        for gates in circuits_1q:
+            M_before, M_after = self._matrix_before_after(gates, n_qubits=1)
+            if not self._proportional(M_after, M_before):
+                failures.append(f"1q: {[g.name for g in gates]}")
+        for gates in circuits_2q:
+            M_before, M_after = self._matrix_before_after(gates, n_qubits=2)
+            if not self._proportional(M_after, M_before):
+                failures.append(f"2q: {[g.name for g in gates]}")
+        assert not failures, (
+            f"clifford_simplify broke linear map for {len(failures)} circuit(s):\n"
+            + "\n".join(failures)
+        )
+
+    def test_clifford_simplify_random_1q(self):
+        """P1-B: fixed-seed random 1-qubit Clifford circuits preserve map."""
+        from htf.qasm import Gate
+        clifford_1q = ["h", "x", "z", "s"]
+        rng = np.random.default_rng(42)
+        failures = []
+        for trial in range(50):
+            length = rng.integers(2, 8)
+            gates = [Gate(clifford_1q[rng.integers(4)], [0]) for _ in range(length)]
+            M_before, M_after = self._matrix_before_after(gates, n_qubits=1)
+            if not self._proportional(M_after, M_before):
+                failures.append(f"trial {trial}: {[g.name for g in gates]}")
+        assert not failures, (
+            f"clifford_simplify broke 1q map in {len(failures)}/50 trials:\n"
+            + "\n".join(failures)
+        )
+
+    def test_clifford_simplify_random_2q(self):
+        """P1-B: fixed-seed random 2-qubit Clifford circuits preserve map."""
+        from htf.qasm import Gate
+        clifford_2q_ops = [
+            ("h", 1), ("x", 1), ("z", 1), ("s", 1),
+            ("cx", 2), ("cz", 2),
+        ]
+        rng = np.random.default_rng(99)
+        failures = []
+        for trial in range(30):
+            length = rng.integers(2, 6)
+            gates = []
+            for _ in range(length):
+                name, arity = clifford_2q_ops[rng.integers(len(clifford_2q_ops))]
+                if arity == 1:
+                    q = int(rng.integers(2))
+                    gates.append(Gate(name, [q]))
+                else:
+                    q0, q1 = 0, 1
+                    if rng.random() < 0.5:
+                        q0, q1 = 1, 0
+                    gates.append(Gate(name, [q0, q1]))
+            M_before, M_after = self._matrix_before_after(gates, n_qubits=2)
+            if not self._proportional(M_after, M_before):
+                failures.append(f"trial {trial}: {[g.name for g in gates]}")
+        assert not failures, (
+            f"clifford_simplify broke 2q map in {len(failures)}/30 trials:\n"
+            + "\n".join(failures)
+        )
+
 
 # ─────────────────────── P0-6 regression tests ────────────────────────────
 

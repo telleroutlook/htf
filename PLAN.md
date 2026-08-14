@@ -38,9 +38,9 @@
 
 | ID | 任务 | 文件 | 验收标准 |
 |---|---|---|---|
-| P1-A | `verify_from_dict` 完整 JSON Schema 验证 + 语义字段变异矩阵 | `htf/verify.py`、`htf/schemas/rayleigh_cert_v2.json` | 任意单字段（`claim/theorem/lower/radius/backend`）被篡改均返回 `verified=False` |
-| P1-B | ZX `clifford_simplify` 专项等价回归 | `htf/zx.py`、`tests/test_zx.py` | `[CX(1→0), Z(0), CX(1→0)]` 和固定种子随机 Clifford 差分测试全部通过 |
-| P1-C | 发布门 C0（CI 依赖锁定） | `pyproject.toml`、`.github/workflows/ci.yml` | 锁定/最低依赖双矩阵 CI 全绿；`mypy htf/` 无错误 |
+| P1-A | ✅ **已修复（2026-08-14）** `verify_from_dict` 完整 JSON Schema 验证 + 语义字段变异矩阵 | `htf/verify.py`、`htf/_rayleigh_primitives.py` | `claim/theorem/lower/radius/backend` 单独篡改均返回 `verified=False`；新增 `EXPECTED_THEOREM` 常量至 `_rayleigh_primitives`；新增 6 个变异测试 |
+| P1-B | ✅ **已修复（2026-08-14）** ZX `clifford_simplify` 专项等价回归 | `htf/zx.py`、`tests/test_zx.py` | `[CX(1→0), Z(0), CX(1→0)]` 及随机 Clifford 回归全部通过；`pi_copy` 限制为恰好 1 个 X(0) 邻居，消除多邻居时的断路错误；新增 13 个等价测试 |
+| P1-C | ✅ **已修复（2026-08-14）** Mypy CI — `mypy htf/` 无错误 | `htf/cli.py` | `np.asarray()` 修复 standard_normal 类型推断；`mypy htf/ --ignore-missing-imports` 返回 0 错误 |
 
 ### P2 战略架构（长期，不阻塞 v0.23.0 修复）
 

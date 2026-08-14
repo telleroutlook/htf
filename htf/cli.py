@@ -369,7 +369,7 @@ def cmd_rayleigh(args) -> None:
 
     H, model_label = _build_ham(args)
     rng = np.random.default_rng(args.seed)
-    psi = rng.standard_normal(H.shape[0])
+    psi = np.asarray(rng.standard_normal(H.shape[0]))
     psi /= np.linalg.norm(psi)
 
     cert = rayleigh_certificate(H, psi, notes=f"model={model_label}, seed={args.seed}")

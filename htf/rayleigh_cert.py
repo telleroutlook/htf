@@ -71,6 +71,7 @@ from typing import Any
 import numpy as np
 
 from ._rayleigh_primitives import (
+    EXPECTED_THEOREM,
     SCHEMA_VERSION,
     _acb_rayleigh,
     _arb_rayleigh,
@@ -402,10 +403,7 @@ def rayleigh_certificate(
 
     return RayleighCertificate(
         claim=f"E0 ≤ {upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]",
-        theorem=(
-            "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, "
-            "E0 ≤ Re(⟨ψ|H|ψ⟩/⟨ψ|ψ⟩)."
-        ),
+        theorem=EXPECTED_THEOREM,
         assumptions=assumptions,
         input_digest=digest,
         lower=lower,

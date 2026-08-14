@@ -535,9 +535,13 @@ def color_change(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
 def pi_copy(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
     """Apply the π-copy rule: Z(π) copies through X(0) spiders.
 
-    **Rule**: if a Z(π) spider is connected to an X(0) spider, the Z(π)
-    can be pushed through: the X(0) spider remains, and a new Z(π) appears
-    on each of its other legs.
+    **Rule**: if a Z(π) spider whose *every* neighbour is a zero-phase X spider
+    is connected to one such X(0), the Z(π) can be pushed through: the X(0)
+    spider remains, and a new Z(π) appears on each of its other legs.
+
+    The all-X(0) precondition is required for soundness: if Z(π) has any
+    non-X(0) neighbour the removal would silently disconnect those neighbours
+    (boundary nodes, INPUT/OUTPUT) from the rest of the graph.
 
     This rule is sound for the ZX-calculus and enables simplification of
     NOT-propagation patterns.
@@ -553,6 +557,22 @@ def pi_copy(g: ZXGraph, log: ZXRewriteLog | None = None) -> int:
         if z_node is None or z_node.kind != ZXNodeType.Z:
             continue
         if abs(z_node.phase % (2 * math.pi) - math.pi) > 1e-10:
+            continue
+        # Soundness guard: every neighbour of Z(π) must be a zero-phase X spider,
+        # AND Z(π) must have exactly one neighbour.  If Z(π) has multiple
+        # neighbours, the current implementation would remove all edges when
+        # deleting Z(π), including connections to X(0) spiders it is NOT
+        # copying through — silently breaking those legs.  A complete multi-leg
+        # copy rule requires creating Z(π) nodes on every leg of every X(0)
+        # neighbour simultaneously, which is left as a future refinement.
+        z_nbs = g.neighbours(z_id)
+        if len(z_nbs) != 1:
+            continue
+        nb0 = z_nbs[0]
+        nb0_node = g.nodes.get(nb0)
+        if (nb0_node is None
+                or nb0_node.kind != ZXNodeType.X
+                or abs(nb0_node.phase % (2 * math.pi)) > 1e-10):
             continue
         for x_id in list(g.neighbours(z_id)):
             if x_id not in g.nodes:

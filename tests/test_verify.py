@@ -130,6 +130,50 @@ class TestVerifyFromDictErrors:
             verify_from_dict(good_full_dict)
 
 
+# ── P1-A: semantic field mutation matrix ──────────────────────────────────────
+
+class TestVerifyMutationMatrix:
+    """Every individually-tampered semantic field must produce verified=False.
+
+    Acceptance criterion (P1-A): claim / theorem / interval.lower /
+    interval.radius / backend — each tampered in isolation → FAIL.
+    """
+
+    def test_tampered_claim_fails(self, good_full_dict):
+        good_full_dict["claim"] = "E0 ≤ -9999.0  [tampered]"
+        result = verify_from_dict(good_full_dict)
+        assert result["verified"] is False
+        assert "claim" in result["message"].lower()
+
+    def test_tampered_theorem_fails(self, good_full_dict):
+        good_full_dict["theorem"] = "Some other theorem that was injected"
+        result = verify_from_dict(good_full_dict)
+        assert result["verified"] is False
+        assert "theorem" in result["message"].lower()
+
+    def test_tampered_lower_fails(self, good_full_dict):
+        good_full_dict["interval"]["lower"] = -1e6
+        result = verify_from_dict(good_full_dict)
+        assert result["verified"] is False
+        assert "lower" in result["message"].lower()
+
+    def test_tampered_radius_inflated_fails(self, good_full_dict):
+        good_full_dict["interval"]["radius"] = 1e10
+        result = verify_from_dict(good_full_dict)
+        assert result["verified"] is False
+        assert "radius" in result["message"].lower()
+
+    def test_tampered_backend_fails(self, good_full_dict):
+        good_full_dict["backend"] = "flint-arb/prec=9999 (injected)"
+        result = verify_from_dict(good_full_dict)
+        assert result["verified"] is False
+        assert "backend" in result["message"].lower()
+
+    def test_all_fields_untampered_still_passes(self, good_full_dict):
+        result = verify_from_dict(good_full_dict)
+        assert result["verified"] is True
+
+
 # ─────────────────── verify_file ─────────────────────────────────────────────
 
 class TestVerifyFile:

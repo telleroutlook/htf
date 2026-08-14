@@ -38,6 +38,12 @@ import numpy as np
 
 SCHEMA_VERSION = "rayleigh-cert/v2"
 
+# Expected theorem string — verifier compares stored cert against this.
+EXPECTED_THEOREM = (
+    "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, "
+    "E0 ≤ Re(⟨ψ|H|ψ⟩/⟨ψ|ψ⟩)."
+)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Precondition check

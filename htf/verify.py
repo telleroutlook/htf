@@ -52,6 +52,7 @@ def verify_from_dict(full_cert: dict) -> dict:
 
     # --- imports from _rayleigh_primitives so verify has no dependency on rayleigh_cert ---
     from ._rayleigh_primitives import (
+        EXPECTED_THEOREM,
         SCHEMA_VERSION,
         _acb_rayleigh,
         _arb_rayleigh,
@@ -89,11 +90,44 @@ def verify_from_dict(full_cert: dict) -> dict:
             ),
         }
 
+    stored_upper = float(full_cert["interval"]["upper"])
+
+    # Claim must encode the stored upper value in the canonical format.
+    expected_claim = (
+        f"E0 ≤ {stored_upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]"
+    )
+    stored_claim = full_cert.get("claim", "")
+    if stored_claim != expected_claim:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": None,
+            "digest_match": None,
+            "message": (
+                f"FAIL — claim text does not match interval.upper:\n"
+                f"  expected: {expected_claim!r}\n"
+                f"  stored:   {stored_claim!r}"
+            ),
+        }
+
+    # Theorem must match the canonical Rayleigh-Ritz statement.
+    stored_theorem = full_cert.get("theorem", "")
+    if stored_theorem != EXPECTED_THEOREM:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": None,
+            "digest_match": None,
+            "message": (
+                f"FAIL — theorem text has been tampered:\n"
+                f"  expected: {EXPECTED_THEOREM!r}\n"
+                f"  stored:   {stored_theorem!r}"
+            ),
+        }
+
     canonical = full_cert["canonical"]
     if "H" not in canonical or "psi" not in canonical:
         raise ValueError("canonical section must contain 'H' and 'psi'")
-
-    # _decode_canonical handles both real (list) and complex ({"real":…,"imag":…}) inputs.
     H   = _decode_canonical(canonical["H"])
     psi = _decode_canonical(canonical["psi"])
 
@@ -129,10 +163,9 @@ def verify_from_dict(full_cert: dict) -> dict:
     # 3. Recompute Rayleigh interval (choose real or complex path)
     is_complex = np.iscomplexobj(H) or np.iscomplexobj(psi)
     if is_complex:
-        _, recomputed_upper, _, backend = _acb_rayleigh(H, psi)
+        recomputed_lower, recomputed_upper, recomputed_radius, recomputed_backend = _acb_rayleigh(H, psi)
     else:
-        _, recomputed_upper, _, backend = _arb_rayleigh(H, psi)
-    stored_upper = float(full_cert["interval"]["upper"])
+        recomputed_lower, recomputed_upper, recomputed_radius, recomputed_backend = _arb_rayleigh(H, psi)
 
     if not math.isfinite(recomputed_upper):
         return {
@@ -163,12 +196,63 @@ def verify_from_dict(full_cert: dict) -> dict:
             ),
         }
 
+    # 4. Semantic field checks — backend, lower, radius must match recomputed values.
+    # These catch tampered metadata that would not be detected by digest or upper checks.
+    _rtol = 1e-12
+    stored_backend = full_cert.get("backend", "")
+    if stored_backend != recomputed_backend:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": (
+                f"FAIL — backend field tampered:\n"
+                f"  expected: {recomputed_backend!r}\n"
+                f"  stored:   {stored_backend!r}"
+            ),
+        }
+
+    stored_lower = float(full_cert["interval"]["lower"])
+    lower_tol = _rtol * max(1.0, abs(recomputed_lower))
+    if abs(stored_lower - recomputed_lower) > lower_tol:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": (
+                f"FAIL — interval.lower tampered: "
+                f"stored={stored_lower:.17g}, recomputed={recomputed_lower:.17g}"
+            ),
+        }
+
+    stored_radius = float(full_cert["interval"]["radius"])
+    # radius is derived from lo/up as nextafter(max(mid-lo, up-mid), inf),
+    # not the raw Arb ball radius — recompute from the verified endpoints.
+    _mid = (recomputed_lower + recomputed_upper) / 2
+    expected_radius = math.nextafter(
+        max(_mid - recomputed_lower, recomputed_upper - _mid), math.inf
+    )
+    radius_tol = _rtol * max(1e-300, expected_radius)
+    if abs(stored_radius - expected_radius) > radius_tol:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": (
+                f"FAIL — interval.radius tampered: "
+                f"stored={stored_radius:.17g}, recomputed={recomputed_radius:.17g}"
+            ),
+        }
+
     return {
         "verified": True,
         "stored_upper": stored_upper,
         "recomputed_upper": recomputed_upper,
         "digest_match": True,
-        "backend": backend,
+        "backend": recomputed_backend,
         "message": (
             f"PASS — E0 ≤ {stored_upper:.17g} independently confirmed "
             f"(recomputed upper = {recomputed_upper:.17g})"
