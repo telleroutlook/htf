@@ -405,3 +405,99 @@ class TestMpmathCrossCheck:
         _, _, _, label256 = _mpmath_rayleigh(H, psi, extra_prec=256)
         assert "192" in label64   # 128 + 64
         assert "384" in label256  # 128 + 256
+
+
+# ── coverage gap tests ────────────────────────────────────────────────────────
+
+class TestVerifyCoverageGaps:
+    """Targeted tests for previously uncovered branches in verify.py."""
+
+    def _good_full_dict(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        return rayleigh_certificate(H, psi).to_full_dict()
+
+    def test_wrong_schema_version_raises(self):
+        from htf.verify import verify_from_dict
+        d = self._good_full_dict()
+        d["schema_version"] = "rayleigh-cert/v0"
+        with pytest.raises(ValueError, match="schema_version"):
+            verify_from_dict(d)
+
+    def test_stored_upper_nan_returns_fail(self):
+        import math
+
+        from htf.verify import verify_from_dict
+        d = self._good_full_dict()
+        d["interval"]["upper"] = float("nan")
+        # claim must also encode the bad upper so the claim check passes
+        d["claim"] = f"E0 ≤ {float('nan'):.17g}  [Rayleigh-Ritz upper bound on ground-state energy]"
+        result = verify_from_dict(d)
+        assert result["verified"] is False
+        assert not math.isfinite(result["stored_upper"])
+
+    def test_mpmath_cross_check_skipped_when_unavailable(self, monkeypatch):
+        import sys
+
+        from htf.verify import verify_from_dict
+        # Temporarily hide mpmath from the import system
+        original = sys.modules.get("mpmath")
+        sys.modules["mpmath"] = None  # type: ignore[assignment]
+        try:
+            d = self._good_full_dict()
+            result = verify_from_dict(d)
+        finally:
+            if original is None:
+                del sys.modules["mpmath"]
+            else:
+                sys.modules["mpmath"] = original
+        assert result["verified"] is True
+        assert result["cross_check"] == "skipped (mpmath not installed)"
+
+    def test_verify_file_nonexistent_raises(self, tmp_path):
+        from htf.verify import verify_file
+        with pytest.raises(FileNotFoundError):
+            verify_file(tmp_path / "no_such_cert.json")
+
+    def test_verify_file_roundtrip(self, tmp_path):
+        from htf.verify import verify_file
+        d = self._good_full_dict()
+        p = tmp_path / "cert.json"
+        p.write_text(json.dumps(d))
+        result = verify_file(str(p))
+        assert result["verified"] is True
+
+    def test_main_verified_exits_0(self, tmp_path, capsys):
+        import sys
+
+        from htf.verify import main
+        d = self._good_full_dict()
+        p = tmp_path / "cert.json"
+        p.write_text(json.dumps(d))
+        with pytest.raises(SystemExit) as exc:
+            main([str(p)])
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert '"verified": true' in out
+
+    def test_main_none_argv_reads_sysargv(self, monkeypatch, tmp_path, capsys):
+        import sys
+
+        from htf.verify import main
+        d = self._good_full_dict()
+        p = tmp_path / "cert.json"
+        p.write_text(json.dumps(d))
+        monkeypatch.setattr(sys, "argv", ["htf-verify", str(p)])
+        with pytest.raises(SystemExit) as exc:
+            main(None)
+        assert exc.value.code == 0
+
+    def test_verify_from_dict_raises_without_flint(self, monkeypatch):
+        import sys
+
+        from htf.verify import verify_from_dict
+        d = self._good_full_dict()
+        monkeypatch.setitem(sys.modules, "flint", None)
+        with pytest.raises(ImportError, match="python-flint"):
+            verify_from_dict(d)

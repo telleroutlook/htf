@@ -237,6 +237,40 @@ class TestValidateCertificateDict:
         with pytest.raises(ValueError):
             validate_certificate_dict("not a dict")
 
+    def test_interval_not_a_dict(self, valid_dict):
+        valid_dict["interval"] = "not-a-dict"
+        with pytest.raises(ValueError, match="interval must be a dict"):
+            validate_certificate_dict(valid_dict)
+
+    def test_interval_missing_keys(self, valid_dict):
+        valid_dict["interval"] = {"lower": 0.0}
+        with pytest.raises(ValueError, match="interval missing keys"):
+            validate_certificate_dict(valid_dict)
+
+    def test_interval_value_non_numeric(self, valid_dict):
+        valid_dict["interval"]["lower"] = "not-a-number"
+        with pytest.raises(ValueError, match="numeric"):
+            validate_certificate_dict(valid_dict)
+
+    def test_interval_value_non_finite(self, valid_dict):
+        valid_dict["interval"]["upper"] = float("inf")
+        with pytest.raises(ValueError, match="finite"):
+            validate_certificate_dict(valid_dict)
+
+    def test_interval_radius_too_small_but_positive(self, valid_dict):
+        # radius is positive but doesn't cover both endpoints
+        lo = valid_dict["interval"]["lower"]
+        up = valid_dict["interval"]["upper"]
+        mid = (lo + up) / 2
+        valid_dict["interval"]["radius"] = abs(up - mid) * 0.1  # too small
+        with pytest.raises(ValueError, match="radius"):
+            validate_certificate_dict(valid_dict)
+
+    def test_invalid_assurance_value(self, valid_dict):
+        valid_dict["assurance"] = "super-rigorous"
+        with pytest.raises(ValueError, match="assurance"):
+            validate_certificate_dict(valid_dict)
+
 
 # ─────────────────── from_dict roundtrip ─────────────────────────────────────
 
@@ -772,6 +806,13 @@ class TestHTF05Regressions:
         with pytest.raises(TypeError, match="float64"):
             rayleigh_certificate(H, psi)
 
+    def test_rejects_psi_non_canonical_dtype(self):
+        # M1: H is float64 but psi is float32 — psi dtype path must fire.
+        H = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0], dtype=np.float32)
+        with pytest.raises(TypeError, match="psi dtype"):
+            rayleigh_certificate(H, psi)
+
     def test_verifier_nan_upper_rejected(self):
         # M2: NaN upper must be rejected, not silently pass.
         from htf.verify import verify_from_dict
@@ -899,4 +940,39 @@ class TestMaliciousCertificateCorpus:
         cert.assurance = "heuristic"
         # No bypass: must still reject
         with pytest.raises(ValueError):
+            verify_rayleigh_certificate(cert)
+
+
+# ── verify_rayleigh_certificate: non-finite and interval-ordering edge cases ──
+
+class TestVerifyRayleighCertEdgeCases:
+    """Cover defensive branches in verify_rayleigh_certificate."""
+
+    def _make_cert(self):
+        # Rayleigh quotient = 1.0 (non-zero, gives non-trivial interval width)
+        H   = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        verify_rayleigh_certificate(cert)
+        return cert
+
+    def test_non_finite_stored_upper_raises(self):
+        cert = self._make_cert()
+        cert.upper = float("nan")
+        with pytest.raises(ValueError, match="finite"):
+            verify_rayleigh_certificate(cert)
+
+    def test_interval_ordering_violated_raises(self):
+        cert = self._make_cert()
+        # Move lower ABOVE midpoint so ordering lower<=mid fails,
+        # but keep upper unchanged so the core bound comparison passes first.
+        cert.lower = cert.midpoint + 1.0
+        with pytest.raises(ValueError, match="lower|upper|ordering|interval"):
+            verify_rayleigh_certificate(cert)
+
+    def test_interval_radius_too_small_raises(self):
+        cert = self._make_cert()
+        # Interval around 1.0 has width ~2^-128 ≈ 3e-39; set radius far below that.
+        cert.radius = 1e-300
+        with pytest.raises(ValueError, match="radius"):
             verify_rayleigh_certificate(cert)
