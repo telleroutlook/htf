@@ -100,14 +100,16 @@ def _extract_tenpy_state_vector(mps_like) -> np.ndarray:
     # ── path 1: real TeNPy ────────────────────────────────────────────────────
     try:
         from tenpy.algorithms.exact_diag import get_full_wavefunction as _gwf  # type: ignore[import]
-        bc = getattr(mps_like, "bc", None)
-        if bc != "finite":
-            raise ValueError(
-                f"TeNPy adapter accepts only bc='finite'; got bc={bc!r}. "
-                "Infinite (iMPS) and segment MPS are not supported."
-            )
-        raw = np.asarray(_gwf(mps_like, undo_sort_charge=True))
-        return _preserve_state_dtype(raw)
+        from tenpy.networks.mps import MPS as _TeNPyMPS  # type: ignore[import]
+        if isinstance(mps_like, _TeNPyMPS):
+            bc = getattr(mps_like, "bc", None)
+            if bc != "finite":
+                raise ValueError(
+                    f"TeNPy adapter accepts only bc='finite'; got bc={bc!r}. "
+                    "Infinite (iMPS) and segment MPS are not supported."
+                )
+            raw = np.asarray(_gwf(mps_like, undo_sort_charge=True))
+            return _preserve_state_dtype(raw)
     except ImportError:
         pass  # TeNPy not installed; fall through to duck-type
 
