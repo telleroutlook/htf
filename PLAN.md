@@ -19,12 +19,12 @@
 |---|---|---|
 | P0-1 `engine._extract_arb_mat` 非外向舍入 | ✅ **已确认并修复** | `float(mid)+float(rad)` 不是外向舍入；已改为 `nextafter(lower/upper)` |
 | P0-2 无 flint 时 `verified=True` | ✅ 已修复（§0.6 F-1） | `rayleigh_cert.py` 和 `verify.py` 均 fail-fast |
-| P0-3 `verify_from_dict` 接受篡改声明 | 🔵 **P1**（见下） | 仅检查 5 个字段；缺完整 JSON Schema + 变异测试 |
-| P0-4 ZX `clifford_simplify` 不保持线性映射 | ⚠️ **待验证** | PLAN §0.6 称已修复；评审仍发现反例；需专项回归 |
+| P0-3 `verify_from_dict` 接受篡改声明 | ✅ **已修复（P1-A）** | 5 个语义字段（claim/theorem/lower/radius/backend）单独篡改均返回 `verified=False` |
+| P0-4 ZX `clifford_simplify` 不保持线性映射 | ✅ **已修复（P1-B）** | `pi_copy` 限制为 1 个 X(0) 邻居；13 个等价回归测试全绿 |
 | P0-5 gap/Temple/OS 外部声明 vs 内部标签 | ✅ 已修复（§0.6 F-2） | `mcp_server.py` 已改为 heuristic 标签 |
 | P0-6 Wire 组合只比较维数（不比较名称） | ✅ **已确认并修复** | `Then.__init__` 改为 `f.cod != g.dom`（全身份比较） |
 | CI Ruff/Mypy 失败 | ✅ **已修复** | 44 个 Ruff 错误全部清零；已添加 Mypy CI |
-| README badge 与实际计数不一致 | 🔵 待更新（测试后） | badge 数字需在测试跑完后同步 |
+| README badge 与实际计数不一致 | ✅ **已同步** | badge 已更新至 1544 |
 
 ### P0 已修复（2026-08-14 本轮）
 
@@ -34,7 +34,7 @@
 | R-2 | `htf/topology.py:Then.__init__` | 组合检查改为 `f.cod != g.dom`（Wire 全身份） | `test_topology.py::test_wire_identity_same_dim_different_name_rejected` |
 | R-3 | `htf/` + `tests/` | Ruff 44 错误全部清零（import 排序、未用变量、ClassVar 注解等） | CI `ruff check` |
 
-### P1 待完成（不阻塞当前测试，但影响可信度）
+### P1 全部完成（2026-08-14）
 
 | ID | 任务 | 文件 | 验收标准 |
 |---|---|---|---|
@@ -58,7 +58,7 @@
 
 | Gate | 条件 |
 |---|---|
-| C0 | 锁定/最低依赖矩阵全部通过；lint/type/test/coverage 无例外 |
+| C0 | ✅ **已添加（2026-08-14）** 锁定/最低依赖矩阵全部通过；lint/type/test/coverage 无例外 | CI 新增 `test-locked`（uv.lock）和 `test-minimum-versions`（numpy==1.23, scipy==1.9, pytest==7.0）两个 job |
 | C1 | flint 缺失、未知 backend/claim/schema 全部 `INDETERMINATE` 或 `REJECTED` |
 | C2 | 每个语义字段单独变异 100% 被拒绝 |
 | C3 | verifier 不依赖 producer 私有算术实现 |
