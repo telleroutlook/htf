@@ -492,3 +492,39 @@ class TestLeanExportCmd:
         assert "E0_upper" in data
         assert isinstance(data["E0_upper"], float)
 
+
+# ── C6: claim registry CLI command ───────────────────────────────────────────
+
+class TestRegistryCommand:
+    """htf registry must print the claim registry as valid JSON."""
+
+    def test_prints_valid_json(self, capsys):
+        main(["registry"])
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert isinstance(data, dict)
+
+    def test_all_known_claims_present(self, capsys):
+        main(["registry"])
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        for cid in ("rayleigh", "variational", "gap", "lanczos", "benchmark", "difficulty"):
+            assert cid in data, f"claim_id {cid!r} missing from registry output"
+
+    def test_each_claim_has_required_fields(self, capsys):
+        main(["registry"])
+        data = json.loads(capsys.readouterr().out)
+        required = {"title", "assurance", "evidence_tier", "limitations"}
+        for cid, info in data.items():
+            missing = required - set(info)
+            assert not missing, f"claim {cid!r} missing fields: {missing}"
+
+    def test_assurance_values_are_valid(self, capsys):
+        main(["registry"])
+        data = json.loads(capsys.readouterr().out)
+        valid = {"rigorous", "heuristic", "reproducible"}
+        for cid, info in data.items():
+            assert info["assurance"] in valid, (
+                f"claim {cid!r} has invalid assurance {info['assurance']!r}"
+            )
+

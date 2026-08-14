@@ -56,6 +56,7 @@ def _build_server() -> MCPServer:
     from mcp.server.mcpserver import MCPServer
 
     from . import __version__
+    from .claim_registry import CLAIM_REGISTRY
 
     # ── Resource limits (prevent accidental O(chi^n) memory blowup) ───────
     _MAX_N_SITES   = 16   # state vector has chi^n elements
@@ -97,11 +98,7 @@ def _build_server() -> MCPServer:
 
     # ── htf_variational ───────────────────────────────────────────────────
     @server.tool(
-        description=(
-            "Certified variational ground-state energy upper bound. "
-            "Returns a JSON Certificate with result, error_bound (FP rounding), "
-            "and mode='certified'."
-        )
+        description=CLAIM_REGISTRY["variational"].mcp_description
     )
     def htf_variational(
         model: str = "ising",
@@ -134,15 +131,7 @@ def _build_server() -> MCPServer:
 
     # ── htf_gap ───────────────────────────────────────────────────────────
     @server.tool(
-        description=(
-            "Spectral gap diagnostics for a finite-lattice model. "
-            "Returns: exact gap (full diagonalisation), variational E0/E1 upper bounds, "
-            "heuristic gap estimate (E1_var - E0_var, NOT a certified gap upper bound), "
-            "Temple heuristic lower estimate (NOT a rigorous lower bound unless "
-            "temple_condition_met=True and E1_lower is a true lower bound). "
-            "All bounds are finite-lattice only; continuum gap and χ-truncation bias are [OUT]. "
-            "Assurance fields indicate the reliability level of each quantity."
-        )
+        description=CLAIM_REGISTRY["gap"].mcp_description
     )
     def htf_gap(
         model: str = "ising",
@@ -229,12 +218,7 @@ def _build_server() -> MCPServer:
 
     # ── htf_benchmark ─────────────────────────────────────────────────────
     @server.tool(
-        description=(
-            "Run the certified reproducibility benchmark suite: variational energy, "
-            "gap bounds, OS-positivity, and difficulty map for standard models. "
-            "Output is a full JSON BenchmarkReport. "
-            "Reproducible: same inputs → same outputs for a given HTF version."
-        )
+        description=CLAIM_REGISTRY["benchmark"].mcp_description
     )
     def htf_benchmark(
         n: int = 4,
@@ -252,15 +236,7 @@ def _build_server() -> MCPServer:
 
     # ── htf_lanczos ───────────────────────────────────────────────────────
     @server.tool(
-        description=(
-            "Lanczos two-sided spectral estimates on the ground-state energy E_0. "
-            "Returns Ritz upper bound (E0_upper, variational) and Temple heuristic "
-            "lower estimate (E0_lower_heuristic). "
-            "The Temple value is a rigorous finite-lattice lower bound ONLY when "
-            "temple_condition_met=True AND the E1 input was a true lower bound on E_1 "
-            "(the current implementation passes a Ritz upper bound, so treat as heuristic). "
-            "Continuum gap and χ-truncation bias are [OUT]."
-        )
+        description=CLAIM_REGISTRY["lanczos"].mcp_description
     )
     def htf_lanczos(
         model: str = "ising",

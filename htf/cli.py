@@ -105,6 +105,12 @@ def cmd_version(_args) -> None:
     print(json.dumps({"htf_version": __version__}))
 
 
+def cmd_registry(_args) -> None:
+    """Print the claim registry as JSON (C6: single source of truth)."""
+    from .claim_registry import registry_summary
+    print(json.dumps(registry_summary(), indent=2))
+
+
 def cmd_hello(_args) -> None:
     diagram, F = _hello_diagram()
     val = contract(diagram, F, mode="float")
@@ -397,6 +403,7 @@ def cmd_rayleigh(args) -> None:
 
 
 def main(argv=None) -> None:
+    from .claim_registry import CLAIM_REGISTRY
     p = argparse.ArgumentParser(
         prog="htf",
         description=(
@@ -411,11 +418,15 @@ def main(argv=None) -> None:
     sub.add_parser(
         "hello", help="run the Phase-1 hello-world diagram and print a certificate"
     ).set_defaults(func=cmd_hello)
+    sub.add_parser(
+        "registry",
+        help="print the claim registry (assurance levels and limitations) as JSON",
+    ).set_defaults(func=cmd_registry)
 
     # ── variational ──────────────────────────────────────────────────────
     sp_var = sub.add_parser(
         "variational",
-        help="certified variational ground-state energy upper bound",
+        help=CLAIM_REGISTRY["variational"].cli_help,
     )
     _add_model_args(sp_var)
     sp_var.add_argument("--chi", type=int, default=2, help="MERA bond dimension (default: 2)")
@@ -427,7 +438,7 @@ def main(argv=None) -> None:
     # ── gap ──────────────────────────────────────────────────────────────
     sp_gap = sub.add_parser(
         "gap",
-        help="spectral gap bounds (exact, variational, Temple, certified)",
+        help=CLAIM_REGISTRY["gap"].cli_help,
     )
     _add_model_args(sp_gap)
     sp_gap.add_argument("--chi", type=int, default=2, help="MERA bond dimension (default: 2)")
@@ -439,7 +450,7 @@ def main(argv=None) -> None:
     # ── difficulty ───────────────────────────────────────────────────────
     sp_dif = sub.add_parser(
         "difficulty",
-        help="entanglement entropy profile and computational difficulty map",
+        help=CLAIM_REGISTRY["difficulty"].cli_help,
     )
     _add_model_args(sp_dif)
     sp_dif.add_argument("--n-iter", type=int, default=50, dest="n_iter",
@@ -462,7 +473,7 @@ def main(argv=None) -> None:
     # ── benchmark ────────────────────────────────────────────────────────
     sp_bm = sub.add_parser(
         "benchmark",
-        help="certified reproducibility benchmark suite across standard models",
+        help=CLAIM_REGISTRY["benchmark"].cli_help,
     )
     sp_bm.add_argument("--n", type=int, default=4, metavar="N",
                        help="number of sites (default: 4)")

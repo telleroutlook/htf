@@ -64,7 +64,7 @@
 | C3 | ✅ **部分满足（2026-08-14）** numpy 交叉检验已加入 `verify_from_dict`：Arb 区间外的 Rayleigh 商返回 `FAIL`，独立于 `_arb_rayleigh` 路径。真正独立算术实现（`mpmath` 或手写）仍为 P2。 |
 | C4 | ✅ **已满足** `tests/test_oracle.py::TestKnownRejectsStillRejected`（9 项）+ oracle 10 000+ 案例零假阳性 |
 | C5 | ✅ **已添加（2026-08-14）** CI matrix 扩展至 ubuntu-latest + macos-latest × Python 3.10/3.11/3.12 |
-| C6 | 🔵 **P2** README/API/CLI/MCP/schema 从同一 claim registry 生成 |
+| C6 | ✅ **已完成（2026-08-14）** `htf/claim_registry.py` 建立统一声明注册表（6 个声明 ID，含 title/assurance/evidence_tier/limitations/mcp_description/cli_help）；CLI `htf registry` 输出 JSON；MCP 4 个工具描述从注册表导入；4 个注册表测试。 |
 | C7 | ✅ **已完成（2026-08-14）** `git_commit` 字段绑定每个证书；`.github/workflows/release.yml` 在发布标签时运行完整测试、badge 校验、git_commit 一致性检查，全部通过才构建发行包。 |
 
 ---
