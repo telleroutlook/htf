@@ -5,7 +5,7 @@ Run:  PYTHONPATH=. python examples/phase4_certified_physics.py
 Demonstrates:
 * Exact spectral gap from full diagonalisation.
 * Variational upper bound on gap via excited-state MERA.
-* Temple's inequality lower bound on E_0 (rigorous finite-lattice).
+* Temple's inequality lower bound on E_0 (heuristic, NOT rigorous — P0-1).
 * Certified gap upper bound via flint Arb.
 * χ-convergence study (energy vs bond dimension, generalised spin model).
 * Entanglement entropy profile and difficulty map.
@@ -17,7 +17,7 @@ Bond-dimension truncation bias (χ→∞) and finite-size effects are [OUT].
 """
 import numpy as np
 
-from htf import (
+from htf.labs import (
     certified_gap_upper,
     chi_convergence_study,
     difficulty_report,

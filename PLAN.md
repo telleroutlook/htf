@@ -6,6 +6,49 @@
 
 ---
 
+## 0.11 战略评审 v0.23.0 P0 修复（2026-08-14）
+
+> 评审文件：`HTF-repository-strategic-review-v0.23.0.md`，审查日期 2026-08-14  
+> 核心裁决：**PUBLIC CERTIFIED BETA：BLOCKED / RESEARCH PREVIEW：PASS WITH WARNINGS**  
+> 本轮：核实所有 P0 发现，修复可即时执行的项目，记录剩余阻塞项。
+
+### P0 核实与修复状态
+
+| 编号 | 描述 | 核实 | 修复状态 |
+|---|---|---|---|
+| P0-1 | 两个 verifier 认证语义不一致（assurance/backend/theorem 缺失检查；`from_dict` 默认升级 assurance） | ✅ 确认 | **已修复（本轮）** |
+| P0-2 | `variational_bound()` 无前提检查，可签发非 Hermitian H 的 certified 结果 | ✅ 确认（反例：非对称 2×2 矩阵） | **已修复（本轮）** |
+| P0-3 | 声明漂移：gap.py/lanczos.py/CLI 仍含 "rigorous" Temple / "strict two-sided" 等已撤销表达 | ✅ 确认 | **已修复（本轮）** |
+| P0-4 | PLAN.md G5 状态矛盾：§0.8 降级 CONDITIONAL，§0.5 仍标 ✅ | ✅ 确认 | **已修复（本轮）** |
+| P0-5 | 公开示例 ImportError：`certified_gap_upper`/`check_isometry` 不在顶层 `htf` 导出 | ✅ 确认 | **已修复（本轮）** |
+| P0-6 | TN 证书仍是指数级稠密（quimb/TeNPy adapter 调用 to_dense()；证书保存整个 H/ψ） | ✅ 确认 | **OPEN**（MPS/MPO 因子化证书为长期目标，见 §七） |
+
+### 本轮修复清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R11-1 | `htf/rayleigh_cert.py` | `_REQUIRED_KEYS` 加入 `"assurance"`；`validate_certificate_dict` assurance 改为必填强校验；`from_dict` 删除 `"rigorous"` 默认值 |
+| R11-2 | `htf/rayleigh_cert.py:verify_rayleigh_certificate` | 新增三项检查：① `assurance=="rigorous"` 否则 `ValueError`；② `theorem==EXPECTED_THEOREM` 否则 `ValueError`；③ `backend` 与重算结果比对 |
+| R11-3 | `htf/variational.py:variational_bound` | 加入 `_check_preconditions` 前提检查（维度一致、有限、自伴）；非 Hermitian H 将在签发证书前抛出 `ValueError` |
+| R11-4 | `htf/gap.py` 模块 docstring | 移除 "rigorous **finite-lattice** lower bound" 对 Temple 的错误声明，改为 heuristic |
+| R11-5 | `htf/lanczos.py` 模块 docstring | 移除 "strict two-sided spectral bounds" 标题和 "rigorous finite-lattice bound" 声明 |
+| R11-6 | `htf/cli.py` | 移除 "Lanczos two-sided spectral bounds" 两处，改为 `[heuristic]` 标注 |
+| R11-7 | `examples/phase4_certified_physics.py` | `from htf import ...` → `from htf.labs import ...`；修正 Temple 描述为 heuristic |
+| R11-8 | `examples/mera_variational.py` | `from htf import ...` → `from htf.labs import ...` |
+| R11-9 | `docs/theorem_cards.md` TC-4 | 修正路径 (a) 的数学错误：明确"验证 E1>R 条件需 E1 下界，收紧 Temple 公式需 E1 上界" |
+| R11-10 | `PLAN.md` §0.5 | G5 状态修正为 CONDITIONAL；更新概要说明 |
+
+### 仍然阻塞（未在本轮修复）
+
+| 阻塞项 | 说明 |
+|---|---|
+| R0 认证语义（R0 from 评审 §八） | P0-1 已修复；需补充 malicious corpus 测试（heuristic 证书、伪造 theorem、降级 backend）[工程] |
+| R5 因子化规模 | MPS/MPO 原生 Rayleigh 证书（不稠密化）仍为 OPEN [研究] |
+| R6 独立复审 | HTF-03/04/05 裁决为内部实施，无外部书面 PASS；G5 仍 OPEN |
+| CI coverage badge | README 徽章未由 CI 实时校验（评审发现 92% 实测 vs 93% 徽章） |
+
+---
+
 ## 0.10 HTF-03/04/05 外部审稿裁决实施（2026-08-14）
 
 > 三份外部独立审稿裁决文件回复，本轮全部实施。1574 tests ✅（push 07237a8）
@@ -231,7 +274,7 @@ G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文�
 
 **裁决：可作为研究原型继续开发，但不得以 "certified / proof-carrying tensor framework" 对外发布，直至以下 P0 门全部关闭。**
 
-> **2026-08-14 更新：G0–G6 全部关闭，P0/P1 全部修复，"certified" 品牌词限制已解除。**
+> **2026-08-14 更新：G0–G4/G6 已关闭；G5 为 CONDITIONAL（内部审稿，外部书面 PASS 仍需完成）。P0/P1 全部修复，但战略评审 v0.23.0（§0.11）发现新 P0 阻塞项。**
 
 独立审查（审查日期 2026-08-13，SHA-256 `b9fd9a20…`）对 v0.23.0 发现 7 项 P0 缺陷和若干 P1 问题。核心教训：**测试数量验证了"代码按作者写法运行"，但没有独立验证"作者写下的定理前提与结论方向正确"**。
 
@@ -290,7 +333,7 @@ MERA chi/物理维混用（P1-1）✅ 已在 MERALayer docstring 注明 · 类�
 | G2 | 每个 bound 的所有前提由机器检查；未知前提只返回 INDETERMINATE | ✅ 精确前提检查（v2：NaN-closed / exact Hermitian / exact non-zero） |
 | G3 | 实/复区间、precision、截断预算全部记录；不把 midpoint 单独称为 bound | ✅ `flint-arb/prec=128` / `flint-acb/prec=128` 标注；numpy-float 标为 discovery-tier |
 | G4 | ≥10,000 随机/病态 oracle case 零假阳性；已知反例稳定拒绝 | ✅ `tests/test_oracle.py`：≥10,340 cases，5 类别，24 函数 |
-| G5 | 领域审稿人对 claim spec 与 verifier 给出书面通过意见 | ✅ HTF-01（R1-R6）+ HTF-02（R1-R4）裁决已实现 |
+| G5 | 领域审稿人对 claim spec 与 verifier 给出书面通过意见 | ⚠️ CONDITIONAL（内部审稿，外部 PASS 仍 OPEN — 见 §0.8）|
 | G6 | README、API、CLI/MCP、白皮书与实际证书语义一致；CI 自动检查 badge 数据 | ✅ README 已更新；CI badge 自动验证已添加（`validate-badge` step，Python 3.11） |
 
 ---

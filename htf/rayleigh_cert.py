@@ -209,7 +209,7 @@ class RayleighCertificate:
             backend=d["backend"],
             htf_version=d["htf_version"],
             schema_version=d.get("schema_version", SCHEMA_VERSION),
-            assurance=str(d.get("assurance", "rigorous")),
+            assurance=str(d["assurance"]),
             verified=bool(d.get("verified", False)),
             git_commit=str(d.get("git_commit", "")),
             notes=str(d.get("notes", "")),
@@ -225,6 +225,7 @@ class RayleighCertificate:
 _REQUIRED_KEYS = {
     "schema_version", "claim", "theorem", "assumptions",
     "input_digest", "interval", "backend", "htf_version", "verified",
+    "assurance",
 }
 _INTERVAL_KEYS = {"lower", "upper", "midpoint", "radius"}
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -291,12 +292,11 @@ def validate_certificate_dict(d: dict) -> None:
         raise ValueError("assumptions must be a non-empty list")
     if not isinstance(d["verified"], bool):
         raise ValueError(f"verified must be bool; got {type(d['verified']).__name__}")
-    if "assurance" in d:
-        _valid_assurance = {"rigorous", "reproducible", "heuristic"}
-        if d["assurance"] not in _valid_assurance:
-            raise ValueError(
-                f"assurance must be one of {sorted(_valid_assurance)}; got {d['assurance']!r}"
-            )
+    _valid_assurance = {"rigorous", "reproducible", "heuristic"}
+    if d["assurance"] not in _valid_assurance:
+        raise ValueError(
+            f"assurance must be one of {sorted(_valid_assurance)}; got {d['assurance']!r}"
+        )
     if "git_commit" in d and not isinstance(d["git_commit"], str):
         raise ValueError(
             f"git_commit must be a string; got {type(d['git_commit']).__name__}"
@@ -485,6 +485,24 @@ def verify_rayleigh_certificate(cert: RayleighCertificate) -> RayleighCertificat
     # 1. Schema check
     cert.validate()
 
+    # Reject non-rigorous certificates upfront: a heuristic or reproducible
+    # cert has radius=0 or no independent arithmetic — passing it through
+    # verify would give a misleading verified=True.
+    if cert.assurance != "rigorous":
+        raise ValueError(
+            f"verify_rayleigh_certificate() only verifies assurance='rigorous' "
+            f"certificates; got assurance={cert.assurance!r}. "
+            "Use rayleigh_certificate() to produce a rigorous certificate."
+        )
+
+    # Theorem must match the canonical Rayleigh-Ritz statement.
+    if cert.theorem != EXPECTED_THEOREM:
+        raise ValueError(
+            f"Certificate theorem has been tampered:\n"
+            f"  expected: {EXPECTED_THEOREM!r}\n"
+            f"  stored:   {cert.theorem!r}"
+        )
+
     H   = _decode_canonical(cert._H_canonical)
     psi = _decode_canonical(cert._psi_canonical)
 
@@ -502,9 +520,17 @@ def verify_rayleigh_certificate(cert: RayleighCertificate) -> RayleighCertificat
     # 4. Recompute interval
     is_complex = np.iscomplexobj(H) or np.iscomplexobj(psi)
     if is_complex:
-        _, upper_v, _, _ = _acb_rayleigh(H, psi)
+        _, upper_v, _, recomputed_backend = _acb_rayleigh(H, psi)
     else:
-        _, upper_v, _, _ = _arb_rayleigh(H, psi)
+        _, upper_v, _, recomputed_backend = _arb_rayleigh(H, psi)
+
+    # Backend must match the recomputed value — catches downgrade attacks.
+    if cert.backend != recomputed_backend:
+        raise ValueError(
+            f"Certificate backend has been tampered:\n"
+            f"  expected: {recomputed_backend!r}\n"
+            f"  stored:   {cert.backend!r}"
+        )
 
     # Fail closed on non-finite bounds
     if not math.isfinite(upper_v):

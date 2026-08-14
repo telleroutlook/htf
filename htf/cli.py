@@ -14,7 +14,7 @@ variational  Certified variational energy upper bound.
 difficulty   Entanglement entropy / difficulty map.
 os-check     Osterwalder-Schrader positivity machine check.
 benchmark    Certified reproducibility benchmark suite.
-lanczos      Lanczos two-sided spectral bounds (Temple lower + Ritz upper).
+lanczos      Lanczos bounds: heuristic Temple lower + Ritz upper [heuristic].
 qasm-sim     Simulate a QASM 2.0 circuit file → unitary matrix JSON.
 zx-simplify  Load a QASM circuit, convert to ZX, simplify, report stats.
 inverse      Inverse / Hamiltonian-learning design.
@@ -237,7 +237,7 @@ def cmd_benchmark(args) -> None:
 
 
 def cmd_lanczos(args) -> None:
-    """Lanczos two-sided spectral bounds on E_0."""
+    """Lanczos bounds: heuristic Temple lower + Ritz upper (NOT strict two-sided)."""
     from .lanczos import temple_lanczos
 
     H, model_label = _build_ham(args)
@@ -496,7 +496,7 @@ def main(argv=None) -> None:
     # ── lanczos ──────────────────────────────────────────────────────────
     sp_lan = sub.add_parser(
         "lanczos",
-        help="Lanczos two-sided spectral bounds (Temple lower + Ritz upper)",
+        help="Lanczos bounds: heuristic Temple lower + Ritz upper [heuristic]",
     )
     _add_model_args(sp_lan)
     sp_lan.add_argument("--k", type=int, default=30,

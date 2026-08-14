@@ -201,9 +201,11 @@ machine-verified bound.
 ### Path to rigorous TC-4  `[research]`
 
 Requires one of:
-(a) A certified upper bound on E1 (from an independent Rayleigh certificate
-    for a trial state ⊥ to the GS), substituted as the denominator in
-    Temple's inequality.
+(a) A certified **lower** bound on E1 (to confirm the applicability condition
+    E1 > R), combined with a separate certified upper bound on E1 (as the
+    denominator to tighten the Temple bound).  Note: a Ritz upper bound ε1 ≥ E1
+    satisfies ε1 > R whenever E1 > R — but verifying E1 > R itself requires
+    a lower bound on E1 (e.g., from an interval eigenvalue enclosure).
 (b) Anderson's two-sided Lanczos bounds, which use the tridiagonal structure
     to certify both upper and lower eigenvalue estimates.
 (c) Eigenvalue enclosure methods (interval arithmetic on the characteristic

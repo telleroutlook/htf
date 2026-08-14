@@ -402,3 +402,23 @@ class TestOptimizeMera:
             assert history[0] >= history[-1] - 1e-6, (
                 f"seed={seed}: initial {history[0]} < final {history[-1]}"
             )
+
+
+# ─────────────── P0-2 precondition regression ─────────────────────────────────
+
+class TestVariationalBoundPreconditions:
+    """variational_bound must reject non-Hermitian H before signing a cert."""
+
+    def test_non_symmetric_h_rejected(self):
+        # Exact P0-2 counterexample from strategic review v0.23.0:
+        # H is not self-adjoint; Rayleigh-Ritz does not apply.
+        H = np.array([[0.0, -100.0], [0.0, 0.0]])
+        mera = random_mera(n_sites=2, chi=2, seed=0)
+        with pytest.raises((ValueError, TypeError)):
+            variational_bound(H, mera)
+
+    def test_dimension_mismatch_rejected(self):
+        H = transverse_ising_ham(4, J=1.0, h=0.5)  # 16x16
+        mera = random_mera(n_sites=2, chi=2, seed=0)  # psi is 4-dimensional
+        with pytest.raises(ValueError, match="shape"):
+            variational_bound(H, mera)

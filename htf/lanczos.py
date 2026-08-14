@@ -1,17 +1,18 @@
-"""HTF §4-I — Lanczos algorithm and strict two-sided spectral bounds.
+"""HTF §4-I — Lanczos algorithm and heuristic spectral bounds.
 
 Provides:
 * ``lanczos``         — k-step Lanczos iteration (tridiagonal form).
 * ``lanczos_eigs``    — Ritz values (approximate eigenvalues) and vectors.
-* ``temple_lanczos``  — Tight Temple lower bound using Lanczos E_1 estimate.
-* ``two_sided_bounds``— Both certified upper and Temple-Lanczos lower bound.
+* ``temple_lanczos``  — Heuristic Temple lower bound using Lanczos E_1 estimate.
+* ``two_sided_bounds``— Ritz upper bound + heuristic Temple lower bound (NOT
+                        strict two-sided bounds; see P0-1 and TC-4).
 
 Honest scope
 ------------
 * Ritz values are variational upper bounds on the corresponding eigenvalues
   (no rigorous convergence certificate — Paige a-posteriori bounds are ``[研究]``).
-* The Temple lower bound is a rigorous finite-lattice bound on E_0 when the
-  condition E_var < E_1_exact is met; it does not certify the continuum gap.
+* The Temple lower bound uses the second Ritz value as denominator proxy for
+  E1_exact.  This is a **heuristic** estimate, NOT a rigorous lower bound (P0-1).
 * All computations are float mode; combining with certified mode is ``[研究]``.
 """
 from __future__ import annotations

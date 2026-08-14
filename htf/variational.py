@@ -119,8 +119,19 @@ def variational_bound(
     except ImportError as exc:
         raise ImportError("variational_bound requires python-flint") from exc
 
+    from ._rayleigh_primitives import _check_preconditions
+
     psi = mera.state_vector()
     n = len(psi)
+
+    # Precondition checks: ham must be self-adjoint, finite, same dimension as psi.
+    # Without these, the Rayleigh-Ritz theorem does not apply and a
+    # Certificate(mode="certified") would carry an unsound claim.
+    if ham.shape != (n, n):
+        raise ValueError(
+            f"ham shape {ham.shape} does not match MERA state dimension ({n},)"
+        )
+    _check_preconditions(np.asarray(ham, dtype=float), psi)
 
     psi_row = arb_mat([[arb(float(psi[i])) for i in range(n)]])
     psi_col = arb_mat([[arb(float(psi[i]))] for i in range(n)])

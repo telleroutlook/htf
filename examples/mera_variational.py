@@ -19,7 +19,7 @@ general the gap between E_var(chi) and E_0 is a separate, uncertified bias.
 """
 import numpy as np
 
-from htf import (
+from htf.labs import (
     check_isometry,
     enforce_isometry,
     random_mera,

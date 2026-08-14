@@ -837,3 +837,66 @@ class TestHTF05Regressions:
         assert cert.upper == math.nextafter(-5.0, math.inf)
         assert cert.upper + 5.0 == math.ulp(-5.0)
         assert cert.lower == math.nextafter(-5.0, -math.inf)
+
+
+# ─────────────────── P0-1 malicious certificate corpus ───────────────────────
+
+class TestMaliciousCertificateCorpus:
+    """verify_rayleigh_certificate must reject tampered/downgraded certs."""
+
+    def _make_cert(self):
+        H = np.diag([0.0, 1.0, 2.0])
+        psi = np.array([1.0, 0.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        verify_rayleigh_certificate(cert)
+        return cert
+
+    def test_heuristic_assurance_rejected(self):
+        cert = self._make_cert()
+        cert.assurance = "heuristic"
+        with pytest.raises(ValueError, match="assurance"):
+            verify_rayleigh_certificate(cert)
+
+    def test_reproducible_assurance_rejected(self):
+        cert = self._make_cert()
+        cert.assurance = "reproducible"
+        with pytest.raises(ValueError, match="assurance"):
+            verify_rayleigh_certificate(cert)
+
+    def test_forged_theorem_rejected(self):
+        cert = self._make_cert()
+        cert.theorem = "Fake theorem: E0 >= 0 always."
+        with pytest.raises(ValueError, match="theorem"):
+            verify_rayleigh_certificate(cert)
+
+    def test_downgraded_backend_rejected(self):
+        cert = self._make_cert()
+        cert.backend = "numpy-float (no certified rounding; install python-flint)"
+        with pytest.raises(ValueError, match="backend"):
+            verify_rayleigh_certificate(cert)
+
+    def test_from_dict_missing_assurance_raises(self):
+        cert = self._make_cert()
+        d = cert.to_dict()
+        del d["assurance"]
+        with pytest.raises(ValueError, match="assurance"):
+            RayleighCertificate.from_dict(d)
+
+    def test_from_dict_no_default_assurance_upgrade(self):
+        # from_dict must NOT silently upgrade missing assurance to "rigorous".
+        cert = self._make_cert()
+        d = cert.to_dict()
+        del d["assurance"]
+        try:
+            RayleighCertificate.from_dict(d)
+            assert False, "Expected ValueError for missing assurance"
+        except ValueError:
+            pass  # correct
+
+    def test_extra_fields_do_not_bypass_checks(self):
+        # Extra fields must not confuse the verifier into accepting a bad cert.
+        cert = self._make_cert()
+        cert.assurance = "heuristic"
+        # No bypass: must still reject
+        with pytest.raises(ValueError):
+            verify_rayleigh_certificate(cert)

@@ -10,9 +10,8 @@ Honest scope
 ------------
 * ``certified_gap_upper`` certifies **floating-point rounding** in the gap
   computation only.  Bond-dimension truncation bias is **not** certified here.
-* Temple's lower bound is a rigorous **finite-lattice** lower bound on E_0,
-  not a bound on the spectral gap itself.  The tighter ``E1_upper``, the
-  tighter the bound.
+* Temple's lower bound uses the second Ritz value as denominator and is a
+  **heuristic** estimate only — NOT a rigorous lower bound (P0-1).
 * The continuum spectral gap (χ→∞, thermodynamic limit) is ``[OUT]``.
 """
 from __future__ import annotations
