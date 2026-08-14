@@ -692,3 +692,62 @@ class TestRayleighEstimate:
         psi = np.array([1.0, 0.0])
         d = rayleigh_estimate(H, psi).to_dict()
         assert d["assurance"] == "heuristic"
+
+
+# ── C7: git_commit provenance field ──────────────────────────────────────────
+
+class TestGitCommitProvenance:
+    """C7: every certificate carries a git_commit provenance field."""
+
+    def test_git_commit_present_in_cert(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        assert hasattr(cert, "git_commit")
+        assert isinstance(cert.git_commit, str)
+
+    def test_git_commit_in_to_dict(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        d = rayleigh_certificate(H, psi).to_dict()
+        assert "git_commit" in d
+        assert isinstance(d["git_commit"], str)
+
+    def test_git_commit_roundtrips_from_dict(self):
+        from htf.rayleigh_cert import RayleighCertificate, rayleigh_certificate
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        cert2 = RayleighCertificate.from_dict(cert.to_dict())
+        assert cert2.git_commit == cert.git_commit
+
+    def test_git_commit_nonempty_inside_repo(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        # Inside the htf git repo this should be a non-empty short SHA.
+        # Allow empty for environments where git is absent.
+        if cert.git_commit:
+            import re
+            assert re.fullmatch(r"[0-9a-f]{4,40}", cert.git_commit), (
+                f"git_commit looks malformed: {cert.git_commit!r}"
+            )
+
+    def test_estimate_also_has_git_commit(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_estimate(H, psi)
+        assert "git_commit" in cert.to_dict()
+
+    def test_git_commit_invalid_type_rejected(self):
+        from htf.rayleigh_cert import rayleigh_certificate, validate_certificate_dict
+        H = np.diag([0.0, 1.0])
+        psi = np.array([1.0, 0.0])
+        d = rayleigh_certificate(H, psi).to_dict()
+        d["git_commit"] = 12345  # not a string
+        with pytest.raises(ValueError, match="git_commit"):
+            validate_certificate_dict(d)

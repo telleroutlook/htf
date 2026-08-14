@@ -65,7 +65,7 @@
 | C4 | ✅ **已满足** `tests/test_oracle.py::TestKnownRejectsStillRejected`（9 项）+ oracle 10 000+ 案例零假阳性 |
 | C5 | ✅ **已添加（2026-08-14）** CI matrix 扩展至 ubuntu-latest + macos-latest × Python 3.10/3.11/3.12 |
 | C6 | 🔵 **P2** README/API/CLI/MCP/schema 从同一 claim registry 生成 |
-| C7 | 🔵 **P2** verdict 绑定 commit + artifact digest，有条件项机器阻断发布 |
+| C7 | ✅ **已添加（2026-08-14）** `git_commit` 字段嵌入每个 `RayleighCertificate`，绑定生产代码的 git short-SHA；`_git_commit()` 辅助函数，JSON schema 已更新，`from_dict` 向后兼容；6 个新测试（`TestGitCommitProvenance`）。CI 阻断发布仍为 P2（需 release workflow）。 |
 
 ---
 

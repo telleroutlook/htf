@@ -108,6 +108,8 @@ class RayleighCertificate:
                      ``"reproducible"`` — float, digest-bound, not rigorous.
                      ``"heuristic"``    — float estimate, no digest binding.
     verified       : True if :func:`verify_rayleigh_certificate` confirmed.
+    git_commit     : git SHA-1 of the HTF repository at issuance time, or
+                     ``""`` when not inside a git repository.
     notes          : additional context.
     """
     claim: str
@@ -123,6 +125,7 @@ class RayleighCertificate:
     schema_version: str = SCHEMA_VERSION
     assurance: str = "rigorous"
     verified: bool = False
+    git_commit: str = ""
     notes: str = ""
 
     # Stored for independent replay; not exposed in to_dict().
@@ -149,6 +152,7 @@ class RayleighCertificate:
             },
             "backend": self.backend,
             "htf_version": self.htf_version,
+            "git_commit": self.git_commit,
             "assurance": self.assurance,
             "verified": self.verified,
             "notes": self.notes,
@@ -207,6 +211,7 @@ class RayleighCertificate:
             schema_version=d.get("schema_version", SCHEMA_VERSION),
             assurance=str(d.get("assurance", "rigorous")),
             verified=bool(d.get("verified", False)),
+            git_commit=str(d.get("git_commit", "")),
             notes=str(d.get("notes", "")),
             _H_canonical=canonical.get("H", []),
             _psi_canonical=canonical.get("psi", []),
@@ -292,6 +297,10 @@ def validate_certificate_dict(d: dict) -> None:
             raise ValueError(
                 f"assurance must be one of {sorted(_valid_assurance)}; got {d['assurance']!r}"
             )
+    if "git_commit" in d and not isinstance(d["git_commit"], str):
+        raise ValueError(
+            f"git_commit must be a string; got {type(d['git_commit']).__name__}"
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -322,11 +331,23 @@ def _htf_version() -> str:
     except Exception:
         pass
     return "unknown"
+def _git_commit() -> str:
+    """Return the short HEAD SHA-1, or '' when outside a git repository."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=2,
+            cwd=Path(__file__).parent,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return ""
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Public API
-# ──────────────────────────────────────────────────────────────────────────────
+
 
 def rayleigh_certificate(
     H: np.ndarray,
@@ -412,6 +433,7 @@ def rayleigh_certificate(
         radius=radius,
         backend=backend,
         htf_version=_htf_version(),
+        git_commit=_git_commit(),
         assurance="rigorous",
         verified=False,
         notes=notes,
@@ -575,6 +597,7 @@ def rayleigh_estimate(
         radius=0.0,
         backend="numpy-float (no certified rounding; install python-flint)",
         htf_version=_htf_version(),
+        git_commit=_git_commit(),
         assurance="heuristic",
         verified=False,
         notes=(

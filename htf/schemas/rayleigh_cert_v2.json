@@ -56,6 +56,10 @@
       "type": "string",
       "description": "Version of HTF that produced this certificate."
     },
+    "git_commit": {
+      "type": "string",
+      "description": "Short git SHA-1 of the HTF repository at issuance time, or empty string when outside a git repository. Provenance only — not verified by the independent verifier."
+    },
     "assurance": {
       "type": "string",
       "enum": ["rigorous", "reproducible", "heuristic"],
