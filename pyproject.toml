@@ -25,7 +25,7 @@ accel = ["jax", "opt_einsum"]          # optional GPU / contraction-path acceler
 certified = ["python-flint>=0.5"]      # certified mode: Arb interval arithmetic
 mcp = ["mcp>=2,<3"]                    # MCP server wrapper (mcp 2.x API)
 adapters = ["quimb>=0.6"]              # optional backend adapters (quimb MPS)
-dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy"]  # scipy now in core
+dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy", "hypothesis>=6"]  # scipy now in core
 
 [project.scripts]
 htf = "htf.cli:main"

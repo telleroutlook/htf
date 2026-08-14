@@ -37,7 +37,7 @@
 | F-2 | `htf/gap.py`, `htf/cli.py`, `htf/mcp_server.py` | 重命名 API + assurance 标签 | ✅ |
 | F-3 | `htf/rayleigh_cert.py`, `htf/schemas/rayleigh_cert_v2.json` | `assurance` 字段 | ✅ |
 
-测试：1489 passing（无回归）。
+测试：1531 passing（无回归）。
 
 ### P1 完成状态（2026-08-14）
 
@@ -52,8 +52,8 @@
 | 优先级 | 任务 | 状态 |
 |---|---|---|
 | P2-A | 无-flint 失败测试（`TestNoFlintGuard`：`rayleigh_certificate` / `verify_rayleigh_certificate` 在 flint 缺席时正确抛出）；非严格证书拒绝测试（`TestVerifyRejectsNonRigorous`：heuristic / numpy-backend 证书被 `verify_from_dict` 拒绝）；`rayleigh_estimate` 完整测试套件（`TestRayleighEstimate`，11 个用例）。 | ✅ |
-| P2-B | 三条 Golden Path：(1) 稠密 Hamiltonian → Rayleigh → 独立验证；(2) quimb MPS → adapter → Rayleigh → 独立验证；(3) TeNPy MPS → adapter → Rayleigh → 独立验证。 | ⬜ 待做 |
-| P2-C | 公开导出补充 mutation test 和 property-based test（`hypothesis`）。 | ⬜ 待做 |
+| P2-B | 三条 Golden Path：(1) 稠密 Hamiltonian → Rayleigh → 独立验证；(2) quimb MPS → adapter → Rayleigh → 独立验证；(3) TeNPy MPS → adapter → Rayleigh → 独立验证。 | ✅ |
+| P2-C | 公开导出补充 mutation test 和 property-based test（`hypothesis`）。 | ✅ |
 
 ---
 
