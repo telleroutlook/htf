@@ -1,0 +1,79 @@
+name: Release gate
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  verify-and-release:
+    name: Verify release gate (Python 3.11)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check htf/ tests/ --output-format=github
+
+      - name: Type check (mypy)
+        run: mypy htf/ --ignore-missing-imports --no-strict-optional
+
+      - name: Run full test suite
+        run: |
+          set -o pipefail
+          python -m pytest -q --tb=short 2>&1 | tee pytest_out.txt
+
+      - name: Verify badge matches test count
+        run: |
+          COUNT=$(grep -oP '^\d+(?= passed)' pytest_out.txt | tail -1)
+          BADGE=$(grep -oP '(?<=tests-)\d+(?=%20passing)' README.md)
+          if [ -z "$COUNT" ]; then
+            echo "::error::Could not parse pytest passed count"
+            exit 1
+          fi
+          if [ "$COUNT" != "$BADGE" ]; then
+            echo "::error::Badge mismatch — pytest=$COUNT README=$BADGE. Update README.md before releasing."
+            exit 1
+          fi
+          echo "Badge OK: $COUNT tests passing"
+
+      - name: Verify git_commit provenance on sample cert
+        run: |
+          python - <<'EOF'
+          import subprocess, sys, numpy as np
+          from htf.rayleigh_cert import rayleigh_certificate
+
+          H = np.diag([0.0, 1.0])
+          psi = np.array([1.0, 0.0])
+          cert = rayleigh_certificate(H, psi)
+
+          head = subprocess.check_output(
+              ["git", "rev-parse", "--short", "HEAD"], text=True
+          ).strip()
+
+          if cert.git_commit != head:
+              print(f"ERROR: cert.git_commit={cert.git_commit!r} != HEAD={head!r}", file=sys.stderr)
+              sys.exit(1)
+          print(f"git_commit provenance OK: {cert.git_commit}")
+          EOF
+
+      - name: Build distribution
+        run: |
+          pip install build
+          python -m build
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

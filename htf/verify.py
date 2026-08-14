@@ -247,6 +247,25 @@ def verify_from_dict(full_cert: dict) -> dict:
             ),
         }
 
+    # 5. Numpy cross-check (C3 partial independence).
+    # Compute the Rayleigh quotient via numpy, independently of _arb_rayleigh.
+    # This catches bugs where the Arb interval is computed from wrong inputs
+    # or the interval arithmetic itself has a systematic error.
+    numpy_rq = float(np.real(psi.conj() @ H @ psi)) / float(np.real(psi.conj() @ psi))
+    _interval_tol = max(1e-10, (recomputed_upper - recomputed_lower) * 10)
+    if not (recomputed_lower - _interval_tol <= numpy_rq <= recomputed_upper + _interval_tol):
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": (
+                f"FAIL — numpy cross-check: Rayleigh quotient {numpy_rq:.17g} "
+                f"falls outside Arb interval "
+                f"[{recomputed_lower:.17g}, {recomputed_upper:.17g}]"
+            ),
+        }
+
     return {
         "verified": True,
         "stored_upper": stored_upper,
