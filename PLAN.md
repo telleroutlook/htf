@@ -10,7 +10,9 @@
 
 > 评审文件：`HTF-repository-strategic-review-v0.23.0.md`，审查日期 2026-08-14  
 > 核心裁决：**PUBLIC CERTIFIED BETA：BLOCKED / RESEARCH PREVIEW：PASS WITH WARNINGS**  
-> 本轮：核实所有 P0 发现，修复可即时执行的项目，记录剩余阻塞项。
+> 本轮：核实所有 P0 发现，修复可即时执行的项目，记录剩余阻塞项。  
+> **后续（本节末）**：R0 malicious corpus 测试补全；README badge 1563→1583。  
+> CI 状态：**1583 passed ✅**（含 oracle 24 项）；coverage 93%。
 
 ### P0 核实与修复状态
 
@@ -42,10 +44,10 @@
 
 | 阻塞项 | 说明 |
 |---|---|
-| R0 认证语义（R0 from 评审 §八） | P0-1 已修复；需补充 malicious corpus 测试（heuristic 证书、伪造 theorem、降级 backend）[工程] |
+| R0 认证语义（R0 from 评审 §八） | **已完成（本轮）** `TestMaliciousCertificateCorpus`（7 项）+ `TestVerifyRejectsNonRigorous`（4 项）覆盖 heuristic 证书、伪造 theorem、降级 backend、缺失 assurance 字段全场景 |
 | R5 因子化规模 | MPS/MPO 原生 Rayleigh 证书（不稠密化）仍为 OPEN [研究] |
 | R6 独立复审 | HTF-03/04/05 裁决为内部实施，无外部书面 PASS；G5 仍 OPEN |
-| CI coverage badge | README 徽章未由 CI 实时校验（评审发现 92% 实测 vs 93% 徽章） |
+| CI coverage badge | **已修复（本轮）** README badge 1563→1583（+9 P0-fix 测试）；coverage 93% 实测与 badge 一致 |
 
 ---
 
