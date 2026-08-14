@@ -276,3 +276,122 @@ class TestExportLean:
         export_lean([("certificate", cert, "phi")], path)
         content = path.read_text(encoding="utf-8")
         assert "φ" in content or "phi" in content
+
+
+# ─────────── rayleigh_certificate_to_lean ────────────────────────────────
+
+class TestRayleighCertificateToLean:
+    """Cover lean_export.py lines 152-183 (rayleigh_certificate_to_lean)."""
+
+    def _cert(self):
+        import numpy as np
+        from htf.rayleigh_cert import rayleigh_certificate
+        H   = np.diag([1.0, 2.0, 3.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0, 0.0])
+        return rayleigh_certificate(H, psi)
+
+    def test_returns_string(self):
+        from htf.lean_export import rayleigh_certificate_to_lean
+        s = rayleigh_certificate_to_lean(self._cert(), "e0")
+        assert isinstance(s, str)
+
+    def test_name_in_output(self):
+        from htf.lean_export import rayleigh_certificate_to_lean
+        s = rayleigh_certificate_to_lean(self._cert(), "my_rayleigh")
+        assert "my_rayleigh" in s
+
+    def test_uses_rayleigh_interval_type(self):
+        from htf.lean_export import rayleigh_certificate_to_lean
+        s = rayleigh_certificate_to_lean(self._cert(), "bound")
+        assert "RayleighInterval" in s
+
+    def test_contains_sorry(self):
+        from htf.lean_export import rayleigh_certificate_to_lean
+        s = rayleigh_certificate_to_lean(self._cert(), "bound")
+        assert "sorry" in s
+
+    def test_theorem_keyword_present(self):
+        from htf.lean_export import rayleigh_certificate_to_lean
+        s = rayleigh_certificate_to_lean(self._cert(), "bound")
+        assert "theorem" in s
+
+    def test_upper_value_appears(self):
+        from htf.lean_export import rayleigh_certificate_to_lean
+        cert = self._cert()
+        s = rayleigh_certificate_to_lean(cert, "bound")
+        # upper ≈ 1.0 for H=diag(1,2,3), psi=[1,0,0]
+        assert "1." in s
+
+
+# ─────────── LeanExporter extended (lines 341, 345) ─────────────────────
+
+class TestLeanExporterExtended:
+    """Cover add_structure_report and add_diagram methods."""
+
+    def _structure_report(self):
+        import numpy as np
+        from htf.structure import check_isometry
+        U = np.eye(2)
+        return check_isometry(U)
+
+    def _diagram(self):
+        from htf.topology import Box, Wire
+        w = Wire("x", 2)
+        return Box("f", (w,), (w,))
+
+    def test_add_structure_report_adds_content(self):
+        exp = LeanExporter()
+        report = self._structure_report()
+        exp.add_structure_report(report, "iso")
+        src = exp.source()
+        assert "iso" in src
+
+    def test_add_diagram_adds_content(self):
+        exp = LeanExporter()
+        d = self._diagram()
+        exp.add_diagram(d, "my_box")
+        src = exp.source()
+        assert "my_box" in src
+
+
+# ─────────── export_lean extended (lines 389, 391, 393) ──────────────────
+
+class TestExportLeanExtended:
+    """Cover gap_report, structure_report, diagram branches in export_lean."""
+
+    def _gap_report(self):
+        return {
+            "E0_exact": -2.0,
+            "gap_exact": 1.0,
+            "E0_variational": -1.9,
+            "temple_lower_bound": -2.1,
+            "temple_condition_met": True,
+        }
+
+    def _structure_report(self):
+        import numpy as np
+        from htf.structure import check_isometry
+        return check_isometry(np.eye(2))
+
+    def _diagram(self):
+        from htf.topology import Box, Wire
+        w = Wire("y", 3)
+        return Box("g", (w,), (w,))
+
+    def test_export_gap_report_kind(self, tmp_path):
+        path = tmp_path / "gap.lean"
+        src = export_lean([("gap_report", self._gap_report(), "ising_gap")], path)
+        assert "ising_gap" in src
+        assert path.exists()
+
+    def test_export_structure_report_kind(self, tmp_path):
+        path = tmp_path / "struct.lean"
+        src = export_lean([("structure_report", self._structure_report(), "iso_prop")], path)
+        assert "iso_prop" in src
+        assert path.exists()
+
+    def test_export_diagram_kind(self, tmp_path):
+        path = tmp_path / "diag.lean"
+        src = export_lean([("diagram", self._diagram(), "my_diag")], path)
+        assert "my_diag" in src
+        assert path.exists()

@@ -337,3 +337,57 @@ class TestCircuitToDiagram:
         # Verify the direct unitary is correct (CNOT on 0,2 in 3-qubit space)
         I = np.eye(8, dtype=complex)
         assert np.allclose(U_direct @ U_direct.conj().T, I, atol=1e-10)
+
+
+# ── coverage gaps ─────────────────────────────────────────────────────────────
+
+class TestFormatAngleCoverage:
+    """_fmt_angle: negative-pi and fallback branches (lines 167-168)."""
+
+    def test_negative_pi_half(self):
+        from htf.qasm import _fmt_angle
+        s = _fmt_angle(-np.pi / 2)
+        assert "-" in s and "pi" in s
+
+    def test_negative_pi(self):
+        from htf.qasm import _fmt_angle
+        s = _fmt_angle(-np.pi)
+        assert "-" in s and "pi" in s
+
+    def test_non_pi_multiple_returns_numeric(self):
+        from htf.qasm import _fmt_angle
+        s = _fmt_angle(1.23456789)
+        assert "pi" not in s
+        assert "1.2345" in s
+
+
+class TestEvalAngleCoverage:
+    """_parse_angle: invalid expression raises ValueError (lines 237-238)."""
+
+    def test_invalid_expr_raises(self):
+        from htf.qasm import _parse_angle
+        with pytest.raises(ValueError, match="Cannot evaluate"):
+            _parse_angle("invalid!!!")
+
+
+class TestCircuitUnitaryCoverage:
+    """circuit_unitary: 3-qubit gate raises ValueError (line 306)."""
+
+    def test_three_qubit_gate_raises(self):
+        gate = Gate("h", qubits=[0, 1, 2], params=[])
+        with pytest.raises(ValueError, match="not supported"):
+            circuit_unitary([gate], 3)
+
+
+class TestCircuitToDiagramCoverage:
+    """circuit_to_diagram: parametric label (line 350) and 3-qubit ValueError (line 385)."""
+
+    def test_parametric_gate_label_in_diagram(self):
+        gate = Gate("rx", qubits=[0], params=[np.pi / 4])
+        d = circuit_to_diagram([gate], n_qubits=1)
+        assert d is not None
+
+    def test_three_qubit_gate_raises(self):
+        gate = Gate("h", qubits=[0, 1, 2], params=[])
+        with pytest.raises(ValueError, match="not supported"):
+            circuit_to_diagram([gate], n_qubits=3)

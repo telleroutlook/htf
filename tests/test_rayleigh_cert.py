@@ -976,3 +976,60 @@ class TestVerifyRayleighCertEdgeCases:
         cert.radius = 1e-300
         with pytest.raises(ValueError, match="radius"):
             verify_rayleigh_certificate(cert)
+
+
+# ── _htf_version and _git_commit fallback paths ───────────────────────────────
+
+class TestHelperFallbacks:
+    """Cover exception-handler branches in _htf_version and _git_commit."""
+
+    def test_htf_version_returns_toml_when_metadata_differs(self, monkeypatch):
+        import importlib.metadata as meta
+
+        import htf.rayleigh_cert as rc
+        # metadata.version returns a stale version; pyproject.toml has the real one
+        monkeypatch.setattr(meta, "version", lambda _: "0.0.0-stale")
+        ver = rc._htf_version()
+        # _htf_version detects mismatch and returns pyproject.toml value
+        assert ver != "0.0.0-stale"
+        assert "." in ver
+
+    def test_htf_version_fallback_when_metadata_raises(self, monkeypatch):
+        import importlib.metadata as meta
+
+        import htf.rayleigh_cert as rc
+
+        def _raise(_pkg):
+            raise Exception("package not installed")
+
+        monkeypatch.setattr(meta, "version", _raise)
+        ver = rc._htf_version()
+        # outer-except fallback: reads pyproject.toml directly
+        assert "." in ver
+        assert ver != "unknown"
+
+    def test_htf_version_returns_unknown_when_all_fail(self, monkeypatch, tmp_path):
+        import importlib.metadata as meta
+
+        import htf.rayleigh_cert as rc
+
+        def _raise(_pkg):
+            raise Exception("package not installed")
+
+        monkeypatch.setattr(meta, "version", _raise)
+        # Redirect __file__ so the pyproject.toml read also fails
+        monkeypatch.setattr(rc, "__file__", str(tmp_path / "fake_sub" / "rayleigh_cert.py"))
+        ver = rc._htf_version()
+        assert ver == "unknown"
+
+    def test_git_commit_returns_empty_on_failure(self, monkeypatch):
+        import subprocess
+
+        import htf.rayleigh_cert as rc
+
+        def _raise(*_a, **_kw):
+            raise FileNotFoundError("git not found")
+
+        monkeypatch.setattr(subprocess, "run", _raise)
+        commit = rc._git_commit()
+        assert commit == ""

@@ -438,3 +438,179 @@ class TestFunctorMissingTensor:
         F = TensorFunctor()
         with pytest.raises(KeyError, match="my_unregistered_box"):
             contract(box, F, mode="float")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# htf/labs/__init__.py — re-export smoke tests (0% → covered)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestLabsImport:
+    """Import htf.labs and verify a representative subset of re-exports exist."""
+
+    def test_import_labs_module(self):
+        import htf.labs as labs
+        assert labs is not None
+
+    def test_mps_available(self):
+        from htf.labs import MPS
+        assert MPS is not None
+
+    def test_tebd_evolve_available(self):
+        from htf.labs import tebd_evolve
+        assert callable(tebd_evolve)
+
+    def test_dmrg_sweep_mpo_available(self):
+        from htf.labs import dmrg_sweep_mpo
+        assert callable(dmrg_sweep_mpo)
+
+    def test_rayleigh_certificate_to_lean_not_in_labs(self):
+        import htf.labs as labs
+        assert not hasattr(labs, "rayleigh_certificate_to_lean")
+
+    def test_certified_gap_upper_available(self):
+        from htf.labs import certified_gap_upper
+        assert callable(certified_gap_upper)
+
+    def test_zx_available(self):
+        from htf.labs import clifford_simplify, ZXGraph
+        assert callable(clifford_simplify)
+        assert ZXGraph is not None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# htf/claim_registry.py — get_claim and registry_summary (77% → covered)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestClaimRegistry:
+
+    def test_get_claim_rayleigh_returns_claiminfo(self):
+        from htf.claim_registry import get_claim
+        info = get_claim("rayleigh")
+        assert info.claim_id == "rayleigh"
+        assert info.assurance == "rigorous"
+
+    def test_get_claim_gap_returns_heuristic(self):
+        from htf.claim_registry import get_claim
+        info = get_claim("gap")
+        assert info.assurance == "heuristic"
+
+    def test_get_claim_unknown_raises_key_error(self):
+        from htf.claim_registry import get_claim
+        with pytest.raises(KeyError, match="Unknown claim_id"):
+            get_claim("nonexistent_claim_xyz")
+
+    def test_get_claim_error_lists_known_ids(self):
+        from htf.claim_registry import get_claim
+        with pytest.raises(KeyError) as exc_info:
+            get_claim("bad_id")
+        assert "rayleigh" in str(exc_info.value)
+
+    def test_registry_summary_returns_dict(self):
+        from htf.claim_registry import registry_summary
+        summary = registry_summary()
+        assert isinstance(summary, dict)
+        assert "rayleigh" in summary
+        assert "title" in summary["rayleigh"]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# htf/_rayleigh_primitives.py — flint-absent fallback and zero-psi guard
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestRayleighPrimitivesNoFlint:
+    """Cover the ImportError fallback paths in _arb_rayleigh and _acb_rayleigh."""
+
+    def test_arb_fallback_returns_float_triple(self, monkeypatch):
+        import sys
+        from htf._rayleigh_primitives import _arb_rayleigh
+        monkeypatch.setitem(sys.modules, "flint", None)
+        H   = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        lo, up, rad, label = _arb_rayleigh(H, psi)
+        assert lo == up
+        assert rad == 0.0
+        assert "numpy" in label.lower()
+
+    def test_acb_fallback_returns_float_triple(self, monkeypatch):
+        import sys
+        from htf._rayleigh_primitives import _acb_rayleigh
+        monkeypatch.setitem(sys.modules, "flint", None)
+        H   = np.array([[1.0, 1j], [-1j, 2.0]], dtype=complex)
+        psi = np.array([1.0, 0.0], dtype=complex)
+        lo, up, rad, label = _acb_rayleigh(H, psi)
+        assert lo == up
+        assert rad == 0.0
+        assert "numpy" in label.lower()
+
+
+class TestRayleighPrimitivesZeroPsi:
+    """Cover the denominator-contains-zero guards in _arb_rayleigh and _acb_rayleigh."""
+
+    def test_arb_zero_psi_raises_value_error(self):
+        from htf._rayleigh_primitives import _arb_rayleigh
+        H   = np.diag([1.0, 2.0])
+        psi = np.zeros(2)
+        with pytest.raises(ValueError, match="[Dd]enominator"):
+            _arb_rayleigh(H, psi)
+
+    def test_acb_zero_psi_raises_value_error(self):
+        from htf._rayleigh_primitives import _acb_rayleigh
+        H   = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=complex)
+        psi = np.zeros(2, dtype=complex)
+        with pytest.raises(ValueError, match="[Dd]enominator"):
+            _acb_rayleigh(H, psi)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# engine.py — tensordot path (nb==0) and certified-mode ImportError (lines 68-70, 211)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestEngineTensordotPath:
+    """Lines 68-70: np.tensordot fallback when shared-wire count is zero."""
+
+    def test_compose_empty_type_diagrams(self):
+        F = TensorFunctor()
+        # Id(()) >> Id(()): Then with f.cod = () so nb = len(()) = 0
+        result = contract(Id(()) >> Id(()), F, mode="float")
+        assert float(result) == pytest.approx(1.0)
+
+    def test_compose_empty_cod_box(self):
+        # Box mapping () → () with result scalar 3.0
+        scalar_box = Box("s", (), ())
+        F = TensorFunctor({"s": np.array(3.0)})
+        result = contract(scalar_box >> Id(()), F, mode="float")
+        assert float(result) == pytest.approx(3.0)
+
+
+class TestEngineCertifiedNoFlint:
+    """Line 211-212: certified mode raises ImportError when flint absent."""
+
+    def test_certified_raises_without_flint(self, monkeypatch):
+        import sys
+        w = Wire("x", 2)
+        monkeypatch.setitem(sys.modules, "flint", None)
+        with pytest.raises(ImportError, match="python-flint"):
+            contract(Id((w,)), TensorFunctor(), mode="certified")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# htf/viz.py — unknown diagram subclass fallback (lines 103-109)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestVizUnknownDiagram:
+    """Cover the fallback branch in _visit for unknown Diagram subclasses."""
+
+    def test_unknown_subclass_produces_node(self):
+        from htf.topology import Diagram
+        from htf.viz import diagram_to_dict
+
+        class _Unknown(Diagram):
+            pass
+
+        u = _Unknown()
+        u.dom = (Wire("a", 2),)
+        u.cod = (Wire("b", 3),)
+        result = diagram_to_dict(u)
+        # Must return a valid graph dict with at least one node
+        assert isinstance(result, dict)
+        assert len(result.get("nodes", [])) >= 1

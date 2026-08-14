@@ -501,3 +501,142 @@ class TestVerifyCoverageGaps:
         monkeypatch.setitem(sys.modules, "flint", None)
         with pytest.raises(ImportError, match="python-flint"):
             verify_from_dict(d)
+
+
+# ── cross-check failure paths (verify.py lines 274 and 300) ──────────────────
+
+class TestCrossCheckFailures:
+    """Targeted tests for numpy and mpmath cross-check failure branches."""
+
+    def _good_full_dict_with_fake_interval(self, monkeypatch):
+        """Return a cert dict whose digest is valid but whose interval is bogus.
+
+        The canonical H=diag(1,2), psi=[1,0] gives numpy RQ=1.0.  We set
+        the stored interval to [1000, 1001], then monkeypatch _arb_rayleigh
+        to return the same fake interval — so all the earlier semantic checks
+        pass, but the numpy cross-check sees RQ=1.0 outside [1000, 1001].
+        """
+        import math
+
+        import htf._rayleigh_primitives as rp
+        from htf.rayleigh_cert import rayleigh_certificate
+
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        d   = rayleigh_certificate(H, psi).to_full_dict()
+
+        fake_lo  = 1000.0
+        fake_hi  = 1001.0
+        fake_mid = (fake_lo + fake_hi) / 2
+        fake_rad = math.nextafter(
+            max(fake_mid - fake_lo, fake_hi - fake_mid), math.inf
+        )
+
+        d["interval"]["lower"]  = fake_lo
+        d["interval"]["upper"]  = fake_hi
+        d["interval"]["radius"] = fake_rad
+        d["claim"] = (
+            f"E0 ≤ {fake_hi:.17g}  "
+            "[Rayleigh-Ritz upper bound on ground-state energy]"
+        )
+
+        monkeypatch.setattr(
+            rp, "_arb_rayleigh",
+            lambda _H, _psi: (fake_lo, fake_hi, fake_rad, "flint-arb/prec=128"),
+        )
+        return d
+
+    def test_numpy_cross_check_failure_returns_verified_false(self, monkeypatch):
+        """verify.py line 274: numpy RQ falls outside the (fake) Arb interval."""
+        from htf.verify import verify_from_dict
+
+        d      = self._good_full_dict_with_fake_interval(monkeypatch)
+        result = verify_from_dict(d)
+        assert result["verified"] is False
+        assert "numpy" in result["message"].lower()
+
+    def test_mpmath_cross_check_failure_returns_verified_false(self, monkeypatch):
+        """verify.py line 300: mpmath lower bound exceeds stored_upper."""
+        import htf._rayleigh_primitives as rp
+        from htf.rayleigh_cert import rayleigh_certificate
+        from htf.verify import verify_from_dict
+
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        d   = rayleigh_certificate(H, psi).to_full_dict()
+        stored_upper = d["interval"]["upper"]
+
+        # mp_lower >> stored_upper  →  cross-check fires
+        monkeypatch.setattr(
+            rp, "_mpmath_rayleigh",
+            lambda _H, _psi, **kw: (
+                stored_upper + 1000.0,
+                stored_upper + 1001.0,
+                0.5,
+                "mpmath/prec=256",
+            ),
+        )
+
+        result = verify_from_dict(d)
+        assert result["verified"] is False
+        assert "mpmath" in result["message"].lower()
+
+
+# ── remaining verify.py branch coverage ──────────────────────────────────────
+
+class TestVerifyRemainingBranches:
+    """Cover lines 155-156, 172, and 189 in verify.py."""
+
+    def _base_dict(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        return rayleigh_certificate(H, psi).to_full_dict()
+
+    def test_precondition_failure_after_digest_passes(self, monkeypatch):
+        """Lines 155-156: _check_preconditions raises after digest is valid."""
+        import htf._rayleigh_primitives as rp
+        from htf.verify import verify_from_dict
+
+        def _fail(H, psi):
+            raise ValueError("forced precondition failure")
+
+        monkeypatch.setattr(rp, "_check_preconditions", _fail)
+        result = verify_from_dict(self._base_dict())
+        assert result["verified"] is False
+        assert "precondition" in result["message"].lower()
+
+    def test_non_finite_recomputed_upper_returns_fail(self, monkeypatch):
+        """Line 172: _arb_rayleigh returns +inf upper."""
+        import htf._rayleigh_primitives as rp
+        from htf.verify import verify_from_dict
+
+        monkeypatch.setattr(
+            rp, "_arb_rayleigh",
+            lambda _H, _psi: (1.0, float("inf"), float("inf"), "flint-arb/prec=128"),
+        )
+        result = verify_from_dict(self._base_dict())
+        assert result["verified"] is False
+        assert "not finite" in result["message"].lower()
+
+    def test_recomputed_upper_exceeds_stored_returns_fail(self, monkeypatch):
+        """Line 189: recomputed upper is larger than stored upper."""
+        import htf._rayleigh_primitives as rp
+        from htf.verify import verify_from_dict
+
+        d            = self._base_dict()
+        stored_upper = d["interval"]["upper"]
+
+        # Return an upper that's larger than stored — bound check fires
+        monkeypatch.setattr(
+            rp, "_arb_rayleigh",
+            lambda _H, _psi: (
+                stored_upper - 0.1,
+                stored_upper + 10.0,
+                5.0,
+                "flint-arb/prec=128",
+            ),
+        )
+        result = verify_from_dict(d)
+        assert result["verified"] is False
+        assert "recomputed upper" in result["message"].lower()

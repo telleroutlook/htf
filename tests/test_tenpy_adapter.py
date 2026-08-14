@@ -409,3 +409,24 @@ class TestTeNPyAdapterJSON:
         H = np.diag([0.0, 1.0, 1.0, 2.0])
         cert = rayleigh_from_tenpy_mps(_MockTeNPyMPS([1.0, 0.0, 0.0, 0.0]), H)
         validate_certificate_dict(cert.to_dict())
+
+
+# ── _preserve_state_dtype edge cases (lines 70, 74) ──────────────────────────
+
+class TestPreserveStateDtype:
+    """Cover ValueError branches in _preserve_state_dtype."""
+
+    def test_empty_array_raises_value_error(self):
+        from htf.adapters.tenpy_adapter import _preserve_state_dtype
+        with pytest.raises(ValueError, match="empty"):
+            _preserve_state_dtype(np.array([]))
+
+    def test_nan_raises_value_error(self):
+        from htf.adapters.tenpy_adapter import _preserve_state_dtype
+        with pytest.raises(ValueError, match="non-finite"):
+            _preserve_state_dtype(np.array([1.0, float("nan")]))
+
+    def test_inf_raises_value_error(self):
+        from htf.adapters.tenpy_adapter import _preserve_state_dtype
+        with pytest.raises(ValueError, match="non-finite"):
+            _preserve_state_dtype(np.array([float("inf"), 1.0]))

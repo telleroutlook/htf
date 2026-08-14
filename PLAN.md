@@ -6,7 +6,63 @@
 
 ---
 
-## 0.12 C3 完整算术独立性（2026-08-14）
+## 0.14 覆盖率补全第二批（2026-08-14）
+
+> 目标：将整体覆盖率从 95% 进一步提升，关闭 `engine.py`、`viz.py`、`htf/labs/__init__.py`、`htf/claim_registry.py`、`htf/benchmark.py`、`htf/lean_export.py`、`htf/adapters/tenpy_adapter.py`、`htf/qasm.py` 的残余未覆盖行。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R14-1 | `tests/test_coverage_boost.py` | 新增 `TestLabsImport`（7 项）：`htf.labs` 导入及 MPS/TEBD/DMRG 等可用性 |
+| R14-2 | `tests/test_coverage_boost.py` | 新增 `TestClaimRegistry`（5 项）：`get_claim` 已知/未知 ID、`registry_summary` |
+| R14-3 | `tests/test_coverage_boost.py` | 新增 `TestRayleighPrimitivesNoFlint`（2 项）：`sys.modules["flint"]=None` 触发 ImportError 降级路径 |
+| R14-4 | `tests/test_coverage_boost.py` | 新增 `TestRayleighPrimitivesZeroPsi`（2 项）：零向量触发分母含零 ValueError |
+| R14-5 | `tests/test_coverage_boost.py` | 新增 `TestEngineTensordotPath`（2 项）：`nb==0` 时的 `np.tensordot` 路径（lines 68-70） |
+| R14-6 | `tests/test_coverage_boost.py` | 新增 `TestEngineCertifiedNoFlint`（1 项）：certified 模式无 flint 时 ImportError（lines 211-212） |
+| R14-7 | `tests/test_coverage_boost.py` | 新增 `TestVizUnknownDiagram`（1 项）：未知 Diagram 子类的 fallback 节点（lines 103-109） |
+| R14-8 | `tests/test_lean_export.py` | 新增 `TestRayleighCertificateToLean`（6 项）、`TestLeanExporterExtended`（2 项）、`TestExportLeanExtended`（3 项） |
+| R14-9 | `tests/test_tenpy_adapter.py` | 新增 `TestPreserveStateDtype`（3 项）：空数组、NaN、Inf 触发 ValueError（lines 70, 74） |
+| R14-10 | `tests/test_benchmark.py` | 新增 `TestBenchmarkReproducibleApi`（5 项）：`to_reproducible_dict/json`、`_available_models` |
+| R14-11 | `tests/test_qasm.py` | 新增 `TestFormatAngleCoverage`（3 项）、`TestEvalAngleCoverage`（1 项）、`TestCircuitUnitaryCoverage`（1 项）、`TestCircuitToDiagramCoverage`（2 项） |
+| R14-12 | `README.md` | badge 1617 → 1663 |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q` | **1663 passed ✅** |
+| README badge | 1663 ✅ |
+
+---
+
+## 0.13 覆盖率补全（2026-08-14）
+
+> 目标：关闭 `verify.py` 残余未覆盖分支，并为 `rayleigh_cert.py` 的辅助函数异常路径补充测试。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R13-1 | `tests/test_rayleigh_cert.py` | 新增 `TestHelperFallbacks`（4 项）：`_htf_version` metadata 差异、metadata 抛异常、全路径失败返回 `"unknown"`、`_git_commit` 抛异常返回 `""` |
+| R13-2 | `tests/test_verify.py` | 新增 `TestCrossCheckFailures`（2 项）：numpy 交叉检验失败（伪造 Arb 区间）、mpmath 交叉检验失败（mpmath 下界超过 stored_upper） |
+| R13-3 | `tests/test_verify.py` | 新增 `TestVerifyRemainingBranches`（3 项）：前提检验失败（digest 通过后）、recomputed_upper 非有限、recomputed_upper 超过 stored_upper |
+| R13-4 | `README.md` | badge 1608 → 1617 |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q` | **1617 passed ✅** |
+| `verify.py` 覆盖率 | **100%** ✅（原 94%） |
+| `rayleigh_cert.py` 覆盖率 | 98%（4 行防御性死代码，见下） |
+| README badge | 1617 ✅ |
+
+`rayleigh_cert.py` 残余 4 行（537、541、570、576）为 `verify_rayleigh_certificate` 内 `cert.validate()` 调用后的防御性代码：`validate()` 已在该函数中提前触发，相同条件无法重复满足，属合理死代码，不计为覆盖缺口。
+
+---
+
+## 0.12 C3 完整算術獨立性（2026-08-14）
 
 > 关闭 §0.7 C3 "部分满足" 项：为 verifier 添加 mpmath 第三独立算术路径。
 
@@ -32,8 +88,8 @@
 
 | 项目 | 状态 |
 |---|---|
-| `python3 -m pytest -q` | **1590 passed ✅**（含 oracle 24 项）|
-| README badge | 1590 ✅ |
+| `python3 -m pytest -q` | **1617 passed ✅**（含 oracle 24 项）|
+| README badge | 1617 ✅ |
 
 ---
 

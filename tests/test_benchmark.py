@@ -166,3 +166,51 @@ class TestRunBenchmark:
         r1 = run_benchmark(n_sites=4, chi=2, n_iter=15, seed=5, models=["ising"])
         r2 = run_benchmark(n_sites=4, chi=2, n_iter=15, seed=5, models=["ising"])
         assert abs(r1.results[0].E0_var - r2.results[0].E0_var) < 1e-10
+
+
+# ── coverage gaps: to_reproducible_dict/json and _available_models ────────────
+
+class TestBenchmarkReproducibleApi:
+
+    def _result(self):
+        return BenchmarkResult(
+            model="ising", n_sites=4, chi=2, seed=0,
+            E0_var=-3.3, E0_error_bound=1e-14,
+            gap_exact=1.1, gap_var=1.05, gap_cert_result=1.0, gap_cert_error=0.01,
+            temple_lb=-4.0, temple_condition_met=False,
+            os_passed=True, max_entropy=0.7, likely_area_law=True,
+            n_iter_used=50, elapsed_s=0.5,
+        )
+
+    def _report(self):
+        r = self._result()
+        return BenchmarkReport(
+            htf_version="0.23.0", n_sites=4, chi=2, n_iter=50, seed=0,
+            results=[r],
+        )
+
+    def test_result_reproducible_dict_excludes_elapsed(self):
+        d = self._result().to_reproducible_dict()
+        assert "elapsed_s" not in d
+        assert "E0_var" in d
+
+    def test_result_reproducible_dict_has_model(self):
+        d = self._result().to_reproducible_dict()
+        assert d["model"] == "ising"
+
+    def test_report_reproducible_dict_excludes_elapsed(self):
+        d = self._report().to_reproducible_dict()
+        assert "elapsed_s" not in d["results"][0]
+        assert d["htf_version"] == "0.23.0"
+
+    def test_report_reproducible_json_is_valid(self):
+        import json
+        j = self._report().to_reproducible_json()
+        obj = json.loads(j)
+        assert "elapsed_s" not in obj["results"][0]
+
+    def test_available_models_returns_list(self):
+        from htf.benchmark import _available_models
+        models = _available_models()
+        assert "ising" in models
+        assert "xx" in models
