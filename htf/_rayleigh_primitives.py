@@ -289,3 +289,64 @@ def _acb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, 
         norm_sq = float(np.real(psi.conj() @ psi))
         mid = float(np.real(psi.conj() @ H @ psi)) / norm_sq
         return mid, mid, 0.0, "numpy-complex (no certified rounding; install python-flint)"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Independent mpmath cross-check (C3 full arithmetic independence)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _mpmath_rayleigh(
+    H: np.ndarray,
+    psi: np.ndarray,
+    extra_prec: int = 128,
+) -> tuple[float, float, float, str]:
+    """Independent cross-check of Re(⟨ψ|H|ψ⟩/⟨ψ|ψ⟩) using mpmath.
+
+    Uses mpmath arbitrary-precision arithmetic at ``prec = 128 + extra_prec``
+    bits — twice the production precision — as an independent arithmetic path
+    for cross-checking the flint-arb result.
+
+    This is **not** an interval arithmetic bound; it provides a high-precision
+    floating-point estimate.  The returned ``lower`` / ``upper`` are the float64
+    conversion of the mpmath result outward-rounded by 2 ULPs each side to
+    account for the mpmath→float64 conversion rounding.
+
+    Use case: if the mpmath lower bound exceeds the stored certificate upper by
+    more than a loose tolerance, the flint-arb computation has produced an
+    incorrect (too-small) upper bound — which should trigger a verification
+    failure.
+
+    Raises ``ImportError`` if mpmath is not installed.
+    """
+    try:
+        import mpmath
+    except ImportError as exc:
+        raise ImportError(
+            "_mpmath_rayleigh() requires mpmath (pip install mpmath)."
+        ) from exc
+
+    n = len(psi)
+    prec = 128 + extra_prec
+    with mpmath.workprec(prec):
+        if np.iscomplexobj(H) or np.iscomplexobj(psi):
+            H_mp  = mpmath.matrix([[mpmath.mpc(complex(H[i, j]))  for j in range(n)] for i in range(n)])
+            p_col = mpmath.matrix([[mpmath.mpc(complex(psi[i]))]   for i in range(n)])
+            Hp    = H_mp * p_col
+            num   = sum(mpmath.conj(p_col[i, 0]) * Hp[i, 0]    for i in range(n))
+            den   = sum(mpmath.conj(p_col[i, 0]) * p_col[i, 0] for i in range(n))
+            q_val = mpmath.re(num / den)
+        else:
+            H_mp  = mpmath.matrix([[mpmath.mpf(float(H[i, j]))  for j in range(n)] for i in range(n)])
+            p_col = mpmath.matrix([[mpmath.mpf(float(psi[i]))]   for i in range(n)])
+            Hp    = H_mp * p_col
+            num   = sum(p_col[i, 0] * Hp[i, 0] for i in range(n))
+            den   = sum(p_col[i, 0] ** 2        for i in range(n))
+            q_val = num / den
+
+        mid = float(q_val)
+
+    # 2-ULP outward rounding to cover mpmath→float64 conversion error.
+    upper  = math.nextafter(math.nextafter(mid,  math.inf), math.inf)
+    lower  = math.nextafter(math.nextafter(mid, -math.inf), -math.inf)
+    radius = (upper - lower) / 2
+    return lower, upper, radius, f"mpmath/prec={prec}"

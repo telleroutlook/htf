@@ -6,6 +6,37 @@
 
 ---
 
+## 0.12 C3 完整算术独立性（2026-08-14）
+
+> 关闭 §0.7 C3 "部分满足" 项：为 verifier 添加 mpmath 第三独立算术路径。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R12-1 | `htf/_rayleigh_primitives.py` | 新增 `_mpmath_rayleigh(H, psi, extra_prec=128)`：mpmath at prec=256，2-ULP 外向舍入，支持实/复 |
+| R12-2 | `htf/verify.py` | `verify_from_dict` 新增第 6 步 mpmath 交叉检验；结果 dict 加 `cross_check` 字段；mpmath 缺失时降级为 "skipped" |
+| R12-3 | `pyproject.toml` | `certified` extra 加入 `mpmath>=1.3` |
+| R12-4 | `tests/test_verify.py` | `TestMpmathCrossCheck`（7 项）：real/complex/non-trivial/arb-consistent/result-field/pass/extra-prec |
+
+### 验证独立性架构
+
+`verify_from_dict` 现在顺序执行三条独立路径：
+1. **flint-arb**（prec=128）— 区间算术，certified upper bound
+2. **numpy float64** — 独立浮点，检验 Arb 区间是否包含 numpy 商
+3. **mpmath**（prec=256）— 任意精度，mpmath 下界不得超过 stored_upper
+
+三路均通过 → `verified=True`，`cross_check="PASS (mpmath/prec=256)"`。
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q` | **1590 passed ✅**（含 oracle 24 项）|
+| README badge | 1590 ✅ |
+
+---
+
 ## 0.11 战略评审 v0.23.0 P0 修复（2026-08-14）
 
 > 评审文件：`HTF-repository-strategic-review-v0.23.0.md`，审查日期 2026-08-14  
@@ -213,7 +244,7 @@ G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文�
 | C0 | ✅ **已添加（2026-08-14）** 锁定/最低依赖矩阵全部通过；lint/type/test/coverage 无例外 | CI 新增 `test-locked`（uv.lock）和 `test-minimum-versions`（numpy==1.23, scipy==1.9, pytest==7.0）两个 job |
 | C1 | ✅ **已满足** flint 缺失 → `ImportError`（REJECTED）；`rayleigh_certificate()` / `verify_from_dict()` / `verify_rayleigh_certificate()` 均 fail-fast |
 | C2 | ✅ **已满足（P1-A）** 5 个语义字段单独变异 100% 返回 `verified=False`；`TestVerifyMutationMatrix` 6 个测试 |
-| C3 | ✅ **部分满足（2026-08-14）** numpy 交叉检验已加入 `verify_from_dict`：Arb 区间外的 Rayleigh 商返回 `FAIL`，独立于 `_arb_rayleigh` 路径。真正独立算术实现（`mpmath` 或手写）仍为 P2。 |
+| C3 | ✅ **已完成（§0.12）** mpmath 独立算术交叉验证：`_mpmath_rayleigh`（prec=256）作为第三条独立算术路径加入 `verify_from_dict`；结果 dict 新增 `cross_check` 字段；7 项测试全绿。`verify_from_dict` 现在顺序执行：Arb 区间算术 → numpy 浮点 → mpmath 高精度——三路独立确认。 |
 | C4 | ✅ **已满足** `tests/test_oracle.py::TestKnownRejectsStillRejected`（9 项）+ oracle 10 000+ 案例零假阳性 |
 | C5 | ✅ **已添加（2026-08-14）** CI matrix 扩展至 ubuntu-latest + macos-latest × Python 3.10/3.11/3.12 |
 | C6 | ✅ **已完成（2026-08-14）** `htf/claim_registry.py` 建立统一声明注册表（6 个声明 ID，含 title/assurance/evidence_tier/limitations/mcp_description/cli_help）；CLI `htf registry` 输出 JSON；MCP 4 个工具描述从注册表导入；4 个注册表测试。 |

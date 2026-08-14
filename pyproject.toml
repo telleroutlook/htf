@@ -22,7 +22,7 @@ dependencies = ["numpy>=1.23", "scipy>=1.9"]  # scipy used at import time in mps
 
 [project.optional-dependencies]
 accel = ["jax", "opt_einsum"]          # optional GPU / contraction-path acceleration
-certified = ["python-flint>=0.5"]      # certified mode: Arb interval arithmetic
+certified = ["python-flint>=0.5", "mpmath>=1.3"]  # certified mode: Arb interval arithmetic + mpmath cross-check
 mcp = ["mcp>=2,<3"]                    # MCP server wrapper (mcp 2.x API)
 adapters = ["quimb>=0.6"]              # optional backend adapters (quimb MPS)
 dev = ["pytest>=7", "python-flint>=0.5", "ruff", "mypy", "hypothesis>=6"]  # scipy now in core

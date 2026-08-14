@@ -315,3 +315,93 @@ class TestVerifyRejectsNonRigorous:
         d = cert.to_full_dict()
         result = verify_from_dict(d)
         assert result["verified"] is True
+
+
+# ── C3 full independence: mpmath cross-check ─────────────────────────────────
+
+class TestMpmathCrossCheck:
+    """_mpmath_rayleigh provides a third independent arithmetic path."""
+
+    def test_mpmath_rayleigh_real_diagonal(self):
+        import numpy as np
+
+        from htf._rayleigh_primitives import _mpmath_rayleigh
+        H   = np.diag([0.0, 1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0, 0.0])
+        lo, up, _, label = _mpmath_rayleigh(H, psi)
+        assert lo <= 0.0 <= up
+        assert "mpmath" in label
+        assert up - lo < 1e-14
+
+    def test_mpmath_rayleigh_non_trivial_state(self):
+        import numpy as np
+
+        from htf._rayleigh_primitives import _mpmath_rayleigh
+        H   = np.diag([0.0, 1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 1.0, 1.0])
+        lo, up, _, _ = _mpmath_rayleigh(H, psi)
+        # true value = (0+1+2)/3 = 1.0
+        assert lo <= 1.0 <= up
+        assert abs((lo + up) / 2 - 1.0) < 1e-14
+
+    def test_mpmath_rayleigh_complex_hermitian(self):
+        import numpy as np
+
+        from htf._rayleigh_primitives import _mpmath_rayleigh
+        H   = np.array([[1.0, 1j], [-1j, 1.0]], dtype=np.complex128)
+        psi = np.array([1.0, 0.0], dtype=np.complex128)
+        lo, up, _, label = _mpmath_rayleigh(H, psi)
+        # true value = 1.0
+        assert lo <= 1.0 <= up
+        assert "mpmath" in label
+
+    def test_mpmath_consistent_with_arb(self):
+        """mpmath and flint-arb should agree to within loose tolerance."""
+        import numpy as np
+
+        from htf._rayleigh_primitives import _arb_rayleigh, _mpmath_rayleigh
+        H   = np.diag([0.5, 1.5, 2.5]).astype(np.float64)
+        psi = np.array([1.0, 2.0, 3.0])
+        _, arb_upper, _, _ = _arb_rayleigh(H, psi)
+        mp_lower, mp_upper, _, _ = _mpmath_rayleigh(H, psi)
+        # flint upper bound must be >= mpmath lower estimate (minus tiny tolerance)
+        assert arb_upper >= mp_lower - 1e-6
+
+    def test_verify_result_includes_cross_check_field(self):
+        import numpy as np
+
+        from htf.rayleigh_cert import rayleigh_certificate
+        from htf.verify import verify_from_dict
+        H   = np.diag([1.0, 3.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        d   = rayleigh_certificate(H, psi).to_full_dict()
+        result = verify_from_dict(d)
+        assert result["verified"] is True
+        assert "cross_check" in result
+        assert result["cross_check"] is not None
+
+    def test_verify_cross_check_passes_for_rigorous_cert(self):
+        import numpy as np
+
+        from htf.rayleigh_cert import rayleigh_certificate
+        from htf.verify import verify_from_dict
+        H   = np.diag([0.0, 1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 1.0, 0.0])
+        d   = rayleigh_certificate(H, psi).to_full_dict()
+        result = verify_from_dict(d)
+        assert result["verified"] is True
+        # cross_check should be PASS or skipped, never a failure string
+        cc = result.get("cross_check", "")
+        assert "PASS" in cc or "skipped" in cc
+
+    def test_mpmath_extra_prec_parameter(self):
+        """extra_prec shifts the working precision."""
+        import numpy as np
+
+        from htf._rayleigh_primitives import _mpmath_rayleigh
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        _, _, _, label64  = _mpmath_rayleigh(H, psi, extra_prec=64)
+        _, _, _, label256 = _mpmath_rayleigh(H, psi, extra_prec=256)
+        assert "192" in label64   # 128 + 64
+        assert "384" in label256  # 128 + 256

@@ -59,6 +59,7 @@ def verify_from_dict(full_cert: dict) -> dict:
         _canonical_digest,
         _check_preconditions,
         _decode_canonical,
+        _mpmath_rayleigh,
     )
 
     required = {"schema_version", "claim", "input_digest", "interval", "canonical", "assurance", "backend"}
@@ -282,12 +283,43 @@ def verify_from_dict(full_cert: dict) -> dict:
             ),
         }
 
+    # 6. mpmath cross-check (C3 full arithmetic independence).
+    # Uses mpmath at 2× the production precision as a third independent arithmetic
+    # path.  Detects systematic bugs in _arb_rayleigh that numpy (float64) could
+    # silently mask.  mpmath is an optional dependency; if absent the check is
+    # skipped and the result includes cross_check="skipped".
+    _mpmath_cross_check: str | None
+    try:
+        mp_lower, _mp_upper, _, mp_backend = _mpmath_rayleigh(H, psi)
+        # The stored_upper is a certified Arb upper bound on the true Rayleigh
+        # quotient.  The mpmath lower bound (2-ULP below the mpmath midpoint) must
+        # not exceed stored_upper by more than a loose relative tolerance; if it
+        # does, the Arb computation produced an incorrectly small upper bound.
+        _loose_tol = max(1e-6, 1e-6 * abs(mp_lower))
+        if mp_lower > stored_upper + _loose_tol:
+            return {
+                "verified": False,
+                "stored_upper": stored_upper,
+                "recomputed_upper": recomputed_upper,
+                "digest_match": True,
+                "message": (
+                    f"FAIL — mpmath cross-check ({mp_backend}): "
+                    f"mpmath lower bound {mp_lower:.17g} exceeds "
+                    f"stored upper {stored_upper:.17g} beyond tolerance; "
+                    "flint-arb may have produced an incorrect upper bound"
+                ),
+            }
+        _mpmath_cross_check = f"PASS ({mp_backend})"
+    except ImportError:
+        _mpmath_cross_check = "skipped (mpmath not installed)"
+
     return {
         "verified": True,
         "stored_upper": stored_upper,
         "recomputed_upper": recomputed_upper,
         "digest_match": True,
         "backend": recomputed_backend,
+        "cross_check": _mpmath_cross_check,
         "message": (
             f"PASS — E0 ≤ {stored_upper:.17g} independently confirmed "
             f"(recomputed upper = {recomputed_upper:.17g})"

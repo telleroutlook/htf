@@ -5,7 +5,7 @@
 [![CI](https://github.com/telleroutlook/htf/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/telleroutlook/htf/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.23.0-blue)](#)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
-[![Tests](https://img.shields.io/badge/tests-1583%20passing-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-1590%20passing-brightgreen)](#)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-yellowgreen)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
