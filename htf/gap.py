@@ -115,7 +115,7 @@ def first_excited_upper(
     return energy_expectation(ham, phi_perp)
 
 
-def certified_gap_upper(
+def trial_energy_difference(
     ham: np.ndarray,
     state_gs: np.ndarray,
     state_es: np.ndarray,
@@ -136,7 +136,7 @@ def certified_gap_upper(
     try:
         from flint import arb, arb_mat
     except ImportError as exc:
-        raise ImportError("certified_gap_upper requires python-flint") from exc
+        raise ImportError("trial_energy_difference requires python-flint") from exc
 
     psi0 = np.asarray(state_gs, dtype=float).reshape(-1)
     phi  = np.asarray(state_es, dtype=float).reshape(-1)
@@ -177,6 +177,19 @@ def certified_gap_upper(
             "bond-dimension and finite-size bias are [OUT] (Phase 4 scope)"
         ),
     )
+
+
+def certified_gap_upper(
+    ham: np.ndarray,
+    state_gs: np.ndarray,
+    state_es: np.ndarray,
+) -> Certificate:
+    """Backward-compat alias for :func:`trial_energy_difference`.
+
+    The old name ``certified_gap_upper`` implied a spectral-gap upper bound,
+    which it is not (P0-2).  Prefer ``trial_energy_difference``.
+    """
+    return trial_energy_difference(ham, state_gs, state_es)
 
 
 def gap_report(

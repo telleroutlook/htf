@@ -84,6 +84,7 @@ def _cert_to_dict(cert: Certificate) -> dict:
         "result": cert.result,
         "error_bound": cert.error_bound,
         "mode": cert.mode,
+        "notes": cert.notes,
     }
 
 
@@ -160,10 +161,13 @@ def cmd_gap(args) -> None:
         "E0_var": report["E0_var"],
         "E1_var": report["E1_var"],
         "gap_var": report["gap_var"],
-        "temple_lb": report["temple_lb"],
+        "temple_heuristic": report["temple_lb"],
+        "temple_assurance": "heuristic",
         "temple_condition_met": bool(temple_cond_met),
-        "gap_cert": _cert_to_dict(report["gap_cert"]),
+        "trial_energy_diff": _cert_to_dict(report["gap_cert"]),
+        "trial_energy_diff_assurance": "heuristic",
         "notes": (
+            "gap_var and trial_energy_diff are heuristic estimates (NOT certified gap bounds); "
             "certified bounds cover FP rounding only; "
             "bond-dimension and finite-size bias are [OUT]"
         ),
@@ -237,7 +241,8 @@ def cmd_lanczos(args) -> None:
         "k_lanczos": bounds.k_lanczos,
         "E0_upper": bounds.E0_upper,
         "E0_upper_error": bounds.E0_upper_error,
-        "E0_lower": bounds.E0_lower,
+        "E0_lower_heuristic": bounds.E0_lower,
+        "E0_lower_assurance": "heuristic",
         "E1_ritz": bounds.E1_ritz,
         "interval_width": bounds.width,
         "temple_condition_met": bounds.temple_condition_met,

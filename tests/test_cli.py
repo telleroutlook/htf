@@ -169,10 +169,10 @@ class TestCLIGap:
         assert abs(data["gap_var"] - (data["E1_var"] - data["E0_var"])) < 1e-10
 
     def test_has_temple_lb(self, capsys):
-        assert "temple_lb" in self._run(capsys)
+        assert "temple_heuristic" in self._run(capsys)
 
     def test_has_gap_cert_with_keys(self, capsys):
-        cert = self._run(capsys)["gap_cert"]
+        cert = self._run(capsys)["trial_energy_diff"]
         assert "result" in cert
         assert "error_bound" in cert
         assert cert["mode"] == "certified"
@@ -342,7 +342,7 @@ class TestLanczosCmd:
 
     def test_has_required_keys(self, capsys):
         data = self._run(capsys)
-        for key in ("E0_upper", "E0_lower", "E1_ritz", "temple_condition_met"):
+        for key in ("E0_upper", "E0_lower_heuristic", "E1_ritz", "temple_condition_met"):
             assert key in data
 
     def test_e0_upper_less_than_e1(self, capsys):

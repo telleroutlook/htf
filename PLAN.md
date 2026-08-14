@@ -6,6 +6,57 @@
 
 ---
 
+## 0.6 第二轮外部审查（2026-08-14）及响应
+
+> 审查发现仓库虽已完成 G0–G6，但仍存在四类系统性问题。
+> 以下为完整发现与 P0/P1/P2 响应计划。
+
+### 主要发现
+
+**F-1（最严重）：无 `python-flint` 时降级路径不安全**
+- 现象：`_arb_rayleigh()` 的 `except ImportError` fallback 返回 `(mid, mid, 0.0, "numpy-float...")`；`rayleigh_certificate()` 照常生成证书；`verify_rayleigh_certificate()` 再次调用同一 fallback → `recomputed_upper == stored_upper` → `verified=True`。这不是独立验证，是同一浮点值的平凡比较。
+- 状态：✅ **已修复（2026-08-14）** — `rayleigh_certificate()` 和 `verify_rayleigh_certificate()` / `verify_from_dict()` 现在在 flint 不可用时立即抛出 `ImportError`。新增 `rayleigh_estimate()` 作为明确标记为非认证的浮点路径（`assurance="heuristic"`）。
+
+**F-2：公共 API 名称与内部警告互相矛盾**
+- 现象：`certified_gap_upper`、`gap_cert`、`E0_lower` 等名称暗示严格界，而内部注释已承认它们只是启发式值。MCP `htf_gap`/`htf_lanczos` 工具描述继续过度声明。Agent 调用时特别危险，因为工具描述就是 Agent 的唯一语境。
+- 状态：✅ **已修复（2026-08-14）** — `gap.py` 新增 `trial_energy_difference()`（旧名保留为向后兼容别名）；CLI/MCP 输出键 `gap_cert`→`trial_energy_diff`、`temple_lb`→`temple_heuristic`、`E0_lower`→`E0_lower_heuristic`；所有相关输出增加 `*_assurance` 字段；MCP 工具描述修订。
+
+**F-3：Schema 缺少机器可读的保证等级字段**
+- 现象：合规状态埋在自然语言 `notes` 中，Agent 无法机器解析。
+- 状态：✅ **已修复（2026-08-14）** — `RayleighCertificate` 增加 `assurance: str` 字段（`"rigorous"` / `"reproducible"` / `"heuristic"`）；`to_dict()` / `from_dict()` 已更新；`rayleigh_cert_v2.json` 已增加 `assurance` 属性；Python validator 对 enum 值进行检查。
+
+**F-4：`htf/verify.py` 不是真正的干净室 verifier**
+- 现象：`verify_from_dict()` 直接导入生产端 `_arb_rayleigh`、`_acb_rayleigh`、`_canonical_digest`、`_check_preconditions`、`_decode_canonical`，仅重新执行，不是独立实现。SHA-256 只绑定内部数据，无外部签名。
+- 状态：🔵 **已记录为 P1**（见下）。
+
+### P0 响应（2026-08-14 已全部完成）
+
+| ID | 文件 | 变更 | 状态 |
+|---|---|---|---|
+| F-1 | `htf/rayleigh_cert.py`, `htf/verify.py` | fail-fast + `rayleigh_estimate()` | ✅ |
+| F-2 | `htf/gap.py`, `htf/cli.py`, `htf/mcp_server.py` | 重命名 API + assurance 标签 | ✅ |
+| F-3 | `htf/rayleigh_cert.py`, `htf/schemas/rayleigh_cert_v2.json` | `assurance` 字段 | ✅ |
+
+测试：1472 passing（无回归）。
+
+### P1 计划（30 天）
+
+| 优先级 | 任务 |
+|---|---|
+| P1-A | **verifier 真正独立化**：将 `_arb_rayleigh`、`_canonical_digest`、`_check_preconditions`、`_decode_canonical` 抽取到 `htf/_rayleigh_primitives.py`（仅含纯算术，无 schema/cert 依赖），`verify.py` 导入该模块而非 `rayleigh_cert`；发布独立测试向量集。 |
+| P1-B | **四层架构收缩**：将 163 个公开导出整理为 `htf-spec`（符号/拓扑）、`htf-verify`（独立验证器包）、`htf-adapters`（quimb/TeNPy）、`htf-lab`（实验性）四层；实验性模块（MERA、逆设计、ZX）明确标记为 `[研究]`，不进入 `htf-verify` 核心。 |
+| P1-C | **淘汰通用 Certificate 作为证明载体**：所有声称严格界的路径统一经过 `RayleighCertificate v2`；`Certificate(mode="certified")` 仅用于纯浮点舍入范围（engine.py），并在 notes 中注明不是定理证书。 |
+
+### P2 计划（60–90 天）
+
+| 优先级 | 任务 |
+|---|---|
+| P2-A | CI 增加真实 quimb/TeNPy 集成测试（替换现有 mock）；增加 TeNPy `physics-tenpy` extra、最低/最高版本矩阵、无-flint 失败测试（确认 `rayleigh_certificate` 在无 flint 时正确抛出）。 |
+| P2-B | 只保留三条 Golden Path：(1) 稠密 Hamiltonian → Rayleigh → 独立验证；(2) quimb MPS → adapter → Rayleigh → 独立验证；(3) TeNPy MPS → adapter → Rayleigh → 独立验证。以证书大小、验证耗时、跨版本兼容性和零误接受为核心指标。 |
+| P2-C | 为公开导出补充 mutation test 和 property-based test（`hypothesis`）。 |
+
+---
+
 ## 0.5 战略重定向（2026-08-13 独立审查）
 
 **裁决：可作为研究原型继续开发，但不得以 "certified / proof-carrying tensor framework" 对外发布，直至以下 P0 门全部关闭。**

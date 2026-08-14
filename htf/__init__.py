@@ -36,6 +36,7 @@ from .gap import (
     h2_expectation,
     spectral_gap_exact,
     temple_lower_bound,
+    trial_energy_difference,
 )
 from .inverse import (
     InverseDesignResult,
@@ -116,6 +117,7 @@ from .os_axioms import (
 from .rayleigh_cert import (
     RayleighCertificate,
     rayleigh_certificate,
+    rayleigh_estimate,
     verify_rayleigh_certificate,
 )
 from .qasm import (
@@ -228,7 +230,7 @@ __all__ = [
     # gap (Phase 4)
     "spectral_gap_exact", "h2_expectation",
     "temple_lower_bound", "first_excited_upper",
-    "certified_gap_upper", "gap_report",
+    "certified_gap_upper", "trial_energy_difference", "gap_report",
     # inverse (§4-J)
     "ParametricHam", "InverseDesignResult", "LearningResult",
     "inverse_design", "hamiltonian_learning", "energy_gradient",
@@ -264,7 +266,8 @@ __all__ = [
     "finite_lattice_reflection_diagnostics",
     "os_positivity_report",  # deprecated alias, kept for backwards compat
     # rayleigh_cert — first closed-loop certificate
-    "RayleighCertificate", "rayleigh_certificate", "verify_rayleigh_certificate",
+    "RayleighCertificate", "rayleigh_certificate", "rayleigh_estimate",
+    "verify_rayleigh_certificate",
     # scaling (Phase 4)
     "ChiPoint", "ScalingReport", "chi_convergence_study",
     # benchmark (§4-K)

@@ -56,6 +56,11 @@
       "type": "string",
       "description": "Version of HTF that produced this certificate."
     },
+    "assurance": {
+      "type": "string",
+      "enum": ["rigorous", "reproducible", "heuristic"],
+      "description": "Machine-readable assurance level. 'rigorous': flint Arb/Acb interval arithmetic, independently verifiable (rayleigh_certificate()). 'reproducible': float, digest-bound, not a rigorous interval bound. 'heuristic': float estimate via rayleigh_estimate(), no rigorous bound, radius=0 does not mean zero error."
+    },
     "verified": {
       "type": "boolean",
       "description": "True if verify_rayleigh_certificate() independently confirmed this certificate (strict comparison, no tolerance)."

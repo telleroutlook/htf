@@ -135,10 +135,13 @@ def _build_server() -> MCPServer:
     # ── htf_gap ───────────────────────────────────────────────────────────
     @server.tool(
         description=(
-            "Spectral gap bounds: exact gap from full diagonalisation, "
-            "variational upper bound, Temple's inequality lower bound on E_0, "
-            "and a certified Arb bound on the gap. "
-            "Certified bounds cover FP rounding only; bond-dimension bias is [OUT]."
+            "Spectral gap diagnostics for a finite-lattice model. "
+            "Returns: exact gap (full diagonalisation), variational E0/E1 upper bounds, "
+            "heuristic gap estimate (E1_var - E0_var, NOT a certified gap upper bound), "
+            "Temple heuristic lower estimate (NOT a rigorous lower bound unless "
+            "temple_condition_met=True and E1_lower is a true lower bound). "
+            "All bounds are finite-lattice only; continuum gap and χ-truncation bias are [OUT]. "
+            "Assurance fields indicate the reliability level of each quantity."
         )
     )
     def htf_gap(
@@ -172,10 +175,15 @@ def _build_server() -> MCPServer:
             "E0_var": report["E0_var"],
             "E1_var": report["E1_var"],
             "gap_var": report["gap_var"],
-            "temple_lb": report["temple_lb"],
+            "gap_var_assurance": "heuristic",
+            "temple_heuristic": report["temple_lb"],
+            "temple_assurance": "heuristic",
             "temple_condition_met": bool(report["E0_var"] < evals[1]),
-            "gap_cert": _cert_to_dict(report["gap_cert"]),
+            "trial_energy_diff": _cert_to_dict(report["gap_cert"]),
+            "trial_energy_diff_assurance": "heuristic",
             "notes": (
+                "gap_var and trial_energy_diff are heuristic estimates (E1_var-E0_var), "
+                "NOT certified gap upper bounds (P0-2); "
                 "certified bounds cover FP rounding only; "
                 "bond-dimension and finite-size bias are [OUT]"
             ),
@@ -245,10 +253,12 @@ def _build_server() -> MCPServer:
     # ── htf_lanczos ───────────────────────────────────────────────────────
     @server.tool(
         description=(
-            "Lanczos two-sided spectral bounds on the ground-state energy E_0. "
-            "Returns Temple lower bound and Ritz upper bound. "
-            "The Temple bound is a rigorous finite-lattice lower bound when "
-            "E_var < E_1_exact (indicated by temple_condition_met). "
+            "Lanczos two-sided spectral estimates on the ground-state energy E_0. "
+            "Returns Ritz upper bound (E0_upper, variational) and Temple heuristic "
+            "lower estimate (E0_lower_heuristic). "
+            "The Temple value is a rigorous finite-lattice lower bound ONLY when "
+            "temple_condition_met=True AND the E1 input was a true lower bound on E_1 "
+            "(the current implementation passes a Ritz upper bound, so treat as heuristic). "
             "Continuum gap and χ-truncation bias are [OUT]."
         )
     )
@@ -276,7 +286,8 @@ def _build_server() -> MCPServer:
             "k_lanczos": bounds.k_lanczos,
             "E0_upper": bounds.E0_upper,
             "E0_upper_error": bounds.E0_upper_error,
-            "E0_lower": bounds.E0_lower,
+            "E0_lower_heuristic": bounds.E0_lower,
+            "E0_lower_assurance": "heuristic",
             "E1_ritz": bounds.E1_ritz,
             "interval_width": bounds.width,
             "temple_condition_met": bounds.temple_condition_met,

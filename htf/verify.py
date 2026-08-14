@@ -37,8 +37,20 @@ def verify_from_dict(full_cert: dict) -> dict:
     ``recomputed_upper``, ``digest_match``, ``message``.
 
     Raises ``ValueError`` on structural problems with the cert dict itself.
+    Raises ``ImportError`` when python-flint is not installed.
     """
-    # --- imports live here so the module is importable even without flint ---
+    # Require flint: without it the _arb_rayleigh fallback returns the same
+    # float midpoint as the stored value, so recomputed_upper == stored_upper
+    # trivially — that is not independent verification.
+    try:
+        import flint  # noqa: F401
+    except ImportError as exc:
+        raise ImportError(
+            "verify_from_dict() requires python-flint "
+            "(pip install python-flint)."
+        ) from exc
+
+    # --- remaining imports live here so the module is importable without flint ---
     from .rayleigh_cert import (
         _acb_rayleigh,
         _arb_rayleigh,
@@ -59,6 +71,24 @@ def verify_from_dict(full_cert: dict) -> dict:
         raise ValueError(
             f"schema_version must be {SCHEMA_VERSION!r}; got {sv!r}"
         )
+
+    # Reject non-rigorous certificates before attempting verification.
+    # A numpy-float backend carries radius=0.0 and would trivially pass the
+    # recomputed_upper <= stored_upper check — that is not independent verification.
+    backend = full_cert.get("backend", "")
+    assurance = full_cert.get("assurance", "rigorous")
+    if assurance != "rigorous" or "numpy" in backend.lower():
+        return {
+            "verified": False,
+            "stored_upper": full_cert["interval"]["upper"],
+            "recomputed_upper": None,
+            "digest_match": None,
+            "message": (
+                f"FAIL — certificate assurance={assurance!r} / backend={backend!r} "
+                "is not rigorous interval arithmetic; independent verification requires "
+                "a certificate produced by rayleigh_certificate() with python-flint."
+            ),
+        }
 
     canonical = full_cert["canonical"]
     if "H" not in canonical or "psi" not in canonical:

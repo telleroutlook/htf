@@ -102,6 +102,10 @@ class RayleighCertificate:
     radius         : half-width (floating-point rounding radius).
     backend        : arithmetic backend used.
     htf_version    : version of HTF that produced this certificate.
+    assurance      : machine-readable assurance level:
+                     ``"rigorous"``     — flint Arb/Acb, independently verifiable.
+                     ``"reproducible"`` — float, digest-bound, not rigorous.
+                     ``"heuristic"``    — float estimate, no digest binding.
     verified       : True if :func:`verify_rayleigh_certificate` confirmed.
     notes          : additional context.
     """
@@ -116,6 +120,7 @@ class RayleighCertificate:
     backend: str
     htf_version: str
     schema_version: str = SCHEMA_VERSION
+    assurance: str = "rigorous"
     verified: bool = False
     notes: str = ""
 
@@ -143,6 +148,7 @@ class RayleighCertificate:
             },
             "backend": self.backend,
             "htf_version": self.htf_version,
+            "assurance": self.assurance,
             "verified": self.verified,
             "notes": self.notes,
         }
@@ -198,6 +204,7 @@ class RayleighCertificate:
             backend=d["backend"],
             htf_version=d["htf_version"],
             schema_version=d.get("schema_version", SCHEMA_VERSION),
+            assurance=str(d.get("assurance", "rigorous")),
             verified=bool(d.get("verified", False)),
             notes=str(d.get("notes", "")),
             _H_canonical=canonical.get("H", []),
@@ -278,6 +285,12 @@ def validate_certificate_dict(d: dict) -> None:
         raise ValueError("assumptions must be a non-empty list")
     if not isinstance(d["verified"], bool):
         raise ValueError(f"verified must be bool; got {type(d['verified']).__name__}")
+    if "assurance" in d:
+        _valid_assurance = {"rigorous", "reproducible", "heuristic"}
+        if d["assurance"] not in _valid_assurance:
+            raise ValueError(
+                f"assurance must be one of {sorted(_valid_assurance)}; got {d['assurance']!r}"
+            )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -580,6 +593,17 @@ def rayleigh_certificate(
     cert : :class:`RayleighCertificate` with ``verified=False``.
            Call :func:`verify_rayleigh_certificate` to set ``verified=True``.
     """
+    # Fail closed: rigorous interval arithmetic requires python-flint.
+    # Use rayleigh_estimate() for a float-only non-certified path.
+    try:
+        import flint  # noqa: F401
+    except ImportError as exc:
+        raise ImportError(
+            "rayleigh_certificate() requires python-flint for rigorous interval "
+            "arithmetic (pip install python-flint). "
+            "For a float-only non-certified estimate use rayleigh_estimate()."
+        ) from exc
+
     H_raw   = np.asarray(H)
     psi_raw = np.asarray(psi).ravel()
 
@@ -622,6 +646,7 @@ def rayleigh_certificate(
         radius=radius,
         backend=backend,
         htf_version=_htf_version(),
+        assurance="rigorous",
         verified=False,
         notes=notes,
         _H_canonical=_encode_canonical(H),
@@ -646,7 +671,17 @@ def verify_rayleigh_certificate(cert: RayleighCertificate) -> RayleighCertificat
 
     Sets ``cert.verified = True`` and returns the updated certificate.
     Raises ``ValueError`` on any mismatch.
+    Raises ``ImportError`` when python-flint is not installed (cannot verify
+    without rigorous interval arithmetic).
     """
+    try:
+        import flint  # noqa: F401
+    except ImportError as exc:
+        raise ImportError(
+            "verify_rayleigh_certificate() requires python-flint "
+            "(pip install python-flint)."
+        ) from exc
+
     # 1. Schema check
     cert.validate()
 
@@ -718,3 +753,69 @@ def verify_rayleigh_certificate(cert: RayleighCertificate) -> RayleighCertificat
 
     cert.verified = True
     return cert
+
+
+def rayleigh_estimate(
+    H: np.ndarray,
+    psi: np.ndarray,
+    *,
+    notes: str = "",
+) -> RayleighCertificate:
+    """Float-only (non-certified) Rayleigh quotient estimate.
+
+    This is the **non-rigorous** counterpart of :func:`rayleigh_certificate`.
+    It does **not** require python-flint and produces no rigorous interval bound.
+    The returned certificate carries ``assurance="heuristic"`` and
+    ``verified=False``; it must never be treated as a proof of ``E0 ≤ upper``.
+
+    Use this for quick discovery-tier estimates.  For a rigorous bound with
+    independent verification, use :func:`rayleigh_certificate` +
+    :func:`verify_rayleigh_certificate` (requires python-flint).
+
+    Parameters
+    ----------
+    H   : real symmetric or complex Hermitian Hamiltonian, shape (n, n).
+    psi : trial state, shape (n,).
+
+    Returns
+    -------
+    cert : :class:`RayleighCertificate` with ``assurance="heuristic"``,
+           ``radius=0.0``, and ``verified=False``.
+    """
+    H_raw   = np.asarray(H)
+    psi_raw = np.asarray(psi).ravel()
+
+    is_complex = np.iscomplexobj(H_raw) or np.iscomplexobj(psi_raw)
+    H   = H_raw.astype(complex if is_complex else float)
+    psi = psi_raw.astype(complex if is_complex else float)
+
+    assumptions = _check_preconditions(H, psi)
+    digest      = _canonical_digest(H, psi)
+
+    norm_sq = float(np.real(psi.conj() @ psi))
+    mid     = float(np.real(psi.conj() @ H @ psi)) / norm_sq
+
+    return RayleighCertificate(
+        claim=f"E0 ≤ {mid:.17g}  [Rayleigh-Ritz estimate — NOT rigorous, no interval arithmetic]",
+        theorem=(
+            "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, "
+            "E0 ≤ Re(⟨ψ|H|ψ⟩/⟨ψ|ψ⟩)."
+        ),
+        assumptions=assumptions,
+        input_digest=digest,
+        lower=mid,
+        upper=mid,
+        midpoint=mid,
+        radius=0.0,
+        backend="numpy-float (no certified rounding; install python-flint)",
+        htf_version=_htf_version(),
+        assurance="heuristic",
+        verified=False,
+        notes=(
+            "Float estimate only — no rigorous interval arithmetic. "
+            "radius=0.0 does NOT mean zero error; it means no bound was computed. "
+            + (notes or "")
+        ).strip(),
+        _H_canonical=_encode_canonical(H),
+        _psi_canonical=_encode_canonical(psi),
+    )
