@@ -37,23 +37,23 @@
 | F-2 | `htf/gap.py`, `htf/cli.py`, `htf/mcp_server.py` | 重命名 API + assurance 标签 | ✅ |
 | F-3 | `htf/rayleigh_cert.py`, `htf/schemas/rayleigh_cert_v2.json` | `assurance` 字段 | ✅ |
 
-测试：1472 passing（无回归）。
+测试：1489 passing（无回归）。
 
-### P1 计划（30 天）
+### P1 完成状态（2026-08-14）
 
-| 优先级 | 任务 |
-|---|---|
-| P1-A | **verifier 真正独立化**：将 `_arb_rayleigh`、`_canonical_digest`、`_check_preconditions`、`_decode_canonical` 抽取到 `htf/_rayleigh_primitives.py`（仅含纯算术，无 schema/cert 依赖），`verify.py` 导入该模块而非 `rayleigh_cert`；发布独立测试向量集。 |
-| P1-B | **四层架构收缩**：将 163 个公开导出整理为 `htf-spec`（符号/拓扑）、`htf-verify`（独立验证器包）、`htf-adapters`（quimb/TeNPy）、`htf-lab`（实验性）四层；实验性模块（MERA、逆设计、ZX）明确标记为 `[研究]`，不进入 `htf-verify` 核心。 |
-| P1-C | **淘汰通用 Certificate 作为证明载体**：所有声称严格界的路径统一经过 `RayleighCertificate v2`；`Certificate(mode="certified")` 仅用于纯浮点舍入范围（engine.py），并在 notes 中注明不是定理证书。 |
+| 优先级 | 任务 | 状态 |
+|---|---|---|
+| P1-A | **verifier 真正独立化**：抽取 `htf/_rayleigh_primitives.py`（纯算术，无 schema/cert 依赖），`verify.py` 导入该模块而非 `rayleigh_cert`。 | ✅ |
+| P1-B | **四层架构收缩**：`htf/__init__.py` 导出按 `htf-spec` / `htf-verify` / `htf-adapters` / `htf-lab` 四层分节，模块 docstring 重写，`[研究]` 标记添加到实验性节。 | ✅ |
+| P1-C | **淘汰通用 Certificate 作为证明载体**：`engine.py` `Certificate(mode="certified")` 的 notes 明确说明仅涵盖浮点舍入误差，不是定理证书；所有严格界统一经过 `RayleighCertificate v2`。 | ✅ |
 
-### P2 计划（60–90 天）
+### P2 完成状态（2026-08-14）
 
-| 优先级 | 任务 |
-|---|---|
-| P2-A | CI 增加真实 quimb/TeNPy 集成测试（替换现有 mock）；增加 TeNPy `physics-tenpy` extra、最低/最高版本矩阵、无-flint 失败测试（确认 `rayleigh_certificate` 在无 flint 时正确抛出）。 |
-| P2-B | 只保留三条 Golden Path：(1) 稠密 Hamiltonian → Rayleigh → 独立验证；(2) quimb MPS → adapter → Rayleigh → 独立验证；(3) TeNPy MPS → adapter → Rayleigh → 独立验证。以证书大小、验证耗时、跨版本兼容性和零误接受为核心指标。 |
-| P2-C | 为公开导出补充 mutation test 和 property-based test（`hypothesis`）。 |
+| 优先级 | 任务 | 状态 |
+|---|---|---|
+| P2-A | 无-flint 失败测试（`TestNoFlintGuard`：`rayleigh_certificate` / `verify_rayleigh_certificate` 在 flint 缺席时正确抛出）；非严格证书拒绝测试（`TestVerifyRejectsNonRigorous`：heuristic / numpy-backend 证书被 `verify_from_dict` 拒绝）；`rayleigh_estimate` 完整测试套件（`TestRayleighEstimate`，11 个用例）。 | ✅ |
+| P2-B | 三条 Golden Path：(1) 稠密 Hamiltonian → Rayleigh → 独立验证；(2) quimb MPS → adapter → Rayleigh → 独立验证；(3) TeNPy MPS → adapter → Rayleigh → 独立验证。 | ⬜ 待做 |
+| P2-C | 公开导出补充 mutation test 和 property-based test（`hypothesis`）。 | ⬜ 待做 |
 
 ---
 

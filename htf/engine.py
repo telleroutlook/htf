@@ -218,6 +218,11 @@ def contract(diagram, functor: TensorFunctor, mode: str = "float"):
             mode="certified",
             error_bound=error_bound,
             backend="flint-arb",
+            notes=(
+                "Certifies floating-point rounding error in tensor contraction only. "
+                "This is NOT a theorem-level proof certificate — it is result metadata. "
+                "For a replayable proof of E0 ≤ upper use htf.rayleigh_certificate()."
+            ),
         )
 
     raise ValueError(f"unknown mode {mode!r} (expected 'float' or 'certified')")

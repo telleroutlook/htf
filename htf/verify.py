@@ -50,16 +50,15 @@ def verify_from_dict(full_cert: dict) -> dict:
             "(pip install python-flint)."
         ) from exc
 
-    # --- remaining imports live here so the module is importable without flint ---
-    from .rayleigh_cert import (
+    # --- imports from _rayleigh_primitives so verify has no dependency on rayleigh_cert ---
+    from ._rayleigh_primitives import (
+        SCHEMA_VERSION,
         _acb_rayleigh,
         _arb_rayleigh,
         _canonical_digest,
         _check_preconditions,
         _decode_canonical,
     )
-
-    from .rayleigh_cert import SCHEMA_VERSION
 
     required = {"schema_version", "claim", "input_digest", "interval", "canonical"}
     missing = required - set(full_cert)

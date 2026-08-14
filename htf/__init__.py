@@ -1,34 +1,85 @@
 """HTF — a certified, type-safe string-diagram / tensor-network framework.
 
-Phase 1 (v0.0.1): topology, functor, float engine, certificate, CLI.
-Phase 2 (v0.1.0): 1-D lattice operators; certified mode (flint Arb).
-Phase 3 (v0.2.0): structure verification (proof-carrying); MERA tensor
-  network; variational energy + certified upper bound.
-Phase 4 (v0.4.0): spectral gap bounds (Temple's inequality); χ-convergence
-  study; entanglement entropy / difficulty map; OS-positivity machine check;
-  expanded agent-drivable CLI (gap, variational, difficulty, os-check).
-Phase 5 (v0.5.0): certified reproducibility benchmark suite (§4-K); MCP
-  server wrapper (§7); open systems / CPTP maps (§4-H).
-Phase 6 (v0.6.0): open systems / CPTP (§4-H complete); English whitepaper.
-Phase 7 (v0.7.0): Lanczos two-sided bounds (§4-I); QASM 2.0 interop (§4-F).
+Four-layer architecture (P1-B)
+------------------------------
+**htf-spec** (Layers 1–3, stable API):
+  Symbolic topology, functor assignment, tensor engine, provenance certificate.
+  All math is exact at this layer; no domain knowledge.
 
-Honest scope: HTF is a *certified model engine*, not a "world engine". It
-certifies numerical/truncation error, not modeling error; the continuum
-limit (``chi → ∞``) is a wall the framework does not cross. See ``PLAN.md``.
+**htf-verify** (Certified core, stable API):
+  Rayleigh-Ritz certificates with rigorous Arb/Acb interval arithmetic,
+  independent verifier (``htf-verify`` CLI / ``verify_from_dict``),
+  and the ``_rayleigh_primitives`` shared arithmetic primitives.
+  Requires ``python-flint``.  These are the only exports whose
+  ``assurance="rigorous"`` claim is machine-verifiable.
+
+**htf-adapters** (Stable API):
+  Backend adapters: ``rayleigh_from_quimb_mps``, ``rayleigh_from_tenpy_mps``.
+  Duck-typed; optional dependencies (quimb, TeNPy).
+
+**htf-lab** (Experimental / ``[研究]``, subject to change):
+  MERA, variational, gap heuristics, Lanczos, MPS/MPO/TEBD, thermal, ZX,
+  QASM, OS-axioms, inverse design, symmetric tensors, benchmark, etc.
+  Useful for discovery-tier work; NOT part of the certified core.
+  Assurance for lab outputs is ``"heuristic"`` unless explicitly noted.
+
+Honest scope
+------------
+HTF is a *certified model engine*, not a "world engine".  It certifies
+floating-point rounding error (via Arb/Acb), not modelling error; the
+continuum limit (``chi → ∞``) is a wall the framework does not cross.
+See ``PLAN.md`` and ``docs/theorem_cards.md``.
 """
 from __future__ import annotations
 
-from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
-from .certificate import Certificate
-from .difficulty import (
-    DifficultyReport,
-    bipartite_entanglement_profile,
-    difficulty_report,
-    entanglement_entropy,
-    entanglement_spectrum,
-)
-from .engine import contract
+# ── htf-spec: symbolic topology ───────────────────────────────────────────────
+from .topology import Box, Diagram, Id, Wire
+
+# ── htf-spec: functor + engine + certificate ──────────────────────────────────
 from .functor import TensorFunctor
+from .engine import contract
+from .certificate import Certificate
+
+# ── htf-spec: 1-D lattice operators ──────────────────────────────────────────
+from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
+
+# ── htf-spec: proof-carrying structure verification ───────────────────────────
+from .structure import (
+    StructureReport,
+    check_box_isometry,
+    check_box_unitary,
+    check_isometry,
+    check_reflection_positivity,
+    check_unitary,
+    enforce_isometry,
+    enforce_unitary,
+    gram_min_eig,
+    isometry_defect,
+    unitary_defect,
+)
+
+# ── htf-verify: Rayleigh certificates + independent verifier ─────────────────
+from .rayleigh_cert import (
+    RayleighCertificate,
+    rayleigh_certificate,
+    rayleigh_estimate,
+    verify_rayleigh_certificate,
+)
+
+# ── htf-adapters: backend adapters ────────────────────────────────────────────
+# (rayleigh_from_quimb_mps / rayleigh_from_tenpy_mps available via
+#  htf.adapters.quimb_adapter / htf.adapters.tenpy_adapter — not imported
+#  at top level to keep optional dependencies lazy)
+
+# ── htf-lab: variational + gap diagnostics [研究] ─────────────────────────────
+from .mera import MERA, MERALayer, random_mera
+from .variational import (
+    energy_expectation,
+    optimize_mera,
+    transverse_ising_ham,
+    variational_bound,
+    xx_model_ham,
+)
 from .gap import (
     certified_gap_upper,
     first_excited_upper,
@@ -38,14 +89,6 @@ from .gap import (
     temple_lower_bound,
     trial_energy_difference,
 )
-from .inverse import (
-    InverseDesignResult,
-    LearningResult,
-    ParametricHam,
-    energy_gradient,
-    hamiltonian_learning,
-    inverse_design,
-)
 from .lanczos import (
     TwoSidedBounds,
     lanczos,
@@ -54,16 +97,21 @@ from .lanczos import (
     temple_lanczos,
     two_sided_bounds,
 )
-from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
-from .lean_export import (
-    LeanExporter,
-    certificate_to_lean,
-    diagram_to_lean_type,
-    export_lean,
-    gap_report_to_lean,
-    structure_report_to_lean,
+
+# ── htf-lab: MPS / MPO / TEBD / thermal [研究] ────────────────────────────────
+from .mps import (
+    MPS,
+    mps_add,
+    mps_apply_gate,
+    mps_expectation,
+    mps_from_state,
+    mps_inner,
+    mps_norm,
+    mps_normalise,
+    mps_to_state,
+    mps_truncate,
+    random_mps,
 )
-from .mera import MERA, MERALayer, random_mera
 from .mpo import (
     MPO,
     MPOChiPoint,
@@ -82,75 +130,6 @@ from .mpo import (
     mpo_to_matrix,
     nn_hamiltonian_mpo,
     random_mpo,
-)
-from .mps import (
-    MPS,
-    mps_add,
-    mps_apply_gate,
-    mps_expectation,
-    mps_from_state,
-    mps_inner,
-    mps_norm,
-    mps_normalise,
-    mps_to_state,
-    mps_truncate,
-    random_mps,
-)
-from .open_systems import (
-    check_density_matrix,
-    check_kraus_completeness,
-    choi_matrix,
-    density_matrix_from_pure,
-    lindblad_step,
-    lindblad_superoperator,
-    partial_trace,
-    steady_state,
-)
-from .os_axioms import (
-    check_reflection_symmetry,
-    check_transfer_positivity,
-    finite_lattice_reflection_diagnostics,
-    os_positivity_report,
-    reflection_operator,
-    transfer_matrix,
-)
-from .rayleigh_cert import (
-    RayleighCertificate,
-    rayleigh_certificate,
-    rayleigh_estimate,
-    verify_rayleigh_certificate,
-)
-from .qasm import (
-    Gate,
-    circuit_to_diagram,
-    circuit_to_qasm,
-    circuit_unitary,
-    get_gate_matrix,
-    qasm_to_circuit,
-)
-from .scaling import ChiPoint, ScalingReport, chi_convergence_study
-from .structure import (
-    StructureReport,
-    check_box_isometry,
-    check_box_unitary,
-    check_isometry,
-    check_reflection_positivity,
-    check_unitary,
-    enforce_isometry,
-    enforce_unitary,
-    gram_min_eig,
-    isometry_defect,
-    unitary_defect,
-)
-from .symmetric import (
-    BlockSparseTensor,
-    ChargedBasis,
-    block_sparse_matmul,
-    check_u1_invariance,
-    number_basis,
-    project_to_u1,
-    spin_half_basis,
-    u1_blocks,
 )
 from .tebd import (
     DMRGResult,
@@ -176,15 +155,16 @@ from .thermal import (
     thermal_scan,
     thermal_state,
 )
-from .topology import Box, Diagram, Id, Wire
-from .variational import (
-    energy_expectation,
-    optimize_mera,
-    transverse_ising_ham,
-    variational_bound,
-    xx_model_ham,
+
+# ── htf-lab: quantum circuits + ZX calculus [研究] ────────────────────────────
+from .qasm import (
+    Gate,
+    circuit_to_diagram,
+    circuit_to_qasm,
+    circuit_unitary,
+    get_gate_matrix,
+    qasm_to_circuit,
 )
-from .viz import diagram_to_dict, diagram_to_html, save_diagram_html
 from .zx import (
     ZXGraph,
     ZXNodeType,
@@ -202,6 +182,68 @@ from .zx import (
     zx_from_circuit,
     zx_to_matrix,
 )
+
+# ── htf-lab: open systems + OS diagnostics [研究] ─────────────────────────────
+from .open_systems import (
+    check_density_matrix,
+    check_kraus_completeness,
+    choi_matrix,
+    density_matrix_from_pure,
+    lindblad_step,
+    lindblad_superoperator,
+    partial_trace,
+    steady_state,
+)
+from .os_axioms import (
+    check_reflection_symmetry,
+    check_transfer_positivity,
+    finite_lattice_reflection_diagnostics,
+    os_positivity_report,
+    reflection_operator,
+    transfer_matrix,
+)
+
+# ── htf-lab: symmetric tensors + inverse design [研究] ────────────────────────
+from .symmetric import (
+    BlockSparseTensor,
+    ChargedBasis,
+    block_sparse_matmul,
+    check_u1_invariance,
+    number_basis,
+    project_to_u1,
+    spin_half_basis,
+    u1_blocks,
+)
+from .inverse import (
+    InverseDesignResult,
+    LearningResult,
+    ParametricHam,
+    energy_gradient,
+    hamiltonian_learning,
+    inverse_design,
+)
+
+# ── htf-lab: diagnostics + benchmarks [研究] ──────────────────────────────────
+from .scaling import ChiPoint, ScalingReport, chi_convergence_study
+from .difficulty import (
+    DifficultyReport,
+    bipartite_entanglement_profile,
+    difficulty_report,
+    entanglement_entropy,
+    entanglement_spectrum,
+)
+from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
+
+# ── htf-lab: Lean 4 export + visualisation [研究] ─────────────────────────────
+from .lean_export import (
+    LeanExporter,
+    certificate_to_lean,
+    diagram_to_lean_type,
+    export_lean,
+    gap_report_to_lean,
+    structure_report_to_lean,
+)
+from .viz import diagram_to_dict, diagram_to_html, save_diagram_html
 
 __version__ = "0.23.0"
 __all__ = [

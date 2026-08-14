@@ -216,3 +216,54 @@ class TestVerifyMain:
         with pytest.raises(SystemExit) as exc:
             main(["--help"])
         assert exc.value.code == 2
+
+
+# ── non-rigorous cert rejection (P0-F1 regression, P2-A) ─────────────────────
+
+class TestVerifyRejectsNonRigorous:
+    """verify_from_dict() must reject certs that are not rigorous (F-1 regression).
+
+    A heuristic or reproducible cert has radius=0.0 and a numpy-float backend.
+    Accepting it would be a trivial pass (recomputed == stored), not independent
+    verification.
+    """
+
+    def _heuristic_full_dict(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        import numpy as np
+        H = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        return est.to_full_dict()
+
+    def test_heuristic_cert_returns_verified_false(self):
+        from htf.verify import verify_from_dict
+        d = self._heuristic_full_dict()
+        result = verify_from_dict(d)
+        assert result["verified"] is False
+
+    def test_heuristic_cert_message_mentions_assurance(self):
+        from htf.verify import verify_from_dict
+        d = self._heuristic_full_dict()
+        result = verify_from_dict(d)
+        assert "assurance" in result["message"] or "heuristic" in result["message"]
+
+    def test_numpy_backend_without_assurance_field_rejected(self):
+        # Old-format cert (no assurance field) with numpy-float backend must also fail.
+        from htf.verify import verify_from_dict
+        d = self._heuristic_full_dict()
+        d.pop("assurance", None)
+        # backend still contains "numpy"
+        result = verify_from_dict(d)
+        assert result["verified"] is False
+
+    def test_rigorous_cert_still_passes(self):
+        from htf.rayleigh_cert import rayleigh_certificate, verify_rayleigh_certificate
+        from htf.verify import verify_from_dict
+        import numpy as np
+        H = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        d = cert.to_full_dict()
+        result = verify_from_dict(d)
+        assert result["verified"] is True

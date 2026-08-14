@@ -572,3 +572,122 @@ class TestAdversarialRegressions:
         cert.claim = "E0 ≤ 0.0  [Rayleigh-Ritz upper bound on ground-state energy]"
         with pytest.raises(ValueError, match="claim"):
             verify_rayleigh_certificate(cert)
+
+
+# ── no-flint guard (P0-F1 regression, P2-A) ──────────────────────────────────
+
+class TestNoFlintGuard:
+    """Verify that the absence of python-flint is handled safely.
+
+    These tests mock out flint to confirm fail-fast behaviour without requiring
+    an environment where flint is actually missing.
+    """
+
+    def test_rayleigh_certificate_raises_without_flint(self, monkeypatch):
+        # rayleigh_certificate() must raise ImportError, not silently fall back
+        # to a numpy float path that would pass verify trivially (F-1).
+        # Setting sys.modules["flint"] = None makes any `import flint` inside
+        # the function body raise ImportError — no module reload needed.
+        import sys
+        from htf.rayleigh_cert import rayleigh_certificate as _rc
+        monkeypatch.setitem(sys.modules, "flint", None)
+        H = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        with pytest.raises(ImportError, match="python-flint"):
+            _rc(H, psi)
+
+    def test_verify_rayleigh_certificate_raises_without_flint(self, monkeypatch):
+        # verify_rayleigh_certificate() must also require flint.
+        import sys
+        from htf.rayleigh_cert import verify_rayleigh_certificate as _vrc
+        H = np.diag([1.0, 2.0])
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)  # produced with flint (available here)
+        monkeypatch.setitem(sys.modules, "flint", None)
+        with pytest.raises(ImportError, match="python-flint"):
+            _vrc(cert)
+
+
+# ── rayleigh_estimate (non-certified float path) ──────────────────────────────
+
+class TestRayleighEstimate:
+    """rayleigh_estimate() provides a float-only non-certified path."""
+
+    def test_returns_rayleigh_certificate(self):
+        from htf.rayleigh_cert import RayleighCertificate, rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert isinstance(est, RayleighCertificate)
+
+    def test_assurance_is_heuristic(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert est.assurance == "heuristic"
+
+    def test_verified_is_false(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert est.verified is False
+
+    def test_radius_is_zero(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert est.radius == 0.0
+
+    def test_upper_equals_midpoint(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert est.upper == est.midpoint
+
+    def test_result_is_correct_value(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert abs(est.upper - 1.0) < 1e-12
+
+    def test_notes_warn_no_rigorous_bound(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert "Float estimate" in est.notes or "no rigorous" in est.notes.lower()
+
+    def test_backend_mentions_numpy(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert "numpy" in est.backend.lower()
+
+    def test_digest_is_valid_sha256(self):
+        import re
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        est = rayleigh_estimate(H, psi)
+        assert re.match(r"^[0-9a-f]{64}$", est.input_digest)
+
+    def test_complex_hamiltonian(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.array([[1.0+0j, 1j], [-1j, 2.0+0j]])
+        psi = np.array([1.0+0j, 0.0+0j])
+        est = rayleigh_estimate(H, psi)
+        assert est.assurance == "heuristic"
+        assert abs(est.upper - 1.0) < 1e-12
+
+    def test_to_dict_has_assurance(self):
+        from htf.rayleigh_cert import rayleigh_estimate
+        H = np.diag([1.0, 3.0])
+        psi = np.array([1.0, 0.0])
+        d = rayleigh_estimate(H, psi).to_dict()
+        assert d["assurance"] == "heuristic"
