@@ -6,6 +6,39 @@
 
 ---
 
+## 0.10 HTF-03/04/05 外部审稿裁决实施（2026-08-14）
+
+> 三份外部独立审稿裁决文件回复，本轮全部实施。1574 tests ✅（push 07237a8）
+
+### 裁决实施清单
+
+| 裁决 | 实施内容 | 文件 |
+|---|---|---|
+| HTF-03 BLOCKED | `first_excited_upper` 替换为 2D Ritz（min-max 定理真上界）；`TwoSidedBounds` 字段重命名：`temple_condition_met`→`temple_denominator_positive`（保留向后兼容属性）；`width` 改为恒返回 `inf`；新增 `heuristic_width` 诊断属性 | `htf/gap.py`, `htf/lanczos.py` |
+| HTF-04 CONDITIONAL | `_acb_rayleigh` backend 标识符稳定为 `"flint-acb/prec=128"`（去除 `im_ball_rad` 诊断信息）；`imag.contains(0)` 失败消息改为内部不变量措辞 | `htf/_rayleigh_primitives.py` |
+| HTF-05 BLOCKED M1 | `rayleigh_certificate` 强制输入 dtype 为 `float64`/`complex128`；`int64`/`float32` 等非规范 dtype 抛 `TypeError` | `htf/rayleigh_cert.py` |
+| HTF-05 BLOCKED M2 | `verify_from_dict` 对 `stored_lower`、`stored_radius` 添加 `isfinite` 检查（fail-closed NaN）；上界比较改为 `not (recomputed_upper <= stored_upper)` | `htf/verify.py` |
+| HTF-05 BLOCKED M3 | `"assurance"` 和 `"backend"` 加入 `required` 字段集；`assurance` 改为直接访问（无默认值） | `htf/verify.py` |
+| CLI/MCP | `interval_width` 重命名为 `interval_heuristic_width`；`inf` 序列化为 `null` | `htf/cli.py`, `htf/mcp_server.py` |
+
+### 回归测试新增（共 20 项）
+
+| 文件 | 测试 |
+|---|---|
+| `tests/test_gap.py` | `test_2d_ritz_upper_bound_with_approximate_gs`（HTF-03 核心反例）、`test_2d_ritz_approximate_gs_gives_exact_E1`、`test_diag012_ritz_gives_false_lower_bound`、`test_lanczos_two_step_false_lower_bound` |
+| `tests/test_rayleigh_cert.py` | `test_rejects_int64_dtype`、`test_rejects_float32_dtype`、`test_verifier_nan_upper_rejected`、`test_verifier_nan_lower_rejected`、`test_verifier_nan_radius_rejected`、`test_verifier_missing_assurance_rejected`、`test_anchor_zero_exact_nextafter`、`test_anchor_minus_five_uses_ulp` |
+| `tests/test_lanczos.py` | `test_temple_denominator_positive_attribute_exists`、`test_temple_condition_met_backward_compat`、`test_width_is_always_inf`、`test_heuristic_width_finite_when_condition_met`、`test_heuristic_width_inf_when_condition_not_met` |
+| `tests/test_verify.py` | `test_numpy_backend_without_assurance_field_rejected` 更新为 expect `ValueError` |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q` | **1574 passed** ✅ |
+| git commit | `07237a8` |
+
+---
+
 ## 0.9 工程执行项（2026-08-14，立即可执行）
 
 > 以下任务不依赖外部审稿结果，均为纯工程变更，本轮全部执行。
@@ -19,7 +52,7 @@
 
 ### 验收标准（全部通过）
 
-- E1：`htf.__all__` = 12 项；`from htf.labs import MPS` 可用；`from htf.mps import MPS` 可用；1554 tests ✅
+- E1：`htf.__all__` = 12 项；`from htf.labs import MPS` 可用；`from htf.mps import MPS` 可用；1574 tests ✅
 - E2：`htf_verify_bundle` 工具注册并测试通过（PASS/坏JSON/篡改 claim 三个用例）✅
 - E3：quimb adapter 含"last site fastest"说明；TeNPy adapter 含 charge-sort 警告；`_acb_rayleigh` 含 scale-independent 说明 ✅
 - E4：CI 含 `test-adapters` job（quimb 1.9/1.15 × TeNPy 1.0/1.1）✅
@@ -38,7 +71,7 @@
 | F1：无 Flint 时生成并"验证"错误证书 | ✅ 已修复（`rayleigh_certificate` 和 `verify_from_dict` 均 fail-fast）| 无需额外操作 |
 | F2：verifier 不验证证书语义字段 | ✅ 已修复（claim/theorem/backend/lower/radius 5 个字段均检查）| 无需额外操作 |
 | F3：`to_full_dict()` 产生的 `canonical` 字段不在 JSON Schema 中（`additionalProperties: false`） | ❌ 已确认 → **已修复（本轮）** | `rayleigh_cert_v2.json` 添加 `canonical` 可选属性 |
-| F4：`first_excited_upper` 数学命题错误——近似基态不保证 E1 上界 | ❌ 已确认（反例：H=diag(0,1), gs=(1,1)/√2, es=(0,1) → 返回 0.5，真实 E1=1）→ **已修复（本轮）** | 函数改为 `[heuristic]` 标注，docstring 加反例警告 |
+| F4：`first_excited_upper` 数学命题错误——近似基态不保证 E1 上界 | ❌ 已确认（反例：H=diag(0,1), gs=(1,1)/√2, es=(0,1) → 返回 0.5，真实 E1=1）→ **已修复（本轮）** | 函数改为 `[heuristic]` 标注，docstring 加反例警告（§0.8 初始修复）；**后续 HTF-03 裁决（§0.10）升级为 2D Ritz 真上界替换** |
 | F5：`htf_os_check` MCP 描述仍称"三个独立检查"，未说明对所有实对称 H 恒真 | ❌ 已确认 → **已修复（本轮）** | MCP 描述加 NOTE：三项检查对任意实对称 H 均通过，为结构诊断而非真正 OS 正性检验 |
 | F6：G5 outsource/solutions/ 为空，无书面 PASS 裁决 | ❌ 已确认 → **已修复（本轮）** | 创建 `HTF-01-verdict.md` + `HTF-02-verdict.md` 内部审稿裁决（CONDITIONAL）；README 状态更新 |
 
@@ -47,7 +80,7 @@
 | ID | 文件 | 变更 |
 |---|---|---|
 | V4-1 | `htf/schemas/rayleigh_cert_v2.json` | 添加 `canonical` 可选属性（`H`/`psi` 子字段），与 `to_full_dict()` 输出一致 |
-| V4-2 | `htf/gap.py:first_excited_upper` | docstring 标注 `[heuristic]`，加反例警告：近似基态不保证 E1 上界 |
+| V4-2 | `htf/gap.py:first_excited_upper` | docstring 标注 `[heuristic]`，加反例警告（§0.8 初始修复）；**§0.10 HTF-03 裁决后升级为 2D Ritz（min-max 真上界），移除 heuristic 标注** |
 | V4-3 | `htf/mcp_server.py:htf_os_check` | MCP 描述加 NOTE 说明根本局限（P0-5）：三项检查对任意实对称 H 恒真 |
 | V4-4 | `outsource/solutions/HTF-01-verdict.md` | 新建：Rayleigh 证书内部审稿裁决（CONDITIONAL，3 项条件均已修复或文档化）|
 | V4-5 | `outsource/solutions/HTF-02-verdict.md` | 新建：Adapter 语义内部审稿裁决（CONDITIONAL，2 项文档补充）|
@@ -64,9 +97,9 @@ G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文�
 
 | 文件 | 审稿主题 | 状态 |
 |---|---|---|
-| `outsource/HTF-03-spectral-gap-math.md` | Temple 下界 + `first_excited_upper` 数学命题正确性 | OPEN |
-| `outsource/HTF-04-acb-imaginary-check.md` | Acb `q.imag.contains(0)` 健全性 | OPEN |
-| `outsource/HTF-05-rayleigh-external-review.md` | Rayleigh 证书完整流程外部独立审稿 | OPEN |
+| `outsource/HTF-03-spectral-gap-math.md` | Temple 下界 + `first_excited_upper` 数学命题正确性 | **IMPLEMENTED**（§0.10，2026-08-14）|
+| `outsource/HTF-04-acb-imaginary-check.md` | Acb `q.imag.contains(0)` 健全性 | **IMPLEMENTED**（§0.10，2026-08-14）|
+| `outsource/HTF-05-rayleigh-external-review.md` | Rayleigh 证书完整流程外部独立审稿 | **IMPLEMENTED**（§0.10，2026-08-14）|
 
 三份文件均为自包含格式（reviewer 无需访问仓库），符合 `outsource/README.md` 规范。
 
@@ -74,7 +107,7 @@ G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文�
 
 | 项目 | 状态 |
 |---|---|
-| `python3 -m pytest -q` | 1554 passed ✅ |
+| `python3 -m pytest -q` | 1574 passed ✅ |
 | `ruff check htf/` | All checks passed ✅ |
 | 相关测试（test_rayleigh_cert + test_verify + gap） | 125 passed ✅ |
 
