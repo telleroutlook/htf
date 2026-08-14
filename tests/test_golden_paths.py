@@ -23,7 +23,6 @@ import time
 import numpy as np
 import pytest
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _tfim_ham(n: int, J: float = 1.0, h: float = 0.5) -> np.ndarray:

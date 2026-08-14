@@ -25,11 +25,13 @@ Usage::
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+if TYPE_CHECKING:
+    from htf.rayleigh_cert import RayleighCertificate
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CorpusCase dataclass
@@ -60,12 +62,12 @@ class CorpusCase:
     expected_E0: float
     expected_upper: float
 
-    def certificate(self) -> "htf.rayleigh_cert.RayleighCertificate":  # type: ignore[name-defined]
+    def certificate(self) -> RayleighCertificate:
         """Produce a :class:`~htf.rayleigh_cert.RayleighCertificate` for this case."""
         from htf.rayleigh_cert import rayleigh_certificate
         return rayleigh_certificate(self.H, self.psi, notes=f"corpus:{self.name}")
 
-    def run(self) -> "CorpusCaseResult":
+    def run(self) -> CorpusCaseResult:
         """Run this case: certify and verify, return a :class:`CorpusCaseResult`."""
         from htf.rayleigh_cert import verify_rayleigh_certificate
         t0 = time.perf_counter()
@@ -373,7 +375,7 @@ def _build_corpus() -> list[CorpusCase]:
 
     # ── 11. Cross-platform: 2-qubit Bell-like state ───────────────────────────
     # H = Heisenberg ZZ + XX + YY coupling (real), psi = |00⟩+|11⟩/sqrt(2)
-    sz = np.array([[1.0, 0.0], [0.0, -1.0]])
+    _sz = np.array([[1.0, 0.0], [0.0, -1.0]])
     sx = np.array([[0.0, 1.0], [1.0, 0.0]])
     # sy_real = [[0, -1], [1, 0]] (imaginary part set to 0 for real H)
     H11 = -(np.kron(sx, sx) + np.diag([1.0, -1.0, -1.0, 1.0]))

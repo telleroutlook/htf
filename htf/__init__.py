@@ -32,54 +32,19 @@ See ``PLAN.md`` and ``docs/theorem_cards.md``.
 """
 from __future__ import annotations
 
-# ── htf-spec: symbolic topology ───────────────────────────────────────────────
-from .topology import Box, Diagram, Id, Wire
+from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
+from .certificate import Certificate
+from .difficulty import (
+    DifficultyReport,
+    bipartite_entanglement_profile,
+    difficulty_report,
+    entanglement_entropy,
+    entanglement_spectrum,
+)
+from .engine import contract
 
 # ── htf-spec: functor + engine + certificate ──────────────────────────────────
 from .functor import TensorFunctor
-from .engine import contract
-from .certificate import Certificate
-
-# ── htf-spec: 1-D lattice operators ──────────────────────────────────────────
-from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
-
-# ── htf-spec: proof-carrying structure verification ───────────────────────────
-from .structure import (
-    StructureReport,
-    check_box_isometry,
-    check_box_unitary,
-    check_isometry,
-    check_reflection_positivity,
-    check_unitary,
-    enforce_isometry,
-    enforce_unitary,
-    gram_min_eig,
-    isometry_defect,
-    unitary_defect,
-)
-
-# ── htf-verify: Rayleigh certificates + independent verifier ─────────────────
-from .rayleigh_cert import (
-    RayleighCertificate,
-    rayleigh_certificate,
-    rayleigh_estimate,
-    verify_rayleigh_certificate,
-)
-
-# ── htf-adapters: backend adapters ────────────────────────────────────────────
-# (rayleigh_from_quimb_mps / rayleigh_from_tenpy_mps available via
-#  htf.adapters.quimb_adapter / htf.adapters.tenpy_adapter — not imported
-#  at top level to keep optional dependencies lazy)
-
-# ── htf-lab: variational + gap diagnostics [研究] ─────────────────────────────
-from .mera import MERA, MERALayer, random_mera
-from .variational import (
-    energy_expectation,
-    optimize_mera,
-    transverse_ising_ham,
-    variational_bound,
-    xx_model_ham,
-)
 from .gap import (
     certified_gap_upper,
     first_excited_upper,
@@ -88,6 +53,14 @@ from .gap import (
     spectral_gap_exact,
     temple_lower_bound,
     trial_energy_difference,
+)
+from .inverse import (
+    InverseDesignResult,
+    LearningResult,
+    ParametricHam,
+    energy_gradient,
+    hamiltonian_learning,
+    inverse_design,
 )
 from .lanczos import (
     TwoSidedBounds,
@@ -98,20 +71,25 @@ from .lanczos import (
     two_sided_bounds,
 )
 
-# ── htf-lab: MPS / MPO / TEBD / thermal [研究] ────────────────────────────────
-from .mps import (
-    MPS,
-    mps_add,
-    mps_apply_gate,
-    mps_expectation,
-    mps_from_state,
-    mps_inner,
-    mps_norm,
-    mps_normalise,
-    mps_to_state,
-    mps_truncate,
-    random_mps,
+# ── htf-spec: 1-D lattice operators ──────────────────────────────────────────
+from .lattice import effect_box, heat_step_box, laplacian_box, site_wire, state_box
+
+# ── htf-lab: Lean 4 export + visualisation [研究] ─────────────────────────────
+from .lean_export import (
+    LeanExporter,
+    certificate_to_lean,
+    diagram_to_lean_type,
+    export_lean,
+    gap_report_to_lean,
+    structure_report_to_lean,
 )
+
+# ── htf-adapters: backend adapters ────────────────────────────────────────────
+# (rayleigh_from_quimb_mps / rayleigh_from_tenpy_mps available via
+#  htf.adapters.quimb_adapter / htf.adapters.tenpy_adapter — not imported
+#  at top level to keep optional dependencies lazy)
+# ── htf-lab: variational + gap diagnostics [研究] ─────────────────────────────
+from .mera import MERA, MERALayer, random_mera
 from .mpo import (
     MPO,
     MPOChiPoint,
@@ -130,6 +108,89 @@ from .mpo import (
     mpo_to_matrix,
     nn_hamiltonian_mpo,
     random_mpo,
+)
+
+# ── htf-lab: MPS / MPO / TEBD / thermal [研究] ────────────────────────────────
+from .mps import (
+    MPS,
+    mps_add,
+    mps_apply_gate,
+    mps_expectation,
+    mps_from_state,
+    mps_inner,
+    mps_norm,
+    mps_normalise,
+    mps_to_state,
+    mps_truncate,
+    random_mps,
+)
+
+# ── htf-lab: open systems + OS diagnostics [研究] ─────────────────────────────
+from .open_systems import (
+    check_density_matrix,
+    check_kraus_completeness,
+    choi_matrix,
+    density_matrix_from_pure,
+    lindblad_step,
+    lindblad_superoperator,
+    partial_trace,
+    steady_state,
+)
+from .os_axioms import (
+    check_reflection_symmetry,
+    check_transfer_positivity,
+    finite_lattice_reflection_diagnostics,
+    os_positivity_report,
+    reflection_operator,
+    transfer_matrix,
+)
+
+# ── htf-lab: quantum circuits + ZX calculus [研究] ────────────────────────────
+from .qasm import (
+    Gate,
+    circuit_to_diagram,
+    circuit_to_qasm,
+    circuit_unitary,
+    get_gate_matrix,
+    qasm_to_circuit,
+)
+
+# ── htf-verify: Rayleigh certificates + independent verifier ─────────────────
+from .rayleigh_cert import (
+    RayleighCertificate,
+    rayleigh_certificate,
+    rayleigh_estimate,
+    verify_rayleigh_certificate,
+)
+
+# ── htf-lab: diagnostics + benchmarks [研究] ──────────────────────────────────
+from .scaling import ChiPoint, ScalingReport, chi_convergence_study
+
+# ── htf-spec: proof-carrying structure verification ───────────────────────────
+from .structure import (
+    StructureReport,
+    check_box_isometry,
+    check_box_unitary,
+    check_isometry,
+    check_reflection_positivity,
+    check_unitary,
+    enforce_isometry,
+    enforce_unitary,
+    gram_min_eig,
+    isometry_defect,
+    unitary_defect,
+)
+
+# ── htf-lab: symmetric tensors + inverse design [研究] ────────────────────────
+from .symmetric import (
+    BlockSparseTensor,
+    ChargedBasis,
+    block_sparse_matmul,
+    check_u1_invariance,
+    number_basis,
+    project_to_u1,
+    spin_half_basis,
+    u1_blocks,
 )
 from .tebd import (
     DMRGResult,
@@ -156,15 +217,16 @@ from .thermal import (
     thermal_state,
 )
 
-# ── htf-lab: quantum circuits + ZX calculus [研究] ────────────────────────────
-from .qasm import (
-    Gate,
-    circuit_to_diagram,
-    circuit_to_qasm,
-    circuit_unitary,
-    get_gate_matrix,
-    qasm_to_circuit,
+# ── htf-spec: symbolic topology ───────────────────────────────────────────────
+from .topology import Box, Diagram, Id, Wire
+from .variational import (
+    energy_expectation,
+    optimize_mera,
+    transverse_ising_ham,
+    variational_bound,
+    xx_model_ham,
 )
+from .viz import diagram_to_dict, diagram_to_html, save_diagram_html
 from .zx import (
     ZXGraph,
     ZXNodeType,
@@ -182,68 +244,6 @@ from .zx import (
     zx_from_circuit,
     zx_to_matrix,
 )
-
-# ── htf-lab: open systems + OS diagnostics [研究] ─────────────────────────────
-from .open_systems import (
-    check_density_matrix,
-    check_kraus_completeness,
-    choi_matrix,
-    density_matrix_from_pure,
-    lindblad_step,
-    lindblad_superoperator,
-    partial_trace,
-    steady_state,
-)
-from .os_axioms import (
-    check_reflection_symmetry,
-    check_transfer_positivity,
-    finite_lattice_reflection_diagnostics,
-    os_positivity_report,
-    reflection_operator,
-    transfer_matrix,
-)
-
-# ── htf-lab: symmetric tensors + inverse design [研究] ────────────────────────
-from .symmetric import (
-    BlockSparseTensor,
-    ChargedBasis,
-    block_sparse_matmul,
-    check_u1_invariance,
-    number_basis,
-    project_to_u1,
-    spin_half_basis,
-    u1_blocks,
-)
-from .inverse import (
-    InverseDesignResult,
-    LearningResult,
-    ParametricHam,
-    energy_gradient,
-    hamiltonian_learning,
-    inverse_design,
-)
-
-# ── htf-lab: diagnostics + benchmarks [研究] ──────────────────────────────────
-from .scaling import ChiPoint, ScalingReport, chi_convergence_study
-from .difficulty import (
-    DifficultyReport,
-    bipartite_entanglement_profile,
-    difficulty_report,
-    entanglement_entropy,
-    entanglement_spectrum,
-)
-from .benchmark import BenchmarkReport, BenchmarkResult, run_benchmark
-
-# ── htf-lab: Lean 4 export + visualisation [研究] ─────────────────────────────
-from .lean_export import (
-    LeanExporter,
-    certificate_to_lean,
-    diagram_to_lean_type,
-    export_lean,
-    gap_report_to_lean,
-    structure_report_to_lean,
-)
-from .viz import diagram_to_dict, diagram_to_html, save_diagram_html
 
 __version__ = "0.23.0"
 __all__ = [

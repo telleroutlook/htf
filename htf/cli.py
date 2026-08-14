@@ -366,7 +366,6 @@ def cmd_lean_export(args) -> None:
 def cmd_rayleigh(args) -> None:
     """Validated Rayleigh Certificate: certifies E0 ≤ upper for a trial state."""
     from .rayleigh_cert import rayleigh_certificate, verify_rayleigh_certificate
-    from .mera import random_mera
 
     H, model_label = _build_ham(args)
     rng = np.random.default_rng(args.seed)

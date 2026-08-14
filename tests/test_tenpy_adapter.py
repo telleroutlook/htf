@@ -15,7 +15,6 @@ import pytest
 from htf.adapters.tenpy_adapter import _extract_tenpy_state_vector, rayleigh_from_tenpy_mps
 from htf.rayleigh_cert import RayleighCertificate
 
-
 # ─────────────────── mock helpers ─────────────────────────────────────────────
 
 class _MockTNArray:
@@ -361,7 +360,7 @@ class TestRayleighFromTeNPyMPSErrors:
             rayleigh_from_tenpy_mps(mps, H)
 
     def test_asymmetric_H_raises(self):
-        H = np.array([[0.0, 1.0], [2.0, 0.0]])  # not symmetric
+        _H = np.array([[0.0, 1.0], [2.0, 0.0]])  # not symmetric
         mps = _MockTeNPyMPS([1.0, 0.0, 0.0, 0.0])
         with pytest.raises(ValueError, match="symmetric"):
             # H is 2×2 but psi is length 4 → dim mismatch first; use matching dim
@@ -390,6 +389,7 @@ class TestTeNPyAdapterJSON:
 
     def test_to_full_json_roundtrip(self):
         import json
+
         from htf.verify import verify_from_dict
         H = np.diag([0.0, 1.0, 1.0, 2.0])
         cert = rayleigh_from_tenpy_mps(_MockTeNPyMPS([1.0, 0.0, 0.0, 0.0]), H)

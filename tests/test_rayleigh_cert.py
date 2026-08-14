@@ -1,5 +1,4 @@
 """Tests for htf/rayleigh_cert.py — Validated Rayleigh Certificate."""
-import hashlib
 import json
 import math
 
@@ -13,7 +12,6 @@ from htf.rayleigh_cert import (
     validate_certificate_dict,
     verify_rayleigh_certificate,
 )
-
 
 # ─────────────────── fixtures ────────────────────────────────────────────────
 
@@ -362,7 +360,7 @@ class TestVerifyRayleighCertificate:
 
     def test_exact_gs_upper_close_to_E0(self, diag2):
         # Exact GS: Rayleigh quotient should equal E0 = 0 to machine precision
-        evals, evecs = np.linalg.eigh(diag2)
+        _, evecs = np.linalg.eigh(diag2)
         psi_gs = evecs[:, 0]
         cert = rayleigh_certificate(diag2, psi_gs)
         cert = verify_rayleigh_certificate(cert)
@@ -378,7 +376,7 @@ class TestRayleighOracleTightening:
         # H = diag(0, 1), true E0 = 0.
         # psi_good = exact GS → upper ≈ 0;  psi_bad = exact ES → upper ≈ 1.
         H = np.diag([0.0, 1.0])
-        evals, evecs = np.linalg.eigh(H)
+        _, evecs = np.linalg.eigh(H)
         cert_gs = rayleigh_certificate(H, evecs[:, 0])
         cert_es = rayleigh_certificate(H, evecs[:, 1])
         assert cert_gs.upper < cert_es.upper
@@ -589,6 +587,7 @@ class TestNoFlintGuard:
         # Setting sys.modules["flint"] = None makes any `import flint` inside
         # the function body raise ImportError — no module reload needed.
         import sys
+
         from htf.rayleigh_cert import rayleigh_certificate as _rc
         monkeypatch.setitem(sys.modules, "flint", None)
         H = np.diag([1.0, 2.0])
@@ -599,6 +598,7 @@ class TestNoFlintGuard:
     def test_verify_rayleigh_certificate_raises_without_flint(self, monkeypatch):
         # verify_rayleigh_certificate() must also require flint.
         import sys
+
         from htf.rayleigh_cert import verify_rayleigh_certificate as _vrc
         H = np.diag([1.0, 2.0])
         psi = np.array([1.0, 0.0])
@@ -671,6 +671,7 @@ class TestRayleighEstimate:
 
     def test_digest_is_valid_sha256(self):
         import re
+
         from htf.rayleigh_cert import rayleigh_estimate
         H = np.diag([1.0, 3.0])
         psi = np.array([1.0, 0.0])

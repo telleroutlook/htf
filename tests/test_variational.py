@@ -155,7 +155,7 @@ class TestXXModelHam:
     def test_n2_couples_spin_flip_sector(self):
         # Ground state must be in S_z=0 sector: (|01>-|10>)/sqrt(2) or similar.
         H = xx_model_ham(2, J=1.0)
-        evals, evecs = np.linalg.eigh(H)
+        _, evecs = np.linalg.eigh(H)
         gs = evecs[:, 0]
         # |00> and |11> components must be zero (S_z != 0 sector)
         assert abs(gs[0]) < 1e-10, "|00> component must vanish in ground state"

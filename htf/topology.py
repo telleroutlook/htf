@@ -93,10 +93,10 @@ class Then(Diagram):
     """Sequential composition ``f >> g`` (data flows through ``f`` then ``g``)."""
 
     def __init__(self, f: Diagram, g: Diagram):
-        if dims(f.cod) != dims(g.dom):
+        if f.cod != g.dom:
             raise TypeError(
-                f"type mismatch in `>>`: cod {dims(f.cod)} does not match "
-                f"dom {dims(g.dom)} — this diagram is not well-typed"
+                f"type mismatch in `>>`: cod {f.cod} does not match "
+                f"dom {g.dom} — wires must agree on both name and dimension"
             )
         self.f = f
         self.g = g

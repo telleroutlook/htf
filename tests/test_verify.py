@@ -1,14 +1,12 @@
 """Tests for htf/verify.py — independent verifier (G1 gate)."""
 import json
 import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
 
 from htf.rayleigh_cert import rayleigh_certificate
 from htf.verify import verify_file, verify_from_dict
-
 
 # ─────────────────── fixtures ────────────────────────────────────────────────
 
@@ -166,6 +164,7 @@ class TestVerifyMain:
 
     def test_main_exits_0_on_valid_cert(self, good_full_dict, capsys):
         import json as _json
+
         from htf.verify import main
 
         with tempfile.NamedTemporaryFile(
@@ -183,6 +182,7 @@ class TestVerifyMain:
 
     def test_main_exits_1_on_tampered_cert(self, good_full_dict, capsys):
         import json as _json
+
         from htf.verify import main
 
         good_full_dict["input_digest"] = "0" * 64
@@ -229,8 +229,9 @@ class TestVerifyRejectsNonRigorous:
     """
 
     def _heuristic_full_dict(self):
-        from htf.rayleigh_cert import rayleigh_estimate
         import numpy as np
+
+        from htf.rayleigh_cert import rayleigh_estimate
         H = np.diag([1.0, 2.0])
         psi = np.array([1.0, 0.0])
         est = rayleigh_estimate(H, psi)
@@ -258,9 +259,10 @@ class TestVerifyRejectsNonRigorous:
         assert result["verified"] is False
 
     def test_rigorous_cert_still_passes(self):
-        from htf.rayleigh_cert import rayleigh_certificate, verify_rayleigh_certificate
-        from htf.verify import verify_from_dict
         import numpy as np
+
+        from htf.rayleigh_cert import rayleigh_certificate
+        from htf.verify import verify_from_dict
         H = np.diag([1.0, 2.0])
         psi = np.array([1.0, 0.0])
         cert = rayleigh_certificate(H, psi)

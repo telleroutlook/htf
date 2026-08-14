@@ -86,3 +86,51 @@ def test_p0_3_regression_real_float_still_accepted():
     F = TensorFunctor({"X": np.array([[0.0, 1.0], [1.0, 0.0]])})
     t = F.tensor(X_gate)
     assert t.dtype == float
+
+
+def test_wire_identity_same_dim_different_name_rejected():
+    # P0-B regression: same dimension but different name must NOT compose.
+    spin = Wire("spin", 2)
+    charge = Wire("charge", 2)
+    f = Box("f", (), (spin,))   # cod = (spin,)
+    g = Box("g", (charge,), ()) # dom = (charge,)
+    with pytest.raises(TypeError, match="type mismatch"):
+        _ = f >> g
+
+
+def test_wire_identity_same_name_same_dim_accepted():
+    # Sanity: same name and same dim must still compose.
+    s = Wire("spin", 2)
+    f = Box("f", (), (s,))
+    g = Box("g", (s,), ())
+    d = f >> g
+    assert d.dom == () and d.cod == ()
+
+
+def test_engine_certified_outward_rounded():
+    # P0-A regression: certified mode error_bound must cover the true rounding
+    # error; a zero error_bound with a non-exact midpoint is a soundness failure.
+    try:
+        import flint  # noqa: F401
+    except ImportError:
+        pytest.skip("python-flint not installed")
+    s = Wire("s", 1)
+    psi = Box("psi", (), (s,))
+    # Use 0.1 as the tensor value: its float64 representation is not exact.
+    F = TensorFunctor({"psi": np.array([0.1])})
+    cert = contract(psi, F, mode="certified")
+    # The result is a scalar ≈ 0.1; the error_bound must be >= 0 and the
+    # true value must lie within result ± error_bound.
+    import math
+    assert cert.error_bound >= 0.0
+    # 0.1 exactly as a fraction is 1/10; check containment using Fraction.
+    from fractions import Fraction
+    result_val = float(np.asarray(cert.result).flat[0])
+    err_val = float(cert.error_bound)
+    exact = Fraction(1, 10)
+    lo = Fraction(result_val) - Fraction(err_val)
+    hi = Fraction(result_val) + Fraction(err_val)
+    assert lo <= exact <= hi, (
+        f"True value {float(exact)} not in [{float(lo)}, {float(hi)}]; "
+        f"result={result_val}, error_bound={err_val}"
+    )

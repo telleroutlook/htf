@@ -1,7 +1,6 @@
 """Tests for htf/corpus.py — public benchmark corpus."""
 import json
 
-import numpy as np
 import pytest
 
 from htf.corpus import (
@@ -11,8 +10,7 @@ from htf.corpus import (
     corpus_by_tag,
     run_corpus,
 )
-from htf.rayleigh_cert import RayleighCertificate, verify_rayleigh_certificate
-
+from htf.rayleigh_cert import RayleighCertificate
 
 # ─────────────────── corpus structure ────────────────────────────────────────
 

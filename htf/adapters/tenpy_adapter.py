@@ -46,7 +46,12 @@ Usage::
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+if TYPE_CHECKING:
+    from htf.rayleigh_cert import RayleighCertificate
 
 
 def _preserve_state_dtype(raw: np.ndarray) -> np.ndarray:
@@ -140,7 +145,7 @@ def rayleigh_from_tenpy_mps(
     H: np.ndarray,
     *,
     notes: str = "",
-) -> "htf.rayleigh_cert.RayleighCertificate":  # type: ignore[name-defined]
+) -> RayleighCertificate:
     """Compute a Rayleigh Certificate from a TeNPy finite MPS and a Hamiltonian.
 
     HTF acts purely as a verifier: it reads the state vector from *mps_like*

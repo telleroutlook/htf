@@ -80,7 +80,6 @@ from ._rayleigh_primitives import (
     _encode_canonical,
 )
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Dataclass
 # ──────────────────────────────────────────────────────────────────────────────
@@ -181,7 +180,7 @@ class RayleighCertificate:
     # ── deserialisation ───────────────────────────────────────────────────────
 
     @classmethod
-    def from_dict(cls, d: dict) -> "RayleighCertificate":
+    def from_dict(cls, d: dict) -> RayleighCertificate:
         """Reconstruct from a ``to_dict()`` or ``to_full_dict()`` dict.
 
         Validates the dict against the v2 schema first.
@@ -471,9 +470,9 @@ def verify_rayleigh_certificate(cert: RayleighCertificate) -> RayleighCertificat
     # 4. Recompute interval
     is_complex = np.iscomplexobj(H) or np.iscomplexobj(psi)
     if is_complex:
-        lower_v, upper_v, _, _ = _acb_rayleigh(H, psi)
+        _, upper_v, _, _ = _acb_rayleigh(H, psi)
     else:
-        lower_v, upper_v, _, _ = _arb_rayleigh(H, psi)
+        _, upper_v, _, _ = _arb_rayleigh(H, psi)
 
     # Fail closed on non-finite bounds
     if not math.isfinite(upper_v):

@@ -11,7 +11,6 @@ import pytest
 from htf.adapters.quimb_adapter import _extract_state_vector, rayleigh_from_quimb_mps
 from htf.rayleigh_cert import RayleighCertificate
 
-
 # ─────────────────── mock helpers ────────────────────────────────────────────
 
 class _MockMPS:
@@ -140,7 +139,7 @@ class TestRayleighFromQuimbMPS:
         assert cert.upper >= true_E0 - 1e-12
 
     def test_exact_gs_upper_near_E0(self, diag2):
-        evals, evecs = np.linalg.eigh(diag2)
+        _, evecs = np.linalg.eigh(diag2)
         mps = _MockMPS(evecs[:, 0])
         cert = rayleigh_from_quimb_mps(mps, diag2)
         assert cert.upper <= 0.0 + 1e-9
@@ -263,6 +262,7 @@ class TestAdapterJSONRoundtrip:
 
     def test_to_full_json_roundtrip(self):
         import json
+
         from htf.verify import verify_from_dict
         H = np.diag([0.0, 1.0])
         cert = rayleigh_from_quimb_mps(_MockMPS([1.0, 0.0]), H)

@@ -24,6 +24,7 @@ Total mandatory oracle cases: 10 000 +
 from __future__ import annotations
 
 import math
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -70,7 +71,7 @@ def _check_soundness(H: np.ndarray, psi: np.ndarray, exact_e0: float, label: str
 class TestRealRandomOracle:
     """1 000 fixed-seed RNG instances × 7 matrix sizes = 7 000 cases."""
 
-    SIZES = [2, 3, 4, 5, 6, 7, 8]
+    SIZES: ClassVar[list[int]] = [2, 3, 4, 5, 6, 7, 8]
     N_SEEDS = 1_000
 
     def test_real_random_soundness(self):
@@ -149,7 +150,7 @@ class TestRealRandomOracle:
 class TestComplexRandomOracle:
     """500 fixed-seed RNG instances × 4 matrix sizes = 2 000 cases."""
 
-    SIZES = [2, 3, 4, 5]
+    SIZES: ClassVar[list[int]] = [2, 3, 4, 5]
     N_SEEDS = 500
 
     def test_complex_random_soundness(self):

@@ -21,6 +21,8 @@ in ``PLAN.md``.
 """
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from .functor import TensorFunctor
@@ -154,8 +156,11 @@ def _extract_arb_mat(
 ) -> tuple[np.ndarray | float, float]:
     """Extract (midpoint_array, max_radius) from a flint ``arb_mat``.
 
-    *result_shape* is the target numpy shape (dims(cod) + dims(dom)).
-    Returns a scalar float when *result_shape* is ``()``.
+    Uses outward-rounded binary64 endpoints (``math.nextafter``) so that the
+    reported ``error_bound`` is a sound upper bound on the true rounding error.
+    This mirrors the approach in ``_rayleigh_primitives._arb_rayleigh`` and
+    avoids the ``float(mid) + float(rad)`` pitfall where a zero radius does not
+    capture midpoint-conversion error.
     """
     m, n = mat.nrows(), mat.ncols()
     mid = np.zeros((m, n))
@@ -163,8 +168,10 @@ def _extract_arb_mat(
     for i in range(m):
         for j in range(n):
             e = mat[i, j]
-            mid[i, j] = float(e.mid())
-            r = float(e.rad())
+            lo = math.nextafter(float(e.lower()), -math.inf)
+            hi = math.nextafter(float(e.upper()),  math.inf)
+            mid[i, j] = (hi + lo) / 2
+            r = (hi - lo) / 2
             max_rad = max(max_rad, r)
     if result_shape:
         return mid.reshape(result_shape), max_rad

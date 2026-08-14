@@ -6,6 +6,69 @@
 
 ---
 
+## 0.7 第三轮深度战略评审（2026-08-14）及响应
+
+> 评审文件：`HTF_repository_strategic_review_zh.md`，归档 SHA-256 `8f97605…`
+> 评审覆盖：CI 配置、全量测试、证书语义、类型系统、ZX、MERA、Lean、MCP、发布治理与战略定位。
+> 核心裁决：**工程骨架良好；认证链、语义保持和发布治理未达公开 beta 门槛。**
+> 修复策略：止损 → 重建最小可信核 → 收缩产品 → 公开 beta。
+
+### 核实结果（对照代码逐条验证）
+
+| 评审条目 | 核实状态 | 说明 |
+|---|---|---|
+| P0-1 `engine._extract_arb_mat` 非外向舍入 | ✅ **已确认并修复** | `float(mid)+float(rad)` 不是外向舍入；已改为 `nextafter(lower/upper)` |
+| P0-2 无 flint 时 `verified=True` | ✅ 已修复（§0.6 F-1） | `rayleigh_cert.py` 和 `verify.py` 均 fail-fast |
+| P0-3 `verify_from_dict` 接受篡改声明 | 🔵 **P1**（见下） | 仅检查 5 个字段；缺完整 JSON Schema + 变异测试 |
+| P0-4 ZX `clifford_simplify` 不保持线性映射 | ⚠️ **待验证** | PLAN §0.6 称已修复；评审仍发现反例；需专项回归 |
+| P0-5 gap/Temple/OS 外部声明 vs 内部标签 | ✅ 已修复（§0.6 F-2） | `mcp_server.py` 已改为 heuristic 标签 |
+| P0-6 Wire 组合只比较维数（不比较名称） | ✅ **已确认并修复** | `Then.__init__` 改为 `f.cod != g.dom`（全身份比较） |
+| CI Ruff/Mypy 失败 | ✅ **已修复** | 44 个 Ruff 错误全部清零；已添加 Mypy CI |
+| README badge 与实际计数不一致 | 🔵 待更新（测试后） | badge 数字需在测试跑完后同步 |
+
+### P0 已修复（2026-08-14 本轮）
+
+| ID | 文件 | 变更 | 回归测试 |
+|---|---|---|---|
+| R-1 | `htf/engine.py:_extract_arb_mat` | 用 `math.nextafter(lower/upper)` 替换 `float(mid)+float(rad)` | `test_topology.py::test_engine_certified_outward_rounded` |
+| R-2 | `htf/topology.py:Then.__init__` | 组合检查改为 `f.cod != g.dom`（Wire 全身份） | `test_topology.py::test_wire_identity_same_dim_different_name_rejected` |
+| R-3 | `htf/` + `tests/` | Ruff 44 错误全部清零（import 排序、未用变量、ClassVar 注解等） | CI `ruff check` |
+
+### P1 待完成（不阻塞当前测试，但影响可信度）
+
+| ID | 任务 | 文件 | 验收标准 |
+|---|---|---|---|
+| P1-A | `verify_from_dict` 完整 JSON Schema 验证 + 语义字段变异矩阵 | `htf/verify.py`、`htf/schemas/rayleigh_cert_v2.json` | 任意单字段（`claim/theorem/lower/radius/backend`）被篡改均返回 `verified=False` |
+| P1-B | ZX `clifford_simplify` 专项等价回归 | `htf/zx.py`、`tests/test_zx.py` | `[CX(1→0), Z(0), CX(1→0)]` 和固定种子随机 Clifford 差分测试全部通过 |
+| P1-C | 发布门 C0（CI 依赖锁定） | `pyproject.toml`、`.github/workflows/ci.yml` | 锁定/最低依赖双矩阵 CI 全绿；`mypy htf/` 无错误 |
+
+### P2 战略架构（长期，不阻塞 v0.23.0 修复）
+
+评审建议将仓库拆分为五个职责边界，作为未来架构方向（非当前冲刺目标）：
+
+| 包/命名空间 | 责任 | 当前对应 |
+|---|---|---|
+| `htf_spec` | schema、claim ID、canonical encoding | `htf/certificate.py`、`htf/schemas/` |
+| `htf_verify` | 独立算术、前提检查、策略裁决 | `htf/verify.py`、`htf/_rayleigh_primitives.py` |
+| `htf_adapters` | quimb/TeNPy/PyZX 语义映射 | `htf/adapters/` |
+| `htf_reference` | 稠密 oracle、黄金向量 | `htf/corpus.py`、toy solver |
+| `htf_labs` | MERA/Temple/OS/Lean 研究实验 | `htf/mera.py`、`htf/lean_export.py` 等 |
+
+新发布门 C0–C7（评审建议，长期目标）：
+
+| Gate | 条件 |
+|---|---|
+| C0 | 锁定/最低依赖矩阵全部通过；lint/type/test/coverage 无例外 |
+| C1 | flint 缺失、未知 backend/claim/schema 全部 `INDETERMINATE` 或 `REJECTED` |
+| C2 | 每个语义字段单独变异 100% 被拒绝 |
+| C3 | verifier 不依赖 producer 私有算术实现 |
+| C4 | adversarial corpus 零已知假阳性 |
+| C5 | 相同 bundle 跨平台裁决一致 |
+| C6 | README/API/CLI/MCP/schema 从同一 claim registry 生成 |
+| C7 | verdict 绑定 commit + artifact digest，有条件项机器阻断发布 |
+
+---
+
 ## 0.6 第二轮外部审查（2026-08-14）及响应
 
 > 审查发现仓库虽已完成 G0–G6，但仍存在四类系统性问题。
@@ -37,7 +100,7 @@
 | F-2 | `htf/gap.py`, `htf/cli.py`, `htf/mcp_server.py` | 重命名 API + assurance 标签 | ✅ |
 | F-3 | `htf/rayleigh_cert.py`, `htf/schemas/rayleigh_cert_v2.json` | `assurance` 字段 | ✅ |
 
-测试：1531 passing（无回归）。
+测试：1526 passing（无回归）。
 
 ### P1 完成状态（2026-08-14）
 
