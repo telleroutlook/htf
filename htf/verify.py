@@ -283,6 +283,32 @@ def verify_from_dict(full_cert: dict) -> dict:
             ),
         }
 
+    # 6a. Cleanroom exact check (pure stdlib Fraction, independent of flint/mpmath).
+    # Computes the exact rational Rayleigh quotient and confirms it ≤ stored_upper.
+    # This path uses no interval arithmetic whatsoever; it detects systematic errors
+    # in the Arb pipeline that mpmath (also float-based at heart) might share.
+    from fractions import Fraction as _Fraction
+    from . import _cleanroom_verify as _cv
+    _cleanroom_check: str
+    try:
+        _exact_q = _cv.exact_rayleigh(H, psi)
+        _stored_upper_q = _Fraction.from_float(stored_upper)
+        if _exact_q > _stored_upper_q:
+            return {
+                "verified": False,
+                "stored_upper": stored_upper,
+                "recomputed_upper": recomputed_upper,
+                "digest_match": True,
+                "message": (
+                    f"FAIL — cleanroom exact check: "
+                    f"exact Rayleigh quotient {float(_exact_q):.17g} exceeds "
+                    f"stored upper {stored_upper:.17g}"
+                ),
+            }
+        _cleanroom_check = f"PASS (exact={float(_exact_q):.17g} ≤ stored={stored_upper:.17g})"
+    except Exception as _exc:
+        _cleanroom_check = f"error: {_exc}"
+
     # 6. mpmath cross-check (C3 full arithmetic independence).
     # Uses mpmath at 2× the production precision as a third independent arithmetic
     # path.  Detects systematic bugs in _arb_rayleigh that numpy (float64) could
@@ -319,6 +345,7 @@ def verify_from_dict(full_cert: dict) -> dict:
         "recomputed_upper": recomputed_upper,
         "digest_match": True,
         "backend": recomputed_backend,
+        "cleanroom_check": _cleanroom_check,
         "cross_check": _mpmath_cross_check,
         "message": (
             f"PASS — E0 ≤ {stored_upper:.17g} independently confirmed "

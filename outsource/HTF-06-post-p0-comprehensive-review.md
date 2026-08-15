@@ -234,40 +234,73 @@ def _canonical_digest(H, psi):
 - D4: All integers serialised as big-endian (platform-independent).
 - D5: Float64 serialised as IEEE 754 big-endian (`">f8"`), preserving the exact bit pattern including sign of zero.
 
-### Link 4 — Certificate production (rayleigh_certificate, relevant excerpt)
+### Link 4 — Certificate production (rayleigh_certificate, complete source)
 
 ```python
 def rayleigh_certificate(H, psi, *, notes=""):
-    # Fail closed if flint absent
     try:
-        import flint
+        import flint  # noqa: F401
     except ImportError as exc:
-        raise ImportError("rayleigh_certificate() requires python-flint ...") from exc
+        raise ImportError(
+            "rayleigh_certificate() requires python-flint for rigorous interval "
+            "arithmetic (pip install python-flint). "
+            "For a float-only non-certified estimate use rayleigh_estimate()."
+        ) from exc
 
-    # Enforce canonical dtype
+    H_raw   = np.asarray(H)
+    psi_raw = np.asarray(psi).ravel()
+
     _CANONICAL_DTYPES = {np.dtype(np.float64), np.dtype(np.complex128)}
-    if H.dtype not in _CANONICAL_DTYPES:
-        raise TypeError(f"H dtype must be float64 or complex128; got {H.dtype}")
-    if psi.dtype not in _CANONICAL_DTYPES:
-        raise TypeError(f"psi dtype must be float64 or complex128; got {psi.dtype}")
+    if H_raw.dtype not in _CANONICAL_DTYPES:
+        raise TypeError(
+            f"H dtype must be float64 or complex128; got {H_raw.dtype}. "
+            "Use H.astype(np.float64) explicitly."
+        )
+    if psi_raw.dtype not in _CANONICAL_DTYPES:
+        raise TypeError(
+            f"psi dtype must be float64 or complex128; got {psi_raw.dtype}. "
+            "Use psi.astype(np.float64) explicitly."
+        )
+
+    is_complex = np.iscomplexobj(H_raw) or np.iscomplexobj(psi_raw)
+
+    if is_complex:
+        H   = H_raw.astype(complex)
+        psi = psi_raw.astype(complex)
+    else:
+        H   = H_raw.astype(float)
+        psi = psi_raw.astype(float)
 
     assumptions = _check_preconditions(H, psi)   # Link 1
     digest      = _canonical_digest(H, psi)       # Link 3
-    lower, upper, _, backend = (
-        _acb_rayleigh(H, psi) if is_complex else _arb_rayleigh(H, psi)  # Link 2
-    )
-    # ...
+
+    if is_complex:
+        lower, upper, _, backend = _acb_rayleigh(H, psi)   # Link 2
+    else:
+        lower, upper, _, backend = _arb_rayleigh(H, psi)   # Link 2
+
+    midpoint = (lower + upper) / 2
+    # Outward-round radius by 1 ULP so stored float64 always covers both
+    # endpoints under exact Fraction arithmetic.
+    radius = math.nextafter(max(midpoint - lower, upper - midpoint), math.inf)
+
     return RayleighCertificate(
-        claim      = f"E0 ≤ {upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]",
-        theorem    = EXPECTED_THEOREM,             # canonical string, not user input
-        assumptions= assumptions,
-        input_digest = digest,
-        lower      = lower,
-        upper      = upper,
-        midpoint   = (lower + upper) / 2,
-        radius     = math.nextafter(max(mid - lower, upper - mid), math.inf),
-        backend    = backend,
-        assurance  = "rigorous",
+        claim=f"E0 ≤ {upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]",
+        theorem=EXPECTED_THEOREM,
+        assumptions=assumptions,
+        input_digest=digest,
+        lower=lower,
+        upper=upper,
+        midpoint=midpoint,
+        radius=radius,
+        backend=backend,
+        htf_version=_htf_version(),
+        git_commit=_git_commit(),
+        assurance="rigorous",
+        verified=False,
+        notes=notes,
+        _H_canonical=_encode_canonical(H),
+        _psi_canonical=_encode_canonical(psi),
     )
 ```
 
@@ -310,15 +343,20 @@ def verify_rayleigh_certificate(cert):
     return cert
 ```
 
-### Link 5b — verify_from_dict (key excerpt for semantic checks)
+### Link 5b — verify_from_dict (complete source)
 
 ```python
 def verify_from_dict(full_cert):
-    # Require flint (no trivial numpy-float "verification")
     try:
-        import flint
+        import flint  # noqa: F401
     except ImportError as exc:
         raise ImportError("verify_from_dict() requires python-flint") from exc
+
+    from ._rayleigh_primitives import (
+        EXPECTED_THEOREM, SCHEMA_VERSION,
+        _acb_rayleigh, _arb_rayleigh, _canonical_digest,
+        _check_preconditions, _decode_canonical,
+    )
 
     required = {"schema_version", "claim", "input_digest", "interval",
                 "canonical", "assurance", "backend"}
@@ -326,28 +364,148 @@ def verify_from_dict(full_cert):
     if missing:
         raise ValueError(f"Certificate dict missing required keys: {missing}")
 
+    sv = full_cert.get("schema_version")
+    if sv != SCHEMA_VERSION:
+        raise ValueError(f"schema_version must be {SCHEMA_VERSION!r}; got {sv!r}")
+
     assurance = full_cert["assurance"]
     backend   = full_cert.get("backend", "")
 
-    # Reject non-rigorous certificates
     if assurance != "rigorous" or "numpy" in backend.lower():
-        return {"verified": False, ..., "message": f"FAIL — assurance={assurance!r} ..."}
+        return {
+            "verified": False,
+            "stored_upper": full_cert["interval"]["upper"],
+            "recomputed_upper": None,
+            "digest_match": None,
+            "message": (
+                f"FAIL — certificate assurance={assurance!r} / backend={backend!r} "
+                "is not rigorous interval arithmetic."
+            ),
+        }
 
-    # Claim text must encode the stored upper value exactly
-    expected_claim = f"E0 ≤ {stored_upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]"
+    stored_upper = float(full_cert["interval"]["upper"])
+
+    expected_claim = (
+        f"E0 ≤ {stored_upper:.17g}  [Rayleigh-Ritz upper bound on ground-state energy]"
+    )
+    stored_claim = full_cert.get("claim", "")
     if stored_claim != expected_claim:
-        return {"verified": False, ..., "message": "FAIL — claim text does not match interval.upper"}
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": None,
+            "digest_match": None,
+            "message": (
+                f"FAIL — claim text does not match interval.upper:\n"
+                f"  expected: {expected_claim!r}\n"
+                f"  stored:   {stored_claim!r}"
+            ),
+        }
 
-    # Theorem must be the canonical Rayleigh-Ritz statement
+    stored_theorem = full_cert.get("theorem", "")
     if stored_theorem != EXPECTED_THEOREM:
-        return {"verified": False, ..., "message": "FAIL — theorem text has been tampered"}
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": None,
+            "digest_match": None,
+            "message": (
+                f"FAIL — theorem text has been tampered:\n"
+                f"  expected: {EXPECTED_THEOREM!r}\n"
+                f"  stored:   {stored_theorem!r}"
+            ),
+        }
 
-    # Digest, preconditions, interval arithmetic (same logic as Link 5a)
-    ...
-    # Core claim: recomputed_upper must be ≤ stored_upper
+    canonical = full_cert["canonical"]
+    if "H" not in canonical or "psi" not in canonical:
+        raise ValueError("canonical section must contain 'H' and 'psi'")
+    H   = _decode_canonical(canonical["H"])
+    psi = _decode_canonical(canonical["psi"])
+
+    recomputed_digest = _canonical_digest(H, psi)
+    stored_digest     = full_cert["input_digest"]
+    if recomputed_digest != stored_digest:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": None,
+            "digest_match": False,
+            "message": (
+                f"FAIL — digest mismatch: "
+                f"stored={stored_digest!r}, recomputed={recomputed_digest!r}"
+            ),
+        }
+
+    try:
+        _check_preconditions(H, psi)
+    except (ValueError, TypeError) as exc:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": None,
+            "digest_match": True,
+            "message": f"FAIL — precondition check: {exc}",
+        }
+
+    is_complex = np.iscomplexobj(H) or np.iscomplexobj(psi)
+    if is_complex:
+        _, recomputed_upper, _, recomputed_backend = _acb_rayleigh(H, psi)
+    else:
+        _, recomputed_upper, _, recomputed_backend = _arb_rayleigh(H, psi)
+
+    if not math.isfinite(recomputed_upper):
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": f"FAIL — recomputed upper is not finite: {recomputed_upper}",
+        }
+    if not math.isfinite(stored_upper):
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": f"FAIL — stored upper is not finite: {stored_upper}",
+        }
+
+    if stored_backend != recomputed_backend:
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": (
+                f"FAIL — backend field tampered:\n"
+                f"  expected: {recomputed_backend!r}\n"
+                f"  stored:   {stored_backend!r}"
+            ),
+        }
+
     if not (recomputed_upper <= stored_upper):
-        return {"verified": False, ...}
-    return {"verified": True, ...}
+        return {
+            "verified": False,
+            "stored_upper": stored_upper,
+            "recomputed_upper": recomputed_upper,
+            "digest_match": True,
+            "message": (
+                f"FAIL — recomputed upper {recomputed_upper:.17g} exceeds "
+                f"stored upper {stored_upper:.17g}"
+            ),
+        }
+
+    return {
+        "verified": True,
+        "stored_upper": stored_upper,
+        "recomputed_upper": recomputed_upper,
+        "digest_match": True,
+        "backend": recomputed_backend,
+        "message": (
+            f"PASS — E0 ≤ {stored_upper:.17g} independently confirmed "
+            f"(recomputed upper = {recomputed_upper:.17g})"
+        ),
+    }
 ```
 
 ### Architecture note: shared arithmetic
@@ -489,7 +647,12 @@ A returned review should contain:
 
 ## Version
 
-Code excerpts taken from commit `02d0bb8` (2026-08-14).  All P0 blockers
+Code excerpts taken from commit `82a5159` (2026-08-15).  All P0 blockers
 (P0-1 through P0-5) from the strategic review v0.23.0 have been applied.
-P0-6 (factorized MPS/MPO certificate, O(χ) storage) remains open as a
-long-term research goal and is explicitly out of scope for this review.
+Test suite: **1775 tests passing**, coverage **96%**.
+
+P0-6 (factorized MPS/MPO certificate, O(χ) storage) is now **partially
+implemented** as `htf/mps_cert.py` (`assurance="reproducible"`, float64
+contractions, 35 tests).  Full `assurance="rigorous"` (Arb interval
+arithmetic over MPS contraction chains) remains `[研究]` and is explicitly
+out of scope for this review.

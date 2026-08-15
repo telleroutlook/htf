@@ -127,6 +127,7 @@ class RayleighCertificate:
     verified: bool = False
     git_commit: str = ""
     notes: str = ""
+    replay_mode: str = ""
 
     # Stored for independent replay; not exposed in to_dict().
     # For real inputs: list[list[float]] / list[float].
@@ -156,6 +157,7 @@ class RayleighCertificate:
             "assurance": self.assurance,
             "verified": self.verified,
             "notes": self.notes,
+            "replay_mode": self.replay_mode,
         }
 
     def to_full_dict(self) -> dict:
@@ -213,6 +215,7 @@ class RayleighCertificate:
             verified=bool(d.get("verified", False)),
             git_commit=str(d.get("git_commit", "")),
             notes=str(d.get("notes", "")),
+            replay_mode=str(d.get("replay_mode", "")),
             _H_canonical=canonical.get("H", []),
             _psi_canonical=canonical.get("psi", []),
         )
@@ -449,6 +452,7 @@ def rayleigh_certificate(
         assurance="rigorous",
         verified=False,
         notes=notes,
+        replay_mode="from_scratch",
         _H_canonical=_encode_canonical(H),
         _psi_canonical=_encode_canonical(psi),
     )
@@ -577,6 +581,7 @@ def verify_rayleigh_certificate(cert: RayleighCertificate) -> RayleighCertificat
             f"Interval radius {cert.radius} does not cover both stored endpoints"
         )
 
+    cert.replay_mode = "self_consistency"
     cert.verified = True
     return cert
 

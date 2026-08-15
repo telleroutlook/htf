@@ -640,3 +640,43 @@ class TestVerifyRemainingBranches:
         result = verify_from_dict(d)
         assert result["verified"] is False
         assert "recomputed upper" in result["message"].lower()
+
+
+class TestINV13CleanroomCheck:
+    """INV-13: cleanroom exact Fraction check in verify_from_dict."""
+
+    def _good_full_dict(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        return rayleigh_certificate(H, psi).to_full_dict()
+
+    def test_cleanroom_check_field_present_and_passes(self):
+        from htf.verify import verify_from_dict
+        result = verify_from_dict(self._good_full_dict())
+        assert result["verified"] is True
+        assert "cleanroom_check" in result
+        assert result["cleanroom_check"].startswith("PASS")
+
+    def test_cleanroom_check_fails_when_exact_exceeds_stored(self, monkeypatch):
+        from fractions import Fraction
+        import htf._cleanroom_verify as cv
+        from htf.verify import verify_from_dict
+
+        # Monkeypatch exact_rayleigh to return 2.0; stored_upper is ~1.0.
+        monkeypatch.setattr(cv, "exact_rayleigh", lambda _H, _psi: Fraction(2, 1))
+        result = verify_from_dict(self._good_full_dict())
+        assert result["verified"] is False
+        assert "cleanroom exact check" in result["message"]
+
+    def test_cleanroom_error_does_not_block_verified(self, monkeypatch):
+        import htf._cleanroom_verify as cv
+        from htf.verify import verify_from_dict
+
+        def _raise(_H, _psi):
+            raise RuntimeError("cleanroom blew up")
+
+        monkeypatch.setattr(cv, "exact_rayleigh", _raise)
+        result = verify_from_dict(self._good_full_dict())
+        assert result["verified"] is True
+        assert "error:" in result["cleanroom_check"]

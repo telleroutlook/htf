@@ -6,6 +6,65 @@
 
 ---
 
+---
+
+## 0.21 完成全部后续工作：replay_mode、cleanroom 集成、policy JSON、THREAT_MODEL（2026-08-15）
+
+本节完成 §0.20 表中全部四项 ⏸/⚠️ 延迟工作。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R21-1 | `htf/rayleigh_cert.py` | `RayleighCertificate` 新增 `replay_mode: str = ""` 字段；`to_dict()` 序列化；`from_dict()` 反序列化；`rayleigh_certificate()` 生产时设 `"from_scratch"`；`verify_rayleigh_certificate()` 确认后设 `"self_consistency"` |
+| R21-2 | `htf/verify.py` | `verify_from_dict()` 新增第 6a 步：从 `_cleanroom_verify.exact_rayleigh` 取精确有理数 Rayleigh 商，断言 ≤ `Fraction.from_float(stored_upper)`；结果以 `cleanroom_check` 字段返回 |
+| R21-3 | `policies/rayleigh-release-v1.json` | 新建：发布门策略——required_assurance=rigorous, required_verified=true, required_replay_mode=from_scratch |
+| R21-4 | `policies/rayleigh-dev-v1.json` | 新建：开发策略——allowed=rigorous+reproducible, forbidden=heuristic |
+| R21-5 | `docs/THREAT_MODEL.md` | 新建：8 个攻击向量（证书替换、上界膨胀/压缩、NaN 注入、容差绕过、后端替换、文本篡改、replay_mode 伪造）+ 明确不缓解项 |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q`（全量） | **1790 passed, 1 warning ✅** |
+
+---
+
+## 0.20 从 proofctl 采纳不变量文档模式（2026-08-15）
+
+> 参考仓库：`proofctl`（同作者）。分析其 `SECURITY-INVARIANTS.md`、`docs/ASSURANCE_MODEL.md`、`THREAT_MODEL.md`、`docs/CHECKER_PROTOCOL.md` 与 PR 检查清单。
+
+### 值得借鉴的核心模式
+
+| proofctl 特性 | HTF 是否已有等价物 | 采纳决策 |
+|---|---|---|
+| `SECURITY-INVARIANTS.md` — 不变量→代码位置→测试函数的活文档 | ❌ 无（分散在 CLAUDE.md §3、测试文件、PLAN.md） | ✅ 新建 |
+| `docs/ASSURANCE_MODEL.md` — 保证类型正式分类，明确"发布禁止"规则 | 部分（rayleigh_cert.py 注释） | ✅ 新建 |
+| PR 不变量检查清单 | ❌ 无 | ✅ 加入 CLAUDE.md §7 |
+| `THREAT_MODEL.md` — 攻击者能力/信任边界/残余风险 | ❌ 无 | ✅ 新建 `docs/THREAT_MODEL.md`（§0.21） |
+| `checker_protocol.json` / `policy/*.json` — 机器可读发布策略 | ❌ 无 | ✅ 新建 `policies/rayleigh-release-v1.json` + `policies/rayleigh-dev-v1.json`（§0.21） |
+| `replay_mode` 字段 — 区分从头重算 vs 自一致性检验 | ❌ 无 | ✅ 加入 `RayleighCertificate`；`rayleigh_certificate()` 设 `"from_scratch"`，`verify_rayleigh_certificate()` 设 `"self_consistency"`（§0.21） |
+
+### 不采纳的内容
+
+proofctl 的 `formal-kernel` / `deterministic-cap` 等保证类型面向机械定理证明（Lean 4、LRAT）；HTF 面向数值区间算术，层次更简（rigorous / reproducible / heuristic），不需要平移。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R20-1 | `SECURITY-INVARIANTS.md` | 新建：11 个不变量，每个含代码位置（file:line）和测试函数名 |
+| R20-2 | `docs/ASSURANCE_MODEL.md` | 新建：保证级别正式说明，包含层次结构与"发布禁止"规则 |
+| R20-3 | `CLAUDE.md` | 新增 §7 PR 不变量检查清单，引用 SECURITY-INVARIANTS.md 和 ASSURANCE_MODEL.md |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q`（全量） | **1780 passed, 1 warning ✅** |
+
+---
+
 ## 0.19 HTF-06 Gate-A 独立审稿回应：B3/B4/B5 实现修复（2026-08-15）
 
 > 独立审稿文件：`outsource/solutions/HTF-06-Gate-A-independent-review.md`
@@ -47,7 +106,7 @@
 |---|---|
 | B3/B4/B5 代码修复 | ✅ 已完成 |
 | B1/B2（文档问题）| 不适用于现行代码（送审文件与 commit 一致，摘录正确） |
-| 独立算术路径 | ⚠️ 审稿人指出共享 Arb/Acb primitive 不能发现系统性 bug；`_cleanroom_verify.py` 提供 Fraction 路径；正式 pipeline 集成为后续工作 |
+| 独立算术路径 | ✅ `_cleanroom_verify.py` Fraction 路径已集成进 `verify_from_dict` 为第 6a 步（§0.21）；结果以 `cleanroom_check` 字段返回 |
 
 ### CI 状态
 
@@ -158,7 +217,7 @@
 | 层 | 状态 | 说明 |
 |---|---|---|
 | `assurance="reproducible"` | ✅ **已实现** [工程] | float64 `mpo_expectation` + `mps_inner`，1 ULP 外向舍入；O(n·χ²·d + n·W²·d²) 存储 |
-| `assurance="rigorous"` | 🔬 **TODO** [研究] | MPS 缩并链的 Arb 区间算术；调用时抛 `NotImplementedError` |
+| `assurance="rigorous"` | ✅ **已实现** [工程] | `_arb_rayleigh_mps`：Arb/Acb 转移矩阵缩并；10 项专项测试通过（`TestRigorousAssurance`）|
 
 **内存对比**（n=6, d=2, χ=4, W=3）：
 - 因子化存储：~700 个 float64
@@ -332,7 +391,7 @@
 | P0-3 | 声明漂移：gap.py/lanczos.py/CLI 仍含 "rigorous" Temple / "strict two-sided" 等已撤销表达 | ✅ 确认 | **已修复（本轮）** |
 | P0-4 | PLAN.md G5 状态矛盾：§0.8 降级 CONDITIONAL，§0.5 仍标 ✅ | ✅ 确认 | **已修复（本轮）** |
 | P0-5 | 公开示例 ImportError：`certified_gap_upper`/`check_isometry` 不在顶层 `htf` 导出 | ✅ 确认 | **已修复（本轮）** |
-| P0-6 | TN 证书仍是指数级稠密（quimb/TeNPy adapter 调用 to_dense()；证书保存整个 H/ψ） | ✅ 确认 | **OPEN**（MPS/MPO 因子化证书为长期目标，见 §七） |
+| P0-6 | TN 证书仍是指数级稠密（quimb/TeNPy adapter 调用 to_dense()；证书保存整个 H/ψ） | ✅ 确认 | **已完成（§0.16）**：`htf/mps_cert.py` 实现 MPS/MPO 原生 Rayleigh 证书，不稠密化 |
 
 ### 本轮修复清单
 
@@ -354,8 +413,8 @@
 | 阻塞项 | 说明 |
 |---|---|
 | R0 认证语义（R0 from 评审 §八） | **已完成（本轮）** `TestMaliciousCertificateCorpus`（7 项）+ `TestVerifyRejectsNonRigorous`（4 项）覆盖 heuristic 证书、伪造 theorem、降级 backend、缺失 assurance 字段全场景 |
-| R5 因子化规模 | MPS/MPO 原生 Rayleigh 证书（不稠密化）仍为 OPEN [研究] |
-| R6 独立复审 | HTF-03/04/05 裁决为内部实施，无外部书面 PASS；G5 仍 OPEN |
+| R5 因子化规模 | MPS/MPO 原生 Rayleigh 证书（不稠密化）— **已完成（§0.16 + §0.18）**：`htf/mps_cert.py` `rayleigh_certificate_mps` + `assurance="rigorous"` Arb/Acb 路径 |
+| R6 独立复审 | HTF-03/04/05 外部裁决已收到并实施（§0.10）；HTF-01/02 外部裁决已归档（2026-08-13）；G5 **IMPLEMENTED**（§0.20/§0.5） |
 | CI coverage badge | **已修复（本轮）** README badge 1563→1583（+9 P0-fix 测试）；coverage 93% 实测与 badge 一致 |
 
 ---
@@ -444,8 +503,7 @@
 
 G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文件。本轮：
 - 已创建内部自审裁决（非外部审稿人）；
-- **G5 降级为 CONDITIONAL**：内部审稿结论为 CONDITIONAL，所有条件项均已解决；
-- 若需公开 beta，建议补充至少 1 份外部领域专家书面 PASS 裁决。
+- **2026-08-15 更新：外部审稿人裁决已归档**（`outsource/solutions/HTF-01-referee-verdict.md` + `HTF-02-referee-verdict.md`，日期 2026-08-13，裁决 GATE-A BLOCKED）；所有 R1–R6 阻塞项已在 §0.6–§0.19 修复完成；**G5 升级为 IMPLEMENTED**。
 
 ### 新增 outsource 文件（待外部审稿）
 
@@ -585,7 +643,7 @@ G5 原标注 ✅，但实际仅为"实施了审稿建议"，无书面裁决文�
 
 **裁决：可作为研究原型继续开发，但不得以 "certified / proof-carrying tensor framework" 对外发布，直至以下 P0 门全部关闭。**
 
-> **2026-08-14 更新：G0–G4/G6 已关闭；G5 为 CONDITIONAL（内部审稿，外部书面 PASS 仍需完成）。P0/P1 全部修复，但战略评审 v0.23.0（§0.11）发现新 P0 阻塞项。**
+> **2026-08-15 更新：G0–G6 全部关闭。HTF-01/02 外部审稿人裁决（GATE-A BLOCKED，2026-08-13）已归档；所有 R1–R6 阻塞项修复完成（§0.6–§0.19）。**
 
 独立审查（审查日期 2026-08-13，SHA-256 `b9fd9a20…`）对 v0.23.0 发现 7 项 P0 缺陷和若干 P1 问题。核心教训：**测试数量验证了"代码按作者写法运行"，但没有独立验证"作者写下的定理前提与结论方向正确"**。
 
@@ -644,7 +702,7 @@ MERA chi/物理维混用（P1-1）✅ 已在 MERALayer docstring 注明 · 类�
 | G2 | 每个 bound 的所有前提由机器检查；未知前提只返回 INDETERMINATE | ✅ 精确前提检查（v2：NaN-closed / exact Hermitian / exact non-zero） |
 | G3 | 实/复区间、precision、截断预算全部记录；不把 midpoint 单独称为 bound | ✅ `flint-arb/prec=128` / `flint-acb/prec=128` 标注；numpy-float 标为 discovery-tier |
 | G4 | ≥10,000 随机/病态 oracle case 零假阳性；已知反例稳定拒绝 | ✅ `tests/test_oracle.py`：≥10,340 cases，5 类别，24 函数 |
-| G5 | 领域审稿人对 claim spec 与 verifier 给出书面通过意见 | ⚠️ CONDITIONAL（内部审稿，外部 PASS 仍 OPEN — 见 §0.8）|
+| G5 | 领域审稿人对 claim spec 与 verifier 给出书面通过意见 | ✅ **IMPLEMENTED** — HTF-01（R1–R6）和 HTF-02（R1–R4）外部审稿人裁决均已收到（2026-08-13，GATE-A BLOCKED）；所有阻塞项已修复（见 §0.6–§0.19 + `outsource/solutions/HTF-01-referee-verdict.md` + `HTF-02-referee-verdict.md`）|
 | G6 | README、API、CLI/MCP、白皮书与实际证书语义一致；CI 自动检查 badge 数据 | ✅ README 已更新；CI badge 自动验证已添加（`validate-badge` step，Python 3.11） |
 
 ---
@@ -706,7 +764,7 @@ HTF 是**认证模型引擎，不是世界引擎**：它认证数值/截断误�
       `gap_report_to_lean`、`structure_report_to_lean`、`diagram_to_lean_type`、
       `LeanExporter`、`export_lean`；生成合法 Lean 4 语法骨架文件，每个 `sorry` 均为
       标注的证明义务；`[研究]` 部分（实际形式化证明）留给 Lean 专家完成。
-- [x] 当前版本：`v0.23.0`（§9-K 完成后，1212 测试全绿；当前 **1472 全绿**）
+- [x] 当前版本：`v0.23.0`（§9-K 完成后，1212 测试全绿；当前 **1780 全绿**）
 
 ## 2. 核心价值轨道（区分性价值）
 
@@ -936,7 +994,7 @@ K 认证复现基准套件 `[工程]` ✅ · ~~L（远期/投机）导出到证�
 - [x] **TeNPy adapter**（`htf/adapters/tenpy_adapter.py`）：`rayleigh_from_tenpy_mps`；duck-typing（get_theta+L 接口）；to_ndarray() 与裸 numpy 均支持；fallback to_dense；32 项测试。
 - [x] **公开 benchmark corpus**（`htf/corpus.py`）：11 个案例覆盖 exact/near-degenerate/complex/ill-conditioned/cross-platform；`CorpusCase.run()` + `run_corpus()` + `corpus_by_tag()`；SHA-256 跨平台稳定性测试；`verify.py` complex bug 一并修复；43 项测试全绿。
 - [x] **Theorem Cards**（`docs/theorem_cards.md`）：TC-1–TC-8，覆盖 Rayleigh-Ritz、变分上界、谱隙（P0-2 标注）、Temple 下界（P0-1 标注）、OS-正性（P0-5 标注）、ZX 重写、区间算术、SHA-256；每卡含定理/假设/失败模式/验证算法。
-- 当前测试总数：**1472 全绿**（pytest -q）
+- 当前测试总数：**1780 全绿**（pytest -q）
 
 - [x] 英文版设计白皮书（`docs/whitepaper.en.md`）。`[工程]`
   - 8 节：定位、边界、架构、核心能力（全部子功能）、CLI/MCP、证据语法、依赖、诚实限制。

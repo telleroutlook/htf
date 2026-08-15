@@ -1033,3 +1033,44 @@ class TestHelperFallbacks:
         monkeypatch.setattr(subprocess, "run", _raise)
         commit = rc._git_commit()
         assert commit == ""
+
+
+class TestReplayMode:
+    """INV-12: replay_mode set by producer and verifier."""
+
+    def test_rayleigh_certificate_sets_from_scratch(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        cert = rayleigh_certificate(H, psi)
+        assert cert.replay_mode == "from_scratch"
+
+    def test_verify_sets_self_consistency(self):
+        from htf.rayleigh_cert import rayleigh_certificate, verify_rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        cert = verify_rayleigh_certificate(rayleigh_certificate(H, psi))
+        assert cert.replay_mode == "self_consistency"
+
+    def test_replay_mode_in_to_dict(self):
+        from htf.rayleigh_cert import rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        d = rayleigh_certificate(H, psi).to_dict()
+        assert "replay_mode" in d
+        assert d["replay_mode"] == "from_scratch"
+
+    def test_replay_mode_roundtrips_via_from_dict(self):
+        from htf.rayleigh_cert import RayleighCertificate, rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        d = rayleigh_certificate(H, psi).to_dict()
+        assert RayleighCertificate.from_dict(d).replay_mode == "from_scratch"
+
+    def test_replay_mode_absent_in_dict_defaults_empty(self):
+        from htf.rayleigh_cert import RayleighCertificate, rayleigh_certificate
+        H   = np.diag([1.0, 2.0]).astype(np.float64)
+        psi = np.array([1.0, 0.0])
+        d = rayleigh_certificate(H, psi).to_dict()
+        del d["replay_mode"]
+        assert RayleighCertificate.from_dict(d).replay_mode == ""

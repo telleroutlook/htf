@@ -81,7 +81,19 @@ Convention: a box `b: dom -> cod` has a tensor of shape `dims(cod) + dims(dom)`.
 - **No silent truncation:** if a computation caps `χ`, resolution, or order, say
   so in the output/certificate.
 
-## 7. What this repository does NOT do
+## 7. PR invariant checklist (adopted from proofctl)
+
+Every PR that touches `htf/engine.py`, `htf/rayleigh_cert.py`, `htf/verify.py`,
+`htf/_rayleigh_primitives.py`, `htf/mps_cert.py`, or `htf/certificate.py` must answer:
+
+- Which invariant in `SECURITY-INVARIANTS.md` does this change affect?
+- Does the change introduce a new trust input (new field, new digest, new assurance level)? If so, is it validated?
+- What tamper / regression test covers it?
+
+See `SECURITY-INVARIANTS.md` for the full invariant table.
+See `docs/ASSURANCE_MODEL.md` for the assurance level hierarchy.
+
+## 8. What this repository does NOT do
 
 Does not prove the mass gap (`[OUT]`), does not claim UV immunity, does not treat
 a finite-lattice estimate as a continuum theorem, does not present the MERA↔AdS

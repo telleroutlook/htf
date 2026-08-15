@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rayleigh-cert-mps/v1",
+  "description": "Factorized Rayleigh certificate using MPS/MPO tensor storage.",
+  "type": "object",
+  "required": [
+    "schema_version", "claim", "theorem", "assurance", "backend",
+    "n_sites", "phys_dim", "mps_max_bond", "mpo_bond_dim",
+    "rayleigh_upper", "rayleigh_lower", "input_digest", "htf_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "rayleigh-cert-mps/v1"
+    },
+    "claim":   { "type": "string" },
+    "theorem": { "type": "string" },
+    "assurance": {
+      "type": "string",
+      "enum": ["reproducible", "rigorous"],
+      "description": "reproducible: float64 MPS contraction.  rigorous: Arb/Acb transfer-matrix contractions."
+    },
+    "backend": {
+      "type": "string",
+      "description": "Arithmetic backend used (e.g. float64-mps)."
+    },
+    "n_sites":      { "type": "integer", "minimum": 1 },
+    "phys_dim":     { "type": "integer", "minimum": 2 },
+    "mps_max_bond": { "type": "integer", "minimum": 1 },
+    "mpo_bond_dim": { "type": "integer", "minimum": 1 },
+    "rayleigh_upper": {
+      "type": "number",
+      "description": "Stored upper bound (one ULP above computed Rayleigh quotient)."
+    },
+    "rayleigh_lower": {
+      "type": "number",
+      "description": "Stored lower bound (one ULP below computed Rayleigh quotient)."
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex digest of domain-separated MPS/MPO tensor bytes."
+    },
+    "htf_version": { "type": "string" },
+    "notes":       { "type": "string" },
+    "mps_tensors": {
+      "type": "array",
+      "description": "MPS site tensors encoded via _encode_canonical (present in to_full_dict output only)."
+    },
+    "mpo_tensors": {
+      "type": "array",
+      "description": "MPO site tensors encoded via _encode_canonical (present in to_full_dict output only)."
+    }
+  }
+}

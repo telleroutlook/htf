@@ -1,0 +1,15 @@
+{
+  "policy": "rayleigh-release-v1",
+  "description": "Release gate: only rigorous, independently verified certificates may appear in published artifacts.",
+  "schema_version": "rayleigh-cert/v2",
+  "required_assurance": "rigorous",
+  "required_verified": true,
+  "required_replay_mode": "from_scratch",
+  "forbidden_assurance_levels": ["heuristic", "reproducible"],
+  "notes": [
+    "Heuristic certificates carry no digest binding and must never appear in release artifacts.",
+    "Reproducible certificates are digest-bound but carry no rigorous interval bound; they are development-only.",
+    "replay_mode='from_scratch' ensures the certificate was produced by a fresh computation, not a self-consistency re-check.",
+    "Policy enforced by verify_rayleigh_certificate() + assurance/replay_mode field checks at release CI gate."
+  ]
+}

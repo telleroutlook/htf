@@ -1,0 +1,14 @@
+{
+  "policy": "rayleigh-dev-v1",
+  "description": "Development policy: rigorous and reproducible certificates allowed; heuristic forbidden.",
+  "schema_version": "rayleigh-cert/v2",
+  "allowed_assurance_levels": ["rigorous", "reproducible"],
+  "forbidden_assurance_levels": ["heuristic"],
+  "required_replay_mode": null,
+  "notes": [
+    "Reproducible certificates bind the result to canonical inputs via SHA-256 (input_digest) but carry no rigorous interval bound.",
+    "Heuristic certificates have no digest and must not be used even in development if results will be cited or compared across runs.",
+    "replay_mode is not enforced in development; both 'from_scratch' and 'self_consistency' are acceptable.",
+    "Before promoting a development certificate to a release artifact, apply rayleigh-release-v1 policy checks."
+  ]
+}
