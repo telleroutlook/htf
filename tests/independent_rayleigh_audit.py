@@ -17,21 +17,17 @@ Run without arguments.  Success prints exactly ``ALL_CHECKS_PASSED``.
 
 from __future__ import annotations
 
-from copy import deepcopy
-from fractions import Fraction
 import hashlib
 import math
 import struct
+from copy import deepcopy
+from fractions import Fraction
 from typing import Any
 
 import numpy as np
 
-
 SCHEMA_VERSION = "rayleigh-cert/v2"
-EXPECTED_THEOREM = (
-    "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, "
-    "E0 ≤ Re(⟨ψ|H|ψ⟩/⟨ψ|ψ⟩)."
-)
+EXPECTED_THEOREM = "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, E0 ≤ Re(⟨ψ|H|ψ⟩/⟨ψ|ψ⟩)."
 CLAIM_SUFFIX = "  [Rayleigh-Ritz upper bound on ground-state energy]"
 
 
@@ -116,9 +112,7 @@ def canonical_digest(H: Any, psi: Any) -> str:
         return struct.pack(">H", len(tag)) + tag + struct.pack(">Q", len(payload)) + payload
 
     def shape_bytes(array: np.ndarray) -> bytes:
-        return struct.pack(">I", array.ndim) + b"".join(
-            struct.pack(">Q", int(size)) for size in array.shape
-        )
+        return struct.pack(">I", array.ndim) + b"".join(struct.pack(">Q", int(size)) for size in array.shape)
 
     complex_path = np.iscomplexobj(H_arr) or np.iscomplexobj(psi_arr)
     raw = b"rayleigh-cert-input/v2\x00" + (b"C" if complex_path else b"R")
@@ -145,8 +139,14 @@ def _claim(upper: float) -> str:
 def verify_in_memory(cert: dict[str, Any]) -> None:
     """Verify all reviewable semantic fields and the exact upper-bound claim."""
     required = {
-        "schema_version", "claim", "theorem", "input_digest", "interval",
-        "canonical", "assurance", "backend",
+        "schema_version",
+        "claim",
+        "theorem",
+        "input_digest",
+        "interval",
+        "canonical",
+        "assurance",
+        "backend",
     }
     if not required <= set(cert):
         raise AuditFailure("missing required certificate field")
@@ -264,9 +264,7 @@ def run_checks() -> None:
     # Mutating the input and digest still fails if the old upper no longer covers q.
     forged_input = deepcopy(cert_real)
     forged_input["canonical"]["H"][0, 0] = 2.0
-    forged_input["input_digest"] = canonical_digest(
-        forged_input["canonical"]["H"], forged_input["canonical"]["psi"]
-    )
+    forged_input["input_digest"] = canonical_digest(forged_input["canonical"]["H"], forged_input["canonical"]["psi"])
     _must_fail(forged_input)
 
     # Preconditions and structural digest distinctions.

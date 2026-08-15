@@ -8,6 +8,7 @@ Targets:
                Wire.__repr__, Wire.__eq__ NotImplemented, Wire.__hash__
 - functor.py: KeyError for missing box assignment
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -23,8 +24,10 @@ def _make_fake_diagram(w: Wire) -> Diagram:
 
     Triggers the TypeError fallthrough in _eval / _eval_certified.
     """
+
     class _Fake(Diagram):
         pass
+
     d = _Fake()
     d.dom = (w,)
     d.cod = (w,)
@@ -34,6 +37,7 @@ def _make_fake_diagram(w: Wire) -> Diagram:
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers shared across tests
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _wire(name: str, dim: int = 2) -> Wire:
     return Wire(name, dim)
@@ -57,6 +61,7 @@ def _simple_box_and_functor():
 # ──────────────────────────────────────────────────────────────────────────────
 # certificate.py — numpy handling in to_dict (lines 33-38)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestCertificateToDict:
     def test_ndarray_result_becomes_list(self):
@@ -95,8 +100,9 @@ class TestCertificateToDict:
 
     def test_to_dict_returns_all_fields(self):
         arr = np.zeros(3)
-        cert = Certificate(result=arr, mode="certified", error_bound=1e-9,
-                           backend="flint-arb", chi=16, seed=99, notes="ok")
+        cert = Certificate(
+            result=arr, mode="certified", error_bound=1e-9, backend="flint-arb", chi=16, seed=99, notes="ok"
+        )
         d = cert.to_dict()
         assert d["mode"] == "certified"
         assert d["error_bound"] == 1e-9
@@ -109,6 +115,7 @@ class TestCertificateToDict:
 # ──────────────────────────────────────────────────────────────────────────────
 # engine.py — Id node in certified mode (lines 102-106)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEngineIdCertified:
     def test_id_certified_returns_certificate(self):
@@ -155,13 +162,13 @@ class TestEngineIdCertified:
         F = TensorFunctor()
         float_result = contract(Id((w,)), F, mode="float")
         cert = contract(Id((w,)), F, mode="certified")
-        np.testing.assert_allclose(cert.result, float_result,
-                                   atol=cert.error_bound + 1e-14)
+        np.testing.assert_allclose(cert.result, float_result, atol=cert.error_bound + 1e-14)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # engine.py — Tensor node in certified mode (lines 115-130)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEngineTensorCertified:
     def test_tensor_certified_returns_certificate(self):
@@ -191,8 +198,7 @@ class TestEngineTensorCertified:
         f, g, F, _, _ = _simple_box_and_functor()
         float_result = contract(f @ g, F, mode="float")
         cert = contract(f @ g, F, mode="certified")
-        np.testing.assert_allclose(cert.result, float_result,
-                                   atol=cert.error_bound + 1e-12)
+        np.testing.assert_allclose(cert.result, float_result, atol=cert.error_bound + 1e-12)
 
     def test_tensor_certified_kronecker_structure(self):
         """Certified result[b,d,a,c] must equal arr_f[b,a] * arr_g[d,c]."""
@@ -205,6 +211,7 @@ class TestEngineTensorCertified:
 # ──────────────────────────────────────────────────────────────────────────────
 # engine.py — Tensor node in float mode with non-trivial permutation (lines 53-65)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEngineTensorFloat:
     def test_tensor_float_result_shape(self):
@@ -264,6 +271,7 @@ class TestEngineTensorFloat:
 # topology.py — Wire dim validation (lines 19-20)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestWireDimValidation:
     def test_zero_dim_raises_value_error(self):
         with pytest.raises(ValueError, match="positive integer"):
@@ -285,6 +293,7 @@ class TestWireDimValidation:
 # ──────────────────────────────────────────────────────────────────────────────
 # topology.py — Diagram.__repr__ for Id, Then, Tensor (line 57)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestDiagramRepr:
     def test_id_repr_contains_class_name(self):
@@ -350,6 +359,7 @@ class TestDiagramRepr:
 # topology.py — Wire.__repr__, Wire.__eq__ NotImplemented, Wire.__hash__
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestWireMethods:
     def test_repr_format(self):
         w = Wire("alpha", 5)
@@ -391,6 +401,7 @@ class TestWireMethods:
 # engine.py — scalar Id (empty type), unknown node TypeError, unknown mode
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestEngineEdgeCases:
     def test_empty_id_float_returns_scalar_one(self):
         result = contract(Id(()), TensorFunctor(), mode="float")
@@ -424,6 +435,7 @@ class TestEngineEdgeCases:
 # functor.py — KeyError for missing tensor assignment
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestFunctorMissingTensor:
     def test_missing_box_raises_key_error(self):
         w = Wire("x", 2)
@@ -444,35 +456,43 @@ class TestFunctorMissingTensor:
 # htf/labs/__init__.py — re-export smoke tests (0% → covered)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestLabsImport:
     """Import htf.labs and verify a representative subset of re-exports exist."""
 
     def test_import_labs_module(self):
         import htf.labs as labs
+
         assert labs is not None
 
     def test_mps_available(self):
         from htf.labs import MPS
+
         assert MPS is not None
 
     def test_tebd_evolve_available(self):
         from htf.labs import tebd_evolve
+
         assert callable(tebd_evolve)
 
     def test_dmrg_sweep_mpo_available(self):
         from htf.labs import dmrg_sweep_mpo
+
         assert callable(dmrg_sweep_mpo)
 
     def test_rayleigh_certificate_to_lean_not_in_labs(self):
         import htf.labs as labs
+
         assert not hasattr(labs, "rayleigh_certificate_to_lean")
 
     def test_certified_gap_upper_available(self):
         from htf.labs import certified_gap_upper
+
         assert callable(certified_gap_upper)
 
     def test_zx_available(self):
-        from htf.labs import clifford_simplify, ZXGraph
+        from htf.labs import ZXGraph, clifford_simplify
+
         assert callable(clifford_simplify)
         assert ZXGraph is not None
 
@@ -481,32 +501,37 @@ class TestLabsImport:
 # htf/claim_registry.py — get_claim and registry_summary (77% → covered)
 # ──────────────────────────────────────────────────────────────────────────────
 
-class TestClaimRegistry:
 
+class TestClaimRegistry:
     def test_get_claim_rayleigh_returns_claiminfo(self):
         from htf.claim_registry import get_claim
+
         info = get_claim("rayleigh")
         assert info.claim_id == "rayleigh"
         assert info.assurance == "rigorous"
 
     def test_get_claim_gap_returns_heuristic(self):
         from htf.claim_registry import get_claim
+
         info = get_claim("gap")
         assert info.assurance == "heuristic"
 
     def test_get_claim_unknown_raises_key_error(self):
         from htf.claim_registry import get_claim
+
         with pytest.raises(KeyError, match="Unknown claim_id"):
             get_claim("nonexistent_claim_xyz")
 
     def test_get_claim_error_lists_known_ids(self):
         from htf.claim_registry import get_claim
+
         with pytest.raises(KeyError) as exc_info:
             get_claim("bad_id")
         assert "rayleigh" in str(exc_info.value)
 
     def test_registry_summary_returns_dict(self):
         from htf.claim_registry import registry_summary
+
         summary = registry_summary()
         assert isinstance(summary, dict)
         assert "rayleigh" in summary
@@ -517,14 +542,17 @@ class TestClaimRegistry:
 # htf/_rayleigh_primitives.py — flint-absent fallback and zero-psi guard
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestRayleighPrimitivesNoFlint:
     """Cover the ImportError fallback paths in _arb_rayleigh and _acb_rayleigh."""
 
     def test_arb_fallback_returns_float_triple(self, monkeypatch):
         import sys
+
         from htf._rayleigh_primitives import _arb_rayleigh
+
         monkeypatch.setitem(sys.modules, "flint", None)
-        H   = np.diag([1.0, 2.0])
+        H = np.diag([1.0, 2.0])
         psi = np.array([1.0, 0.0])
         lo, up, rad, label = _arb_rayleigh(H, psi)
         assert lo == up
@@ -533,9 +561,11 @@ class TestRayleighPrimitivesNoFlint:
 
     def test_acb_fallback_returns_float_triple(self, monkeypatch):
         import sys
+
         from htf._rayleigh_primitives import _acb_rayleigh
+
         monkeypatch.setitem(sys.modules, "flint", None)
-        H   = np.array([[1.0, 1j], [-1j, 2.0]], dtype=complex)
+        H = np.array([[1.0, 1j], [-1j, 2.0]], dtype=complex)
         psi = np.array([1.0, 0.0], dtype=complex)
         lo, up, rad, label = _acb_rayleigh(H, psi)
         assert lo == up
@@ -548,14 +578,16 @@ class TestRayleighPrimitivesZeroPsi:
 
     def test_arb_zero_psi_raises_value_error(self):
         from htf._rayleigh_primitives import _arb_rayleigh
-        H   = np.diag([1.0, 2.0])
+
+        H = np.diag([1.0, 2.0])
         psi = np.zeros(2)
         with pytest.raises(ValueError, match="[Dd]enominator"):
             _arb_rayleigh(H, psi)
 
     def test_acb_zero_psi_raises_value_error(self):
         from htf._rayleigh_primitives import _acb_rayleigh
-        H   = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=complex)
+
+        H = np.array([[1.0, 0.0], [0.0, 2.0]], dtype=complex)
         psi = np.zeros(2, dtype=complex)
         with pytest.raises(ValueError, match="[Dd]enominator"):
             _acb_rayleigh(H, psi)
@@ -564,6 +596,7 @@ class TestRayleighPrimitivesZeroPsi:
 # ──────────────────────────────────────────────────────────────────────────────
 # engine.py — tensordot path (nb==0) and certified-mode ImportError (lines 68-70, 211)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEngineTensordotPath:
     """Lines 68-70: np.tensordot fallback when shared-wire count is zero."""
@@ -587,6 +620,7 @@ class TestEngineCertifiedNoFlint:
 
     def test_certified_raises_without_flint(self, monkeypatch):
         import sys
+
         w = Wire("x", 2)
         monkeypatch.setitem(sys.modules, "flint", None)
         with pytest.raises(ImportError, match="python-flint"):
@@ -596,6 +630,7 @@ class TestEngineCertifiedNoFlint:
 # ──────────────────────────────────────────────────────────────────────────────
 # htf/viz.py — unknown diagram subclass fallback (lines 103-109)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestVizUnknownDiagram:
     """Cover the fallback branch in _visit for unknown Diagram subclasses."""
