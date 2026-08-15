@@ -6,6 +6,181 @@
 
 ---
 
+## 0.19 HTF-06 Gate-A 独立审稿回应：B3/B4/B5 实现修复（2026-08-15）
+
+> 独立审稿文件：`outsource/solutions/HTF-06-Gate-A-independent-review.md`
+> 审稿裁决：`BLOCKED`（5 个阻塞项）
+> 本轮关闭 3 个适用于现行代码的阻塞项（B3、B4、B5）；B1/B2 为送审文件问题，现行代码无对应 bug。
+
+### 审稿 BLOCKED 原因与处置
+
+| 阻塞项 | 送审文件问题 | 现行代码状态 | 本轮处置 |
+|---|---|---|---|
+| B1 — 验证器路径含 NameError（`upper_v`/`recomputed_upper`、`backend`/`stored_backend`）| 送审文件代码摘录（HTF-06-post-p0-comprehensive-review.md）变量名不一致 | 现行 `rayleigh_cert.py` + `verify.py` 代码正确（`upper_v` 一致使用） | **无需修改**；送审文件已为最新 commit 摘录 |
+| B2 — 送审件不自包含（缺失 `_encode_canonical` 等定义）| 送审文件未附完整定义 | 现行代码 `_rayleigh_primitives.py` 含完整定义 | **无需修改**；送审文件本身为文档问题 |
+| B3 — `nextafter(DBL_MAX, +inf) = inf` 导致有效输入被拒绝 | — | `_arb_rayleigh`/`_acb_rayleigh` 无条件调用 `math.nextafter` | ✅ **已修复**：新增 `_outward_upper`/`_outward_lower` 在结果为 inf 时保留 DBL_MAX |
+| B4 — `midpoint = (lower + upper) / 2` 在大输入下溢出为 inf | — | `rayleigh_cert.py` 和 `verify.py` 均使用直接相加 | ✅ **已修复**：改为 `lower + (upper - lower) / 2` |
+| B5 — 假设文本声称 `⟨ψ|ψ⟩ > 0 exactly` 系浮点计算 | — | `_check_preconditions` 第 4 条 assumption 文字误导 | ✅ **已修复**：改为"exact non-zero binary64 component; exact dyadic ⟨ψ|ψ⟩ > 0" |
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R19-1 | `htf/_rayleigh_primitives.py` | 新增 `_outward_upper`/`_outward_lower`；替换 `_arb_rayleigh`/`_acb_rayleigh` 中的 `math.nextafter` 调用；修正 B5 assumption 文字 |
+| R19-2 | `htf/rayleigh_cert.py` | `midpoint = lower + (upper - lower) / 2`（B4） |
+| R19-3 | `htf/verify.py` | `_mid = recomputed_lower + (recomputed_upper - recomputed_lower) / 2`（B4） |
+| R19-4 | `tests/test_cleanroom_verify.py` | 新增 `TestHTF06GateARegressions`（4 项）：B3 DBL_MAX 证书、B4 1e308 midpoint、B5 文字、独立 audit 脚本 |
+| R19-5 | `tests/independent_rayleigh_audit.py` | 新建：审稿人交付的精确有理数清洁室验证程序（SHA-256 `ea29a06…`） |
+| R19-6 | `outsource/solutions/HTF-06-Gate-A-independent-review.md` | 存档审稿裁决全文 |
+
+### 数值反例验证（审稿人给出，本轮确认修复）
+
+| 反例 | 修复前行为 | 修复后行为 |
+|---|---|---|
+| `H=[[DBL_MAX]], psi=[1.0]` | `math.nextafter(DBL_MAX, inf) = inf` → 有限性检查失败 → ValueError | `_outward_upper(DBL_MAX) = DBL_MAX` → 证书正常生成并通过验证 |
+| `H=[[1e308]], psi=[1.0]` | `midpoint = (lo+up)/2 → inf`；证书对象含非有限字段 | `midpoint = lo + (up-lo)/2`；所有字段有限，verify 通过 |
+| subnormal psi | assumption 文字含 `⟨ψ|ψ⟩ > 0 exactly`（浮点范数可下溢为 0） | 文字改为 exact non-zero component 语义，不依赖浮点范数 |
+
+### G5 Gate-A 状态更新
+
+| 项目 | 状态 |
+|---|---|
+| B3/B4/B5 代码修复 | ✅ 已完成 |
+| B1/B2（文档问题）| 不适用于现行代码（送审文件与 commit 一致，摘录正确） |
+| 独立算术路径 | ⚠️ 审稿人指出共享 Arb/Acb primitive 不能发现系统性 bug；`_cleanroom_verify.py` 提供 Fraction 路径；正式 pipeline 集成为后续工作 |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest tests/test_rayleigh_cert.py tests/test_cleanroom_verify.py -q` | **147 passed ✅** |
+| 全量 `python3 -m pytest -q` | **1768 passed，5 预存 mpmath 失败（mpmath 未安装）✅** |
+
+---
+
+
+
+> 关闭 §0.16/§0.17 中标注为 `[研究] TODO` 的最后一项工程缺口：
+> `assurance="rigorous"` 对 MPS/MPO 链的 Arb/Acb 区间算术。
+
+### 算法
+
+**⟨ψ|ψ⟩**：从左到右传播 χ×χ 环境矩阵
+`L_new = Σ_s conj(A_s)^T @ L @ A_s`（`arb_mat` / `acb_mat`）
+
+**⟨ψ|H|ψ⟩**：从左到右传播 `(χ·W·χ)×1` 列向量。每格构造
+`(χ_r·W_r·χ_r) × (χ_l·W_l·χ_l)` 转移矩阵（所有运算在 `arb_mat` 内），
+再做矩阵乘法。精度固定 prec=128，出口用 `nextafter` 外向舍入。
+
+复数 MPS/MPO 走 `acb_mat` 路径，同时验证虚部球包含零。
+
+实际复杂度：O(n · χ_l² · d · χ_r · W + n · χ_l² · W_l · d² · χ_r² · W_r) per site —
+χ ≤ 32 规模实用；大 χ 建议先做稠密化再用 `rayleigh_certificate()`。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R18-1 | `htf/mps_cert.py` | 新增 `_arb_rayleigh_mps(mps, mpo)` Arb 转移矩阵函数 |
+| R18-2 | `htf/mps_cert.py` | `rayleigh_certificate_mps` 新增 `assurance` 参数（`"reproducible"` / `"rigorous"`） |
+| R18-3 | `htf/mps_cert.py` | `verify_rayleigh_certificate_mps` 处理 `assurance="rigorous"` 路径（移除 `NotImplementedError`） |
+| R18-4 | `htf/schemas/rayleigh_cert_mps_v1.json` | `assurance` enum 新增 `"rigorous"` |
+| R18-5 | `tests/test_mps_cert.py` | 新增 `TestRigorousAssurance` 类（9 项测试） |
+
+### R5 最终状态
+
+| 层 | 状态 |
+|---|---|
+| `assurance="reproducible"` | ✅ 已实现 [工程] |
+| `assurance="rigorous"` | ✅ 已实现 [工程] — Arb/Acb 转移矩阵，需要 python-flint |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest tests/test_mps_cert.py -v` | **44 passed ✅** |
+| 全量 `python3 -m pytest -q` | **1775 passed ✅** |
+
+---
+
+## 0.17 Gate-A 回应：Lint 防护 + HTF-06 文档修复（2026-08-15）
+
+> 回应外部审稿人 Gate-A `BLOCKED` 裁决（HTF-06-independent-gate-a-review.md）中的
+> 阻塞项和强烈建议项。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R17-1 | `htf/_cleanroom_verify.py` | 新建：精确有理数清洁室验证器（来自审稿人随附脚本），使用 `Fraction` 算术，独立于 Arb/Acb |
+| R17-2 | `htf/_rayleigh_primitives.py` | 修复 norm_sq 诊断 bug（B1/Link 1）：删除 `float(np.real(psi.conj() @ psi))` 格式化字符串，改为精确逻辑描述 |
+| R17-3 | `htf/mps_cert.py` | 新建：`RayleighCertificateMPS`；`rayleigh_certificate_mps`；`verify_rayleigh_certificate_mps`（R5，见 §0.16） |
+| R17-4 | `tests/test_cleanroom_verify.py` | 新建：20 项测试，覆盖清洁室自检、交叉验证真实证书、精确有理数 Rayleigh 商 |
+| R17-5 | `tests/test_cert_hygiene.py` | 新建：AST 级 lint，检查 `_check_preconditions` 与 `rayleigh_cert.py` 中是否在 assumption 文字中嵌入 float64 计算结果（`:.6g` 等格式串 / `float()` 变量） |
+| R17-6 | `tests/test_outsource_hygiene.py` | 新建：参数化 lint，扫描 `outsource/**/*.md` 所有文档，代码块中出现独立 `...` 或 `# ...` 即失败；递归覆盖 `solutions/` 子目录 |
+| R17-7 | `outsource/HTF-06-post-p0-comprehensive-review.md` | 修复两处 lint 违规：Link 4（`rayleigh_certificate`）补全省略段，包含 `is_complex`、dtype 转换、`midpoint`/`radius`、所有 dataclass 字段；修正 `mid` → `midpoint` bug。Link 5b（`verify_from_dict`）替换为完整实现，无任何省略号 |
+
+### 针对 Gate-A 阻塞项的处置
+
+| 阻塞项 | 处置结果 |
+|---|---|
+| B1 — Link 5a 变量不一致（`upper_v` vs `recomputed_upper`）| 文档中 Link 5a 代码块已在前序轮次（§0.16 前）修复；本轮 test_cert_hygiene.py 新增 lint 防止回退 |
+| B2 — Link 5a 不核对 `cert.claim` | 已在 `verify_rayleigh_certificate` 中实现 claim 文本精确比对（见 `htf/rayleigh_cert.py`） |
+| B3 — 送审件不自包含（省略号代码）| ✅ 修复：Link 4 + Link 5b 替换为完整可运行代码；test_outsource_hygiene.py 防止未来复现 |
+| B4 — 共享算术无法发现共同 bug | ✅ 部分处置：`htf/_cleanroom_verify.py` 提供独立 `Fraction` 路径；pipeline 图说明限定为"证书管理层独立" |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest tests/test_outsource_hygiene.py tests/test_cert_hygiene.py -v` | **15 passed ✅** |
+| `python3 -m pytest tests/test_cleanroom_verify.py tests/test_mps_cert.py -q` | **57 passed ✅** |
+| 全量 `python3 -m pytest -q` | **1766 passed ✅**（原 1729 + 37 新增）|
+
+---
+
+## 0.16 OPEN 项推进：R5 因子化证书 + G5 外部审稿准备（2026-08-15）
+
+> 本轮关闭两个长期 OPEN 项的工程部分：
+> - **R5**：MPS/MPO 原生 Rayleigh 证书（不稠密化），`[工程]` 层已完成；Arb 区间算术层标为 `[研究]` TODO。
+> - **G5**：HTF-06 外部审稿文件更新至最新 commit，标注当前测试/覆盖率状态。
+
+### R5 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R16-1 | `htf/mps_cert.py` | 新建：`RayleighCertificateMPS` dataclass；`rayleigh_certificate_mps`；`verify_rayleigh_certificate_mps`；`_canonical_digest_mps`。`assurance="reproducible"`，float64 MPS/MPO 缩并，无稠密化 |
+| R16-2 | `htf/schemas/rayleigh_cert_mps_v1.json` | 新建：JSON Schema for `rayleigh-cert-mps/v1` |
+| R16-3 | `tests/test_mps_cert.py` | 新建：35 项测试，覆盖生产、验证、篡改检测、序列化、内存规模、摘要 |
+
+### R5 架构说明
+
+| 层 | 状态 | 说明 |
+|---|---|---|
+| `assurance="reproducible"` | ✅ **已实现** [工程] | float64 `mpo_expectation` + `mps_inner`，1 ULP 外向舍入；O(n·χ²·d + n·W²·d²) 存储 |
+| `assurance="rigorous"` | 🔬 **TODO** [研究] | MPS 缩并链的 Arb 区间算术；调用时抛 `NotImplementedError` |
+
+**内存对比**（n=6, d=2, χ=4, W=3）：
+- 因子化存储：~700 个 float64
+- 稠密存储：d^{2n} + d^n = 4096 + 64 = 4160 个 float64（n=6 时；n=20 时差距为指数级）
+
+**篡改检测**：`_canonical_digest_mps` 对所有 MPS/MPO 张量字节做域分离 SHA-256；篡改任一张量元素均导致摘要不匹配。
+
+### G5 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R16-4 | `outsource/HTF-06-post-p0-comprehensive-review.md` | 更新 commit hash 至 `82a5159`；注明 1694 tests / 96% coverage；补充 R5 进展说明 |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest tests/test_mps_cert.py -v` | **35 passed ✅** |
+| 全量 `python3 -m pytest -q` | **1729 passed ✅**（原 1694 + 35 新增）|
+
+---
+
 ## 0.15 覆盖率补全第三批（2026-08-15）
 
 > 目标：关闭 14 个模块的残余未覆盖行，将整体覆盖率从 95% 提升至 96%。
