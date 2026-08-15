@@ -247,7 +247,7 @@ def verify_from_dict(full_cert: dict) -> dict:
         }
     # radius is derived from lo/up as nextafter(max(mid-lo, up-mid), inf),
     # not the raw Arb ball radius — recompute from the verified endpoints.
-    _mid = (recomputed_lower + recomputed_upper) / 2
+    _mid = recomputed_lower + (recomputed_upper - recomputed_lower) / 2
     expected_radius = math.nextafter(
         max(_mid - recomputed_lower, recomputed_upper - _mid), math.inf
     )

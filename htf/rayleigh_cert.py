@@ -426,7 +426,7 @@ def rayleigh_certificate(
     else:
         lower, upper, _, backend = _arb_rayleigh(H, psi)
 
-    midpoint = (lower + upper) / 2
+    midpoint = lower + (upper - lower) / 2
     # Outward-round the radius by 1 ULP to ensure the stored float64 radius
     # always covers both endpoints under exact (Fraction) arithmetic.
     # float64 subtraction rounds to nearest, so nextafter guarantees:

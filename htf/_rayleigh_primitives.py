@@ -92,13 +92,12 @@ def _check_preconditions(H: np.ndarray, psi: np.ndarray) -> list[str]:
     if not np.any(psi != 0):
         raise ValueError("|ψ⟩ has zero norm")
 
-    norm_sq = float(np.real(psi.conj() @ psi))
     psi_dtype = "complex" if np.iscomplexobj(psi) else "real"
     return [
         "H and |ψ⟩ are finite (no NaN or Infinity)",
         h_check,
         f"|ψ⟩ is a {psi_dtype} vector of length {n} with exact non-zero check",
-        f"⟨ψ|ψ⟩ = {norm_sq:.6g} > 0",
+        "|ψ⟩ has at least one exact non-zero binary64 component; exact dyadic ⟨ψ|ψ⟩ > 0",
     ]
 
 
@@ -168,6 +167,22 @@ def _canonical_digest(H: np.ndarray, psi: np.ndarray) -> str:
 # Interval arithmetic backends
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _outward_upper(f: float) -> float:
+    """Step f outward toward +inf by 1 ULP, capping at DBL_MAX (not inf)."""
+    if not math.isfinite(f):
+        return f
+    step = math.nextafter(f, math.inf)
+    return f if math.isinf(step) else step
+
+
+def _outward_lower(f: float) -> float:
+    """Step f outward toward -inf by 1 ULP, capping at -DBL_MAX (not -inf)."""
+    if not math.isfinite(f):
+        return f
+    step = math.nextafter(f, -math.inf)
+    return f if math.isinf(step) else step
+
+
 def _arb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, str]:
     """Compute ⟨ψ|H|ψ⟩/⟨ψ|ψ⟩ for *real* H and psi using Arb interval arithmetic.
 
@@ -203,8 +218,8 @@ def _arb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, 
             numerator = (s_row * (H_mat * s_col))[0, 0]
             quotient  = numerator / denominator
 
-            lower = math.nextafter(float(quotient.lower()), -math.inf)
-            upper = math.nextafter(float(quotient.upper()),  math.inf)
+            lower = _outward_lower(float(quotient.lower()))
+            upper = _outward_upper(float(quotient.upper()))
 
             if not (math.isfinite(lower) and math.isfinite(upper)):
                 raise ValueError(
@@ -271,8 +286,8 @@ def _acb_rayleigh(H: np.ndarray, psi: np.ndarray) -> tuple[float, float, float, 
                     "check the call path, input finiteness, and backend"
                 )
 
-            lower = math.nextafter(float(q.real.lower()), -math.inf)
-            upper = math.nextafter(float(q.real.upper()),  math.inf)
+            lower = _outward_lower(float(q.real.lower()))
+            upper = _outward_upper(float(q.real.upper()))
 
             if not (math.isfinite(lower) and math.isfinite(upper)):
                 raise ValueError(
