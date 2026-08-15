@@ -19,7 +19,7 @@ A reviewer needs **nothing else from this repo** to evaluate the problem.
 | HTF-03 | `HTF-03-spectral-gap-math.md` | Temple lower bound + `first_excited_upper` mathematical correctness | IMPLEMENTED — verdict received 2026-08-14; all required changes applied (2D Ritz, temple_denominator_positive, heuristic_width) |
 | HTF-04 | `HTF-04-acb-imaginary-check.md` | Acb imaginary-part containment: soundness of `q.imag.contains(0)` | IMPLEMENTED — verdict received 2026-08-14; backend string stabilised, error message updated |
 | HTF-05 | `HTF-05-rayleigh-external-review.md` | Full Rayleigh certificate pipeline: external independent re-audit | IMPLEMENTED — verdict received 2026-08-14; M1–M6 all applied (dtype enforcement, NaN fail-closed, assurance required) |
-| HTF-06 | `HTF-06-post-p0-comprehensive-review.md` | Post-P0 comprehensive review: full pipeline after all blockers resolved (G5 gate) | OPEN — awaiting external reviewer |
+| HTF-06 | `HTF-06-post-p0-comprehensive-review.md` | Post-P0 comprehensive review: full pipeline after all blockers resolved (G5 gate) | BLOCKED → FIXED — Gate-A review received 2026-08-15; B3/B4/B5 applied (conditional nextafter, stable midpoint, assumption text); see `solutions/HTF-06-Gate-A-independent-review.md` |
 
 ## What a returned review should contain
 
