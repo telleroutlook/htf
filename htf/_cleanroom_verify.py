@@ -194,8 +194,8 @@ def verify_modeled_certificate(
         raise Rejected("input digest mismatch")
 
     q = exact_rayleigh(H, psi)
-    lower = float(cert["lower"])
-    upper = float(cert["upper"])
+    lower = float(cert["lower"])  # type: ignore[arg-type]
+    upper = float(cert["upper"])  # type: ignore[arg-type]
     if not (math.isfinite(lower) and math.isfinite(upper) and lower <= upper):
         raise Rejected("invalid interval endpoints")
     if cert["claim"] != _claim(upper):
@@ -309,7 +309,7 @@ def _check_adversarial_guards() -> None:
 
     too_low = copy.deepcopy(cert)
     too_low["upper"] = math.nextafter(1.0, -math.inf)
-    too_low["claim"] = _claim(float(too_low["upper"]))
+    too_low["claim"] = _claim(float(too_low["upper"]))  # type: ignore[arg-type]
     _must_reject(lambda: verify_modeled_certificate(too_low, H, psi))
 
     infinite = copy.deepcopy(cert)
@@ -376,15 +376,15 @@ def _optional_flint_crosscheck() -> None:
                     raise AssertionError("Acb Hermitian result excludes zero imaginary part")
                 real_ball = ball.real
             else:
-                p = [arb(float(x)) for x in psi]
-                den = arb(0)
-                num = arb(0)
+                p = [arb(float(x)) for x in psi]  # type: ignore[misc]
+                den = arb(0)  # type: ignore[assignment]
+                num = arb(0)  # type: ignore[assignment]
                 for z in p:
                     den += z * z
                 for i in range(H.shape[0]):
                     for j in range(H.shape[1]):
                         num += p[i] * arb(float(H[i, j])) * p[j]
-                real_ball = num / den
+                real_ball = num / den  # type: ignore[assignment]
 
             low = _arb_point_as_fraction(real_ball.lower())
             high = _arb_point_as_fraction(real_ball.upper())

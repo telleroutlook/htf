@@ -243,7 +243,7 @@ def _arb_rayleigh_mps(mps: MPS, mpo: MPO) -> tuple[float, float, float, str]:
         def cv(x):
             return acb(complex(x).conjugate())
     else:
-        mat_cls = arb_mat
+        mat_cls = arb_mat  # type: ignore[assignment]
         def av(x):
             return arb(float(x))
         cv = av  # real: conjugate is identity
@@ -327,8 +327,8 @@ def _arb_rayleigh_mps(mps: MPS, mpo: MPO) -> tuple[float, float, float, str]:
             backend = "flint-acb/mps-transfer/prec=128"
         else:
             q = numer / denom
-            lower = math.nextafter(float(q.lower()), -math.inf)
-            upper = math.nextafter(float(q.upper()),  math.inf)
+            lower = math.nextafter(float(q.lower()), -math.inf)  # type: ignore[attr-defined]
+            upper = math.nextafter(float(q.upper()),  math.inf)  # type: ignore[attr-defined]
             backend = "flint-arb/mps-transfer/prec=128"
 
         if not (math.isfinite(lower) and math.isfinite(upper)):
