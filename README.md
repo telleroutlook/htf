@@ -5,8 +5,8 @@
 [![CI](https://github.com/telleroutlook/htf/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/telleroutlook/htf/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.23.0-blue)](#)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](#)
-[![Tests](https://img.shields.io/badge/tests-1663%20passing-brightgreen)](#)
-[![Coverage](https://img.shields.io/badge/coverage-93%25-yellowgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-1694%20passing-brightgreen)](#)
+[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 HTF is a Python DSL in which physics models are built as **string diagrams**

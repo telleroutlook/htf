@@ -6,6 +6,53 @@
 
 ---
 
+## 0.15 覆盖率补全第三批（2026-08-15）
+
+> 目标：关闭 14 个模块的残余未覆盖行，将整体覆盖率从 95% 提升至 96%。
+
+### 变更清单
+
+| ID | 文件 | 变更 |
+|---|---|---|
+| R15-1 | `tests/test_coverage_gaps.py` | 新建文件，31 项测试覆盖以下模块 |
+| R15-2 | `htf/inverse.py` line 71 | `ParametricHam.ham()` 未知模型 ValueError |
+| R15-3 | `htf/gap.py` lines 141-142 | `trial_energy_difference` flint 缺失 ImportError |
+| R15-4 | `htf/lanczos.py` lines 243-244 | `temple_lanczos` float 降级路径（flint 缺失） |
+| R15-5 | `htf/variational.py` lines 119-120 | `variational_bound` flint 缺失 ImportError |
+| R15-6 | `htf/mps.py` lines 165, 314 | 零范数 MPS 归一化错误；3 点位门 ValueError |
+| R15-7 | `htf/symmetric.py` lines 65, 250 | `ChargedBasis.__repr__`；`_flat_charges([])` |
+| R15-8 | `htf/corpus.py` lines 89-91 | `CorpusCase.run()` 异常捕获路径 |
+| R15-9 | `htf/difficulty.py` line 80 | `entanglement_spectrum` 非法 cut 参数 |
+| R15-10 | `htf/mpo.py` lines 312, 317 | `MPOScalingReport.summary()` 外插值与备注分支 |
+| R15-11 | `htf/tebd.py` line 467 | `_nn_energy` 零范数 MPS 返回 0.0 |
+| R15-12 | `htf/zx.py` lines 77-78, 217-252, 321-324, 666, 673, 733 | ZXNode repr；Y/Sdg/Tdg/未知门；H-box 错误；零腿张量；无效输入边 |
+| R15-13 | `htf/zx.py` simplification continues | `spider_fusion`/`identity_removal`/`hadamard_cancel`/`pi_copy` 守卫子句 |
+| R15-14 | `htf/cli.py` lines 375-388 | `rayleigh` 子命令 JSON 输出（含 `--full`） |
+| R15-15 | `README.md` | badge 1663 → 1694；coverage 95% → 96% |
+
+### 已接受的残余未覆盖行（死代码/外部依赖）
+
+| 文件 | 行 | 原因 |
+|---|---|---|
+| `htf/zx.py` | 384, 427, 433 | 结构性死代码：双层 `break` 使 `v_id not in g.nodes` 永不成立；`len(nbs)` 与 `degree` 语义等价 |
+| `htf/zx.py` | 459, 473, 579, 582, 584, 877 | Python 3.14 coverage.py 不将 `continue` 映射为独立源行 |
+| `htf/rayleigh_cert.py` | 537, 541, 570, 576 | `cert.validate()` 提前触发，后续防御条件永不再满足 |
+| `htf/mcp_server.py` | 51-432（36%） | 需要 MCP 服务器基础设施，不可单元测试 |
+| `htf/adapters/tenpy_adapter.py` | 103-112（15%） | 需要真实 TeNPy 安装 |
+| `htf/adapters/quimb_adapter.py` | 48, 52（8%） | 需要真实 quimb 安装 |
+| `htf/certificate.py` | 23-24, 47-48（12%） | 模块导入时运行的死代码（包已安装，条件永不触发） |
+| `htf/engine.py` | 36-38（3%） | opt_einsum 已安装，ImportError 永不触发 |
+
+### CI 状态
+
+| 项目 | 状态 |
+|---|---|
+| `python3 -m pytest -q` | **1694 passed ✅** |
+| 整体覆盖率 | **96%** ✅（原 95%） |
+| README badge | 1694 / 96% ✅ |
+
+---
+
 ## 0.14 覆盖率补全第二批（2026-08-14）
 
 > 目标：将整体覆盖率从 95% 进一步提升，关闭 `engine.py`、`viz.py`、`htf/labs/__init__.py`、`htf/claim_registry.py`、`htf/benchmark.py`、`htf/lean_export.py`、`htf/adapters/tenpy_adapter.py`、`htf/qasm.py` 的残余未覆盖行。
