@@ -27,8 +27,8 @@ from ._rayleigh_primitives import (
     _decode_canonical,
     _encode_canonical,
 )
-from .mps import MPS, mps_inner
 from .mpo import MPO, mpo_expectation
+from .mps import MPS, mps_inner
 
 MPS_CERT_SCHEMA = "rayleigh-cert-mps/v1"
 

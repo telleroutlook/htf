@@ -319,6 +319,13 @@ class TestVerifyRejectsNonRigorous:
 
 # ── C3 full independence: mpmath cross-check ─────────────────────────────────
 
+mpmath_available = pytest.mark.skipif(
+    __import__("importlib").util.find_spec("mpmath") is None,
+    reason="mpmath not installed",
+)
+
+
+@mpmath_available
 class TestMpmathCrossCheck:
     """_mpmath_rayleigh provides a third independent arithmetic path."""
 
@@ -363,7 +370,7 @@ class TestMpmathCrossCheck:
         H   = np.diag([0.5, 1.5, 2.5]).astype(np.float64)
         psi = np.array([1.0, 2.0, 3.0])
         _, arb_upper, _, _ = _arb_rayleigh(H, psi)
-        mp_lower, mp_upper, _, _ = _mpmath_rayleigh(H, psi)
+        mp_lower, _mp_upper, _, _ = _mpmath_rayleigh(H, psi)
         # flint upper bound must be >= mpmath lower estimate (minus tiny tolerance)
         assert arb_upper >= mp_lower - 1e-6
 
@@ -469,7 +476,6 @@ class TestVerifyCoverageGaps:
         assert result["verified"] is True
 
     def test_main_verified_exits_0(self, tmp_path, capsys):
-        import sys
 
         from htf.verify import main
         d = self._good_full_dict()
@@ -660,6 +666,7 @@ class TestINV13CleanroomCheck:
 
     def test_cleanroom_check_fails_when_exact_exceeds_stored(self, monkeypatch):
         from fractions import Fraction
+
         import htf._cleanroom_verify as cv
         from htf.verify import verify_from_dict
 

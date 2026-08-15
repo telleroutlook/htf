@@ -288,6 +288,7 @@ def verify_from_dict(full_cert: dict) -> dict:
     # This path uses no interval arithmetic whatsoever; it detects systematic errors
     # in the Arb pipeline that mpmath (also float-based at heart) might share.
     from fractions import Fraction as _Fraction
+
     from . import _cleanroom_verify as _cv
     _cleanroom_check: str
     try:

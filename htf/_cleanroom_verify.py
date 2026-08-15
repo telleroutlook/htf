@@ -21,7 +21,6 @@ from fractions import Fraction
 
 import numpy as np
 
-
 SCHEMA = "rayleigh-cert/v2"
 THEOREM = (
     "Rayleigh-Ritz: for any non-zero |ψ⟩ and self-adjoint H, "
@@ -39,16 +38,16 @@ class QComplex:
     re: Fraction
     im: Fraction = Fraction(0)
 
-    def __add__(self, other: "QComplex") -> "QComplex":
+    def __add__(self, other: QComplex) -> QComplex:
         return QComplex(self.re + other.re, self.im + other.im)
 
-    def __mul__(self, other: "QComplex") -> "QComplex":
+    def __mul__(self, other: QComplex) -> QComplex:
         return QComplex(
             self.re * other.re - self.im * other.im,
             self.re * other.im + self.im * other.re,
         )
 
-    def conjugate(self) -> "QComplex":
+    def conjugate(self) -> QComplex:
         return QComplex(self.re, -self.im)
 
 
@@ -124,7 +123,7 @@ def outward_binary64(value: Fraction) -> tuple[float, float]:
 
 def canonical_digest(H: np.ndarray, psi: np.ndarray) -> str:
     """Independent incremental implementation of the specified byte grammar."""
-    def put_field(state: "hashlib._Hash", tag: bytes, payload: bytes) -> None:
+    def put_field(state: hashlib._Hash, tag: bytes, payload: bytes) -> None:
         state.update(struct.pack(">H", len(tag)))
         state.update(tag)
         state.update(struct.pack(">Q", len(payload)))

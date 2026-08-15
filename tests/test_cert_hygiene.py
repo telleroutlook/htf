@@ -15,7 +15,6 @@ from __future__ import annotations
 import ast
 import pathlib
 
-
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 _PRIMITIVES = _REPO_ROOT / "htf" / "_rayleigh_primitives.py"
 _RAYLEIGH_CERT = _REPO_ROOT / "htf" / "rayleigh_cert.py"

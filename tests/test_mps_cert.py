@@ -5,8 +5,9 @@ import math
 import numpy as np
 import pytest
 
-from htf.mps import MPS, mps_from_state, random_mps
+from htf._rayleigh_primitives import EXPECTED_THEOREM
 from htf.mpo import MPO, mpo_from_matrix, mpo_to_matrix
+from htf.mps import MPS, mps_from_state, random_mps
 from htf.mps_cert import (
     MPS_CERT_SCHEMA,
     RayleighCertificateMPS,
@@ -14,8 +15,6 @@ from htf.mps_cert import (
     rayleigh_certificate_mps,
     verify_rayleigh_certificate_mps,
 )
-from htf._rayleigh_primitives import EXPECTED_THEOREM
-
 
 # ─────────────────────── helpers ─────────────────────────────────────────────
 
@@ -111,7 +110,7 @@ class TestProduction:
         mpo2, _, _ = _diag_mpo_and_mps(2, d=2)
         psi3 = np.zeros(3 ** 2); psi3[0] = 1.0
         mps3 = mps_from_state(psi3, d=3)
-        mpo3 = mpo_from_matrix(np.eye(9), n=2, d=3)
+        _mpo3 = mpo_from_matrix(np.eye(9), n=2, d=3)
         # mpo2 has phys_dim=2, mps3 has phys_dim=3
         mpo2_wrong = mpo2  # n_sites=2 but phys_dim=2
         # Create a mismatch: use mpo2 (d=2) with mps (d=3)

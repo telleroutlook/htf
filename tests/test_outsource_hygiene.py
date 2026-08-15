@@ -20,7 +20,6 @@ import re
 
 import pytest
 
-
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 _OUTSOURCE_DIR = _REPO_ROOT / "outsource"
 

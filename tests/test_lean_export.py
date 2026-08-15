@@ -285,6 +285,7 @@ class TestRayleighCertificateToLean:
 
     def _cert(self):
         import numpy as np
+
         from htf.rayleigh_cert import rayleigh_certificate
         H   = np.diag([1.0, 2.0, 3.0]).astype(np.float64)
         psi = np.array([1.0, 0.0, 0.0])
@@ -330,6 +331,7 @@ class TestLeanExporterExtended:
 
     def _structure_report(self):
         import numpy as np
+
         from htf.structure import check_isometry
         U = np.eye(2)
         return check_isometry(U)
@@ -370,6 +372,7 @@ class TestExportLeanExtended:
 
     def _structure_report(self):
         import numpy as np
+
         from htf.structure import check_isometry
         return check_isometry(np.eye(2))
 
